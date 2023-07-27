@@ -1,13 +1,16 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(MolPack)
+project(molpack)
 
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(${PROJECT_NAME} src/molpack.cpp src/sarw.cpp)
-include_directories(PRIVATE include)
+add_library(${PROJECT_NAME} src/sarw.cpp)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
+
+add_executable(${PROJECT_NAME}_bin src/molpack.cpp)
+target_link_libraries(${PROJECT_NAME}_bin PUBLIC ${PROJECT_NAME})
 
 enable_testing()
 
@@ -19,19 +22,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(DocTest)
 
+function(molpack_test target_name)
+    add_executable(${target_name}_test test/${target_name}_test.cpp)
+    add_test(NAME ${target_name}_test COMMAND ${target_name}_test)
+    target_link_libraries(${target_name}_test PUBLIC doctest::doctest ${PROJECT_NAME})
+endfunction()
 
-add_executable(vector3d_test test/vector3d_test.cpp)
-add_test(NAME vector3d_test COMMAND vector3d_test)
-target_link_libraries(vector3d_test PUBLIC doctest::doctest)
-
-add_executable(region_test test/region_test.cpp)
-add_test(NAME region_test COMMAND region_test)
-target_link_libraries(region_test PUBLIC doctest::doctest)
-
-add_executable(cell_list_test test/cell_list_test.cpp)
-add_test(NAME cell_list_test COMMAND cell_list_test)
-target_link_libraries(cell_list_test PUBLIC doctest::doctest)
-
-add_executable(sarw_test test/sarw_test.cpp src/sarw.cpp)
-add_test(NAME sarw_test COMMAND sarw_test)
-target_link_libraries(sarw_test PUBLIC doctest::doctest)
+molpack_test(vector3d)
+molpack_test(region)
+molpack_test(cell_list)
+molpack_test(sarw)

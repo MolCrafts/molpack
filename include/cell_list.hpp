@@ -107,6 +107,25 @@ class CellList {
     }
   }
 
+  void pop_back() {
+    std::size_t id = this->size() - 1;
+    auto cell_idvec = this->calcCellIdVec(contents_[id].first);
+    auto cell_id = this->calcCellId(cell_idvec);
+
+    if (this->head_[cell_id] == id) {
+      this->head_[cell_id] = this->next_[id];
+    } else {
+      auto prev_id = this->head_[cell_id];
+      while (this->next_[prev_id] != id) {
+        prev_id = this->next_[prev_id];
+      }
+      this->next_[prev_id] = this->next_[id];
+    }
+
+    this->contents_.pop_back();
+    this->next_.pop_back();
+  }
+
   void foreachNeighbor(
       Vector3D<double> position,
       std::function<bool(const std::pair<Vector3D<double>, value_type> &)>

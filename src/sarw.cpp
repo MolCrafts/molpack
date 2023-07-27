@@ -29,6 +29,7 @@ bool SARW::hasNearby(Vector3D<double> position, double cutoff_length,
 
 std::deque<Vector3D<double>> SARW::walk(int num_steps) {
   std::deque<Vector3D<double>> result;
+  double temperature = 5.0;
 
   // initialize random number generator and distributions
   std::random_device rd;
@@ -46,17 +47,35 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
   std::uniform_real_distribution<> dis_phi(0, M_PI);
 
   // randomly choose a starting point
-  while (true) {
-    Vector3D<double> start_point(dis_x(gen), dis_y(gen), dis_z(gen));
-    if (this->region_->isInside(start_point) &&
-        !this->hasNearby(start_point, this->step_length_, std::nullopt)) {
-      this->cell_list_.append(start_point, 0);
-      result.emplace_back(start_point);
-      break;
+  auto gen_start_point = [&, this]() {
+    while (true) {
+      Vector3D<double> start_point(dis_x(gen), dis_y(gen), dis_z(gen));
+      if (this->region_->isInside(start_point) &&
+          !this->hasNearby(start_point, this->step_length_, std::nullopt)) {
+        this->cell_list_.append(start_point, 0);
+        result.emplace_back(start_point);
+        break;
+      }
     }
-  }
+  };
+  gen_start_point();
 
   while (result.size() < num_steps) {
+    // check if the temperature is too low
+    if (temperature < 1.0) {
+      // undo the last step
+      this->cell_list_.pop_back();
+      result.pop_back();
+
+      temperature += 0.5;
+
+      if (result.size() == 0) {
+        // randomly choose a starting point
+        gen_start_point();
+      }
+      continue;
+    }
+
     const auto& current_point = result.back();
 
     // randomly choose a direction
@@ -72,14 +91,17 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
 
     // check if the next point is inside the region
     if (!this->region_->isInside(next_point)) {
+      temperature *= 0.95;
       continue;
     }
 
     // check if the next point is too close to the previous points
     if (this->hasNearby(next_point, this->step_length_, current_point)) {
+      temperature *= 0.9;
       continue;
     }
 
+    temperature += 0.25;
     this->cell_list_.append(next_point, 0);
     result.emplace_back(next_point);
   }
