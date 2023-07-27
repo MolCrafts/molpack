@@ -3,6 +3,7 @@
 
 #include <deque>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "cell_list.hpp"
@@ -14,6 +15,9 @@ class SARW {
   std::unique_ptr<Region> region_;
   double step_length_;
   CellList<int> cell_list_;
+
+  bool hasNearby(Vector3D<double> position, double cutoff_length,
+                 std::optional<Vector3D<double>> exclude_position);
 
  public:
   SARW(std::unique_ptr<Region> region, double step_length)

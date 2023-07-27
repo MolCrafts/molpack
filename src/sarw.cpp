@@ -1,12 +1,31 @@
 #include "sarw.hpp"
 
 #include <deque>
+#include <optional>
 #include <random>
 
 #include "cell_list.hpp"
 
 namespace molpack {
 constexpr double EPS = 1e-6;
+bool SARW::hasNearby(Vector3D<double> position, double cutoff_length,
+                     std::optional<Vector3D<double>> exclude_position) {
+  bool has_nearby = false;
+  this->cell_list_.foreachNeighbor(
+      position,
+      [&has_nearby, &position, &exclude_position, this](const auto& neighbor) {
+        if (exclude_position.has_value() &&
+            (neighbor.first - exclude_position.value()).norm2() < EPS) {
+          return false;
+        }
+        if ((neighbor.first - position).norm2() < this->step_length_) {
+          has_nearby = true;
+          return true;
+        }
+        return false;
+      });
+  return has_nearby;
+}
 
 std::deque<Vector3D<double>> SARW::walk(int num_steps) {
   std::deque<Vector3D<double>> result;
@@ -29,9 +48,10 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
   // randomly choose a starting point
   while (true) {
     Vector3D<double> start_point(dis_x(gen), dis_y(gen), dis_z(gen));
-    if (this->region_->isInside(start_point)) {
-      result.emplace_back(start_point);
+    if (this->region_->isInside(start_point) &&
+        !this->hasNearby(start_point, this->step_length_, std::nullopt)) {
       this->cell_list_.append(start_point, 0);
+      result.emplace_back(start_point);
       break;
     }
   }
@@ -56,21 +76,7 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
     }
 
     // check if the next point is too close to the previous points
-    bool too_close = false;
-    this->cell_list_.foreachNeighbor(
-        next_point,
-        [&too_close, &next_point, &current_point, this](const auto& neighbor) {
-          if ((neighbor.first - current_point).norm2() < EPS) {
-            return false;
-          }
-          if ((neighbor.first - next_point).norm2() < this->step_length_) {
-            too_close = true;
-            return true;
-          }
-          return false;
-        });
-
-    if (too_close) {
+    if (this->hasNearby(next_point, this->step_length_, current_point)) {
       continue;
     }
 
