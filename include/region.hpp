@@ -1,6 +1,6 @@
 #ifndef MOLPACK_REGION_H_
 #define MOLPACK_REGION_H_
-#include "vector3d.h"
+#include "vector3d.hpp"
 namespace molpack {
 class Region {
 public:

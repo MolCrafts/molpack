@@ -27,3 +27,11 @@ target_link_libraries(vector3d_test PUBLIC doctest::doctest)
 add_executable(region_test test/region_test.cpp)
 add_test(NAME region_test COMMAND region_test)
 target_link_libraries(region_test PUBLIC doctest::doctest)
+
+add_executable(cell_list_test test/cell_list_test.cpp)
+add_test(NAME cell_list_test COMMAND cell_list_test)
+target_link_libraries(cell_list_test PUBLIC doctest::doctest)
+
+add_executable(sarw_test test/sarw_test.cpp src/sarw.cpp)
+add_test(NAME sarw_test COMMAND sarw_test)
+target_link_libraries(sarw_test PUBLIC doctest::doctest)

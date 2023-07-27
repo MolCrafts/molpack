@@ -1,7 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "region.h"
+#include "region.hpp"
 
-#include "doctest.h"
+#include <memory>
+
+#include "doctest/doctest.h"
 
 TEST_CASE("testing with SphericalRegion") {
   auto region = std::make_unique<molpack::SphericalRegion>(

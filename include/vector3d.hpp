@@ -1,5 +1,6 @@
 #ifndef MOLPACK_VECTOR3D_H_
 #define MOLPACK_VECTOR3D_H_
+#include <cmath>
 namespace molpack {
 template <typename T>
 class Vector3D {
@@ -37,10 +38,12 @@ class Vector3D {
     return {inner_[0] * rhs, inner_[1] * rhs, inner_[2] * rhs};
   }
 
-  inline T norm2() const {
-    return inner_[0] * inner_[0] + inner_[1] * inner_[1] +
-           inner_[2] * inner_[2];
+  inline double norm2() const {
+    return std::sqrt(inner_[0] * inner_[0] + inner_[1] * inner_[1] +
+                     inner_[2] * inner_[2]);
   }
+
+  inline T product() const { return inner_[0] * inner_[1] * inner_[2]; }
 };
 }  // namespace molpack
 #endif
