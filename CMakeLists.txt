@@ -11,7 +11,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 
 option(MOLPACK_BUILD_TESTS "Build tests" OFF)
 
-add_library(${PROJECT_NAME} src/sarw.cpp src/pack.cpp)
+add_library(${PROJECT_NAME} src/sarw.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_compile_options(${PROJECT_NAME} PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/WX /W4>
