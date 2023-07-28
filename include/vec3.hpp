@@ -1,5 +1,5 @@
-#ifndef MOLPACK_vec3_H_
-#define MOLPACK_vec3_H_
+#ifndef MOLPACK_VEC3_H_
+#define MOLPACK_VEC3_H_
 #include <cmath>
 namespace molpack {
 template <typename T>
