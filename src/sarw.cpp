@@ -12,19 +12,17 @@ constexpr double EPS = 1e-6;
 bool SARW::hasNearby(Vec3<double> position, double cutoff_length,
                      std::optional<Vec3<double>> exclude_position) {
   bool has_nearby = false;
-  this->cell_list_.foreachNeighbor(
-      position,
-      [&has_nearby, &position, &exclude_position, this](const auto& neighbor) {
-        if (exclude_position.has_value() &&
-            (neighbor.first - exclude_position.value()).norm2() < EPS) {
-          return false;
-        }
-        if ((neighbor.first - position).norm2() < this->step_length_) {
-          has_nearby = true;
-          return true;
-        }
-        return false;
-      });
+  this->cell_list_.foreachNeighbor(position, [&](const auto& neighbor) {
+    if (exclude_position.has_value() &&
+        (neighbor.first - exclude_position.value()).norm2() < EPS) {
+      return false;
+    }
+    if ((neighbor.first - position).norm2() < cutoff_length) {
+      has_nearby = true;
+      return true;
+    }
+    return false;
+  });
   return has_nearby;
 }
 
