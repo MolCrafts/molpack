@@ -1,11 +1,12 @@
 #include "sarw.hpp"
 
+#include <cmath>
 #include <deque>
 #include <optional>
 #include <random>
 
 #include "cell_list.hpp"
-
+#define M_PI 3.14159265358979323846 /* pi */
 namespace molpack {
 constexpr double EPS = 1e-6;
 bool SARW::hasNearby(Vec3<double> position, double cutoff_length,
@@ -27,7 +28,7 @@ bool SARW::hasNearby(Vec3<double> position, double cutoff_length,
   return has_nearby;
 }
 
-std::deque<Vec3<double>> SARW::walk(int num_steps) {
+std::deque<Vec3<double>> SARW::walk(std::size_t num_steps) {
   std::deque<Vec3<double>> result;
   double temperature = 5.0;
 
@@ -84,10 +85,9 @@ std::deque<Vec3<double>> SARW::walk(int num_steps) {
 
     // move to the next point
     auto next_point =
-        current_point +
-        Vec3<double>(this->step_length_ * sin(phi) * cos(theta),
-                         this->step_length_ * sin(phi) * sin(theta),
-                         this->step_length_ * cos(phi));
+        current_point + Vec3<double>(this->step_length_ * sin(phi) * cos(theta),
+                                     this->step_length_ * sin(phi) * sin(theta),
+                                     this->step_length_ * cos(phi));
 
     // check if the next point is inside the region
     if (!this->region_->isInside(next_point)) {

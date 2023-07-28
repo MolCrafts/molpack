@@ -5,30 +5,20 @@ project(molpack)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
+
+option(MOLPACK_BUILD_TESTS "Build tests" OFF)
 
 add_library(${PROJECT_NAME} src/sarw.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 add_executable(${PROJECT_NAME}_bin src/molpack.cpp)
+set_target_properties(${PROJECT_NAME}_bin PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 target_link_libraries(${PROJECT_NAME}_bin PUBLIC ${PROJECT_NAME})
 
-enable_testing()
-
-include(FetchContent)
-FetchContent_Declare(
-  DocTest
-  GIT_REPOSITORY https://github.com/doctest/doctest.git
-  GIT_TAG        v2.4.11
-)
-FetchContent_MakeAvailable(DocTest)
-
-function(molpack_test target_name)
-    add_executable(${target_name}_test test/${target_name}_test.cpp)
-    add_test(NAME ${target_name}_test COMMAND ${target_name}_test)
-    target_link_libraries(${target_name}_test PUBLIC doctest::doctest ${PROJECT_NAME})
-endfunction()
-
-molpack_test(vec3)
-molpack_test(region)
-molpack_test(cell_list)
-molpack_test(sarw)
+if(MOLPACK_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()

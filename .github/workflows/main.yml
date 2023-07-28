@@ -1,0 +1,59 @@
+name: CMake build and test
+
+on:
+  push:
+  pull_request:
+concurrency:
+  group: "${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: linux build
+    runs-on: ubuntu-latest  
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: lukka/get-cmake@latest
+      - name: Build project with CMake
+        working-directory: ${{ github.workspace }}
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja -DMOLPACK_BUILD_TESTS=ON
+          cmake --build build
+      - name: Run tests
+        working-directory: ${{ github.workspace }}
+        run: |
+          ctest --output-on-failure --test-dir ./build -C Release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: molpack-linux
+          path: bin/molpack
+
+
+  windows:
+    name: windows build
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: lukka/get-cmake@latest
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build project with CMake
+        working-directory: ${{ github.workspace }}
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl.exe -DCMAKE_C_COMPILER=cl.exe -G Ninja -DMOLPACK_BUILD_TESTS=ON
+          cmake --build build
+      - name: Run tests
+        working-directory: ${{ github.workspace }}
+        run: |
+          ctest --output-on-failure --test-dir ./build -C Release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: minilisp-windows
+          path: bin/molpack.exe
