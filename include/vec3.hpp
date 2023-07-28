@@ -1,15 +1,15 @@
-#ifndef MOLPACK_VECTOR3D_H_
-#define MOLPACK_VECTOR3D_H_
+#ifndef MOLPACK_vec3_H_
+#define MOLPACK_vec3_H_
 #include <cmath>
 namespace molpack {
 template <typename T>
-class Vector3D {
+class Vec3 {
  private:
   T inner_[3]{};
 
  public:
-  Vector3D<T>() = default;
-  Vector3D<T>(const T& x, const T& y, const T& z) : inner_{x, y, z} {}
+  Vec3<T>() = default;
+  Vec3<T>(const T& x, const T& y, const T& z) : inner_{x, y, z} {}
 
   inline const T& getX() const { return inner_[0]; }
   inline const T& getY() const { return inner_[1]; }
@@ -20,21 +20,21 @@ class Vector3D {
   inline void setZ(T new_val) { inner_[2] = new_val; }
 
   template <typename U>
-  inline friend Vector3D<decltype(T{} + U{})> operator+(
-      const Vector3D<T>& lhs, const Vector3D<U>& rhs) {
+  inline friend Vec3<decltype(T{} + U{})> operator+(
+      const Vec3<T>& lhs, const Vec3<U>& rhs) {
     return {lhs.getX() + rhs.getX(), lhs.getY() + rhs.getY(),
             lhs.getZ() + rhs.getZ()};
   }
 
   template <typename U>
-  inline friend Vector3D<decltype(T{} - U{})> operator-(
-      const Vector3D<T>& lhs, const Vector3D<U>& rhs) {
+  inline friend Vec3<decltype(T{} - U{})> operator-(
+      const Vec3<T>& lhs, const Vec3<U>& rhs) {
     return {lhs.getX() - rhs.getX(), lhs.getY() - rhs.getY(),
             lhs.getZ() - rhs.getZ()};
   }
 
   template <typename U>
-  inline Vector3D<decltype(T{} * U{})> operator*(const U& rhs) const {
+  inline Vec3<decltype(T{} * U{})> operator*(const U& rhs) const {
     return {inner_[0] * rhs, inner_[1] * rhs, inner_[2] * rhs};
   }
 

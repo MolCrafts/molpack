@@ -28,7 +28,7 @@ function(molpack_test target_name)
     target_link_libraries(${target_name}_test PUBLIC doctest::doctest ${PROJECT_NAME})
 endfunction()
 
-molpack_test(vector3d)
+molpack_test(vec3)
 molpack_test(region)
 molpack_test(cell_list)
 molpack_test(sarw)

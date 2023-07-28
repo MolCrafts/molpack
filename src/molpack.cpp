@@ -4,7 +4,7 @@
 #include "sarw.hpp"
 int main(int argc, char** argv) {
   auto region = std::make_unique<molpack::SphericalRegion>(
-      molpack::Vector3D<double>(0, 0, 0), 10);
+      molpack::Vec3<double>(0, 0, 0), 10);
 
   molpack::SARW sarw(std::move(region), 1);
 

@@ -1,4 +1,4 @@
-#include "vector3d.hpp"
+#include "vec3.hpp"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest/doctest.h"
 #include "region.hpp"
@@ -6,7 +6,7 @@
 
 TEST_CASE("testing single walk sarw") {
   auto region = std::make_unique<molpack::SphericalRegion>(
-      molpack::Vector3D<double>(0, 0, 0), 10);
+      molpack::Vec3<double>(0, 0, 0), 10);
 
   molpack::SARW sarw(std::move(region), 1);
 
@@ -29,11 +29,11 @@ TEST_CASE("testing single walk sarw") {
 
 TEST_CASE("testing multiple walk sarw") {
   auto region = std::make_unique<molpack::SphericalRegion>(
-      molpack::Vector3D<double>(0, 0, 0), 10);
+      molpack::Vec3<double>(0, 0, 0), 10);
 
   molpack::SARW sarw(std::move(region), 1);
 
-  std::vector<molpack::Vector3D<double>> result;
+  std::vector<molpack::Vec3<double>> result;
 
   int n = 10;
   for (int i = 0; i < n; i++) {

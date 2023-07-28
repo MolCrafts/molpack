@@ -7,7 +7,7 @@
 
 TEST_CASE("testing with SphericalRegion") {
   auto region = std::make_unique<molpack::SphericalRegion>(
-      molpack::Vector3D<double>(0, 0, 0), 10);
+      molpack::Vec3<double>(0, 0, 0), 10);
 
   CHECK(region->isInside(0, 0, 0));
   CHECK(region->isInside(1, 1, 1));

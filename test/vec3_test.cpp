@@ -1,11 +1,11 @@
 #include <cmath>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest/doctest.h"
-#include "vector3d.hpp"
+#include "vec3.hpp"
 
-TEST_CASE("testing the Vector3D algorithm with int") {
-  molpack::Vector3D<int> v1(1, 2, 3);
-  molpack::Vector3D<int> v2(4, 5, 6);
+TEST_CASE("testing the vec3 algorithm with int") {
+  molpack::Vec3<int> v1(1, 2, 3);
+  molpack::Vec3<int> v2(4, 5, 6);
 
   CHECK(v1.getX() == 1);
   CHECK(v1.getY() == 2);
@@ -34,9 +34,9 @@ TEST_CASE("testing the Vector3D algorithm with int") {
   CHECK(v6 == doctest::Approx(std::sqrt(14)));
 }
 
-TEST_CASE("testing the Vector3D algorithm with double") {
-  molpack::Vector3D<double> v1(1.1, 2.2, 3.3);
-  molpack::Vector3D<double> v2(4.4, 5.5, 6.6);
+TEST_CASE("testing the vec3 algorithm with double") {
+  molpack::Vec3<double> v1(1.1, 2.2, 3.3);
+  molpack::Vec3<double> v2(4.4, 5.5, 6.6);
 
   CHECK(v1.getX() == doctest::Approx(1.1));
   CHECK(v1.getY() == doctest::Approx(2.2));
@@ -65,9 +65,9 @@ TEST_CASE("testing the Vector3D algorithm with double") {
   CHECK(v6 == doctest::Approx(std::sqrt(16.94)));
 }
 
-TEST_CASE("testing the Vector3D algorithm with double and int mixed") {
-  molpack::Vector3D<double> v1(1.1, 2.2, 3.3);
-  molpack::Vector3D<int> v2(4, 5, 6);
+TEST_CASE("testing the vec3 algorithm with double and int mixed") {
+  molpack::Vec3<double> v1(1.1, 2.2, 3.3);
+  molpack::Vec3<int> v2(4, 5, 6);
 
   CHECK(v1.getX() == doctest::Approx(1.1));
   CHECK(v1.getY() == doctest::Approx(2.2));

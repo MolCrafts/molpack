@@ -8,8 +8,8 @@
 
 namespace molpack {
 constexpr double EPS = 1e-6;
-bool SARW::hasNearby(Vector3D<double> position, double cutoff_length,
-                     std::optional<Vector3D<double>> exclude_position) {
+bool SARW::hasNearby(Vec3<double> position, double cutoff_length,
+                     std::optional<Vec3<double>> exclude_position) {
   bool has_nearby = false;
   this->cell_list_.foreachNeighbor(
       position,
@@ -27,8 +27,8 @@ bool SARW::hasNearby(Vector3D<double> position, double cutoff_length,
   return has_nearby;
 }
 
-std::deque<Vector3D<double>> SARW::walk(int num_steps) {
-  std::deque<Vector3D<double>> result;
+std::deque<Vec3<double>> SARW::walk(int num_steps) {
+  std::deque<Vec3<double>> result;
   double temperature = 5.0;
 
   // initialize random number generator and distributions
@@ -49,7 +49,7 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
   // randomly choose a starting point
   auto gen_start_point = [&, this]() {
     while (true) {
-      Vector3D<double> start_point(dis_x(gen), dis_y(gen), dis_z(gen));
+      Vec3<double> start_point(dis_x(gen), dis_y(gen), dis_z(gen));
       if (this->region_->isInside(start_point) &&
           !this->hasNearby(start_point, this->step_length_, std::nullopt)) {
         this->cell_list_.append(start_point, 0);
@@ -85,7 +85,7 @@ std::deque<Vector3D<double>> SARW::walk(int num_steps) {
     // move to the next point
     auto next_point =
         current_point +
-        Vector3D<double>(this->step_length_ * sin(phi) * cos(theta),
+        Vec3<double>(this->step_length_ * sin(phi) * cos(theta),
                          this->step_length_ * sin(phi) * sin(theta),
                          this->step_length_ * cos(phi));
 

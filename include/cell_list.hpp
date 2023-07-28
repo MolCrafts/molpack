@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include "vector3d.hpp"
+#include "vec3.hpp"
 
 namespace molpack {
 template <typename T>
@@ -21,26 +21,26 @@ class CellList {
   static constexpr std::size_t EMPTY = std::numeric_limits<std::size_t>::max();
 
  private:
-  Vector3D<double> edge_lengths_;
-  Vector3D<double> origin_;
-  Vector3D<std::size_t> num_cells_;
+  Vec3<double> edge_lengths_;
+  Vec3<double> origin_;
+  Vec3<std::size_t> num_cells_;
 
-  std::deque<std::pair<Vector3D<double>, value_type>> contents_{};
+  std::deque<std::pair<Vec3<double>, value_type>> contents_{};
   std::vector<std::size_t> head_;
   std::deque<std::size_t> next_{};
 
-  static Vector3D<double> calcEdgeLengths(Vector3D<double> lengths,
-                                          Vector3D<double> cutoff_lengths) {
-    Vector3D<double> edge_lengths(
+  static Vec3<double> calcEdgeLengths(Vec3<double> lengths,
+                                          Vec3<double> cutoff_lengths) {
+    Vec3<double> edge_lengths(
         lengths.getX() / std::floor(lengths.getX() / cutoff_lengths.getX()),
         lengths.getY() / std::floor(lengths.getY() / cutoff_lengths.getY()),
         lengths.getZ() / std::floor(lengths.getZ() / cutoff_lengths.getZ()));
     return edge_lengths;
   }
 
-  static Vector3D<std::size_t> calcNumCells(Vector3D<double> lengths,
-                                            Vector3D<double> cutoff_lengths) {
-    return Vector3D<std::size_t>(
+  static Vec3<std::size_t> calcNumCells(Vec3<double> lengths,
+                                            Vec3<double> cutoff_lengths) {
+    return Vec3<std::size_t>(
         static_cast<std::size_t>(
             std::floor(lengths.getX() / cutoff_lengths.getX())),
         static_cast<std::size_t>(
@@ -49,8 +49,8 @@ class CellList {
             std::floor(lengths.getZ() / cutoff_lengths.getZ())));
   }
 
-  Vector3D<std::size_t> calcCellIdVec(Vector3D<double> position) {
-    return Vector3D<std::size_t>(
+  Vec3<std::size_t> calcCellIdVec(Vec3<double> position) {
+    return Vec3<std::size_t>(
         static_cast<std::size_t>(std::floor((position.getX() - origin_.getX()) /
                                             edge_lengths_.getX())),
         static_cast<std::size_t>(std::floor((position.getY() - origin_.getY()) /
@@ -59,7 +59,7 @@ class CellList {
                                             edge_lengths_.getZ())));
   }
 
-  std::size_t calcCellId(Vector3D<std::size_t> cell_idvec) {
+  std::size_t calcCellId(Vec3<std::size_t> cell_idvec) {
     return cell_idvec.getX() + cell_idvec.getY() * this->num_cells_.getX() +
            cell_idvec.getZ() * this->num_cells_.getX() *
                this->num_cells_.getY();
@@ -71,27 +71,27 @@ class CellList {
   }
 
  public:
-  CellList(Vector3D<double> origin, Vector3D<double> lengths,
-           Vector3D<double> cutoff_lengths)
+  CellList(Vec3<double> origin, Vec3<double> lengths,
+           Vec3<double> cutoff_lengths)
       : edge_lengths_(calcEdgeLengths(lengths, cutoff_lengths)),
         origin_(origin),
         num_cells_(calcNumCells(lengths, cutoff_lengths)),
         head_(this->num_cells_.product(), EMPTY) {}
 
-  CellList(Vector3D<double> origin, Vector3D<double> lengths,
+  CellList(Vec3<double> origin, Vec3<double> lengths,
            double cutoff_length)
       : CellList(
             origin, lengths,
-            Vector3D<double>(cutoff_length, cutoff_length, cutoff_length)) {}
+            Vec3<double>(cutoff_length, cutoff_length, cutoff_length)) {}
   ~CellList() = default;
 
   std::size_t size() const { return contents_.size(); }
 
-  const std::pair<Vector3D<double>, value_type> &operator[](int index) const {
+  const std::pair<Vec3<double>, value_type> &operator[](int index) const {
     return contents_[index];
   }
 
-  void append(Vector3D<double> position, value_type val) {
+  void append(Vec3<double> position, value_type val) {
     std::size_t id = this->size();
     contents_.emplace_back(position, val);
 
@@ -127,8 +127,8 @@ class CellList {
   }
 
   void foreachNeighbor(
-      Vector3D<double> position,
-      std::function<bool(const std::pair<Vector3D<double>, value_type> &)>
+      Vec3<double> position,
+      std::function<bool(const std::pair<Vec3<double>, value_type> &)>
           func) {
     auto cell_idvec = this->calcCellIdVec(position);
 
@@ -162,7 +162,7 @@ class CellList {
   //  public:
   //   using iterator_category = std::forward_iterator_tag;
   //   using difference_type = std::ptrdiff_t;
-  //   using value_type = std::pair<Vector3D<double>, T>;
+  //   using value_type = std::pair<vec3<double>, T>;
   //   using pointer = value_type *;
   //   using reference = value_type &;
 

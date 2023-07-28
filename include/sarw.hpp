@@ -8,7 +8,7 @@
 
 #include "cell_list.hpp"
 #include "region.hpp"
-#include "vector3d.hpp"
+#include "vec3.hpp"
 namespace molpack {
 class SARW {
  private:
@@ -16,8 +16,8 @@ class SARW {
   double step_length_;
   CellList<int> cell_list_;
 
-  bool hasNearby(Vector3D<double> position, double cutoff_length,
-                 std::optional<Vector3D<double>> exclude_position);
+  bool hasNearby(Vec3<double> position, double cutoff_length,
+                 std::optional<Vec3<double>> exclude_position);
 
  public:
   SARW(std::unique_ptr<Region> region, double step_length)
@@ -26,7 +26,7 @@ class SARW {
         cell_list_(this->region_->origin(), this->region_->size(),
                    step_length) {}
 
-  std::deque<Vector3D<double>> walk(int num_steps);
+  std::deque<Vec3<double>> walk(int num_steps);
 };
 
 }  // namespace molpack

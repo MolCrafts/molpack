@@ -1,25 +1,25 @@
 #ifndef MOLPACK_REGION_H_
 #define MOLPACK_REGION_H_
-#include "vector3d.hpp"
+#include "vec3.hpp"
 namespace molpack {
 class Region {
 public:
   virtual bool isInside(double x, double y, double z) const = 0;
-  virtual bool isInside(Vector3D<double> coord) const {
+  virtual bool isInside(Vec3<double> coord) const {
     return isInside(coord.getX(), coord.getY(), coord.getZ());
   };
-  virtual Vector3D<double> size() const = 0;
-  virtual Vector3D<double> origin() const = 0;
+  virtual Vec3<double> size() const = 0;
+  virtual Vec3<double> origin() const = 0;
   virtual ~Region() = default;
 };
 
 class SphericalRegion : public Region {
 private:
-  Vector3D<double> center_;
+  Vec3<double> center_;
   double radius_;
 
 public:
-  SphericalRegion(Vector3D<double> center, double radius) : center_(center), radius_(radius) {}
+  SphericalRegion(Vec3<double> center, double radius) : center_(center), radius_(radius) {}
   ~SphericalRegion() = default;
 
   bool isInside(double x, double y, double z) const override {
@@ -29,12 +29,12 @@ public:
            radius_ * radius_;
   }
 
-  Vector3D<double> size() const override {
-    return Vector3D<double>(2 * radius_, 2 * radius_, 2 * radius_);
+  Vec3<double> size() const override {
+    return Vec3<double>(2 * radius_, 2 * radius_, 2 * radius_);
   }
 
-  Vector3D<double> origin() const override {
-    return Vector3D<double>(center_.getX() - radius_, center_.getY() - radius_,
+  Vec3<double> origin() const override {
+    return Vec3<double>(center_.getX() - radius_, center_.getY() - radius_,
                             center_.getZ() - radius_);
   }
 };
