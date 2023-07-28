@@ -26,7 +26,7 @@ class SARW {
         cell_list_(this->region_->origin(), this->region_->size(),
                    step_length) {}
 
-  std::deque<Vec3<double>> walk(int num_steps);
+  std::deque<Vec3<double>> walk(std::size_t num_steps);
 };
 
 }  // namespace molpack
