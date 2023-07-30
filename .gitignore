@@ -35,11 +35,13 @@
 *.cache
 *.log
 build
+out
 tmp
 temp
 
 # Configuration files
 .vscode
+.vs
 
 # Build output
 bin
