@@ -17,7 +17,7 @@ TEST_CASE("testing single walk sarw") {
   double min_distance = 100;
   for (std::size_t i = 0; i < result.size(); i++) {
     for (std::size_t j = i + 1; j < result.size(); j++) {
-      double distance = (result[i] - result[j]).norm2();
+      double distance = (result[i] - result[j]).norm();
       if (distance < min_distance) {
         min_distance = distance;
       }
@@ -47,7 +47,7 @@ TEST_CASE("testing multiple walk sarw") {
 
   for (std::size_t i = 0; i < result.size(); i++) {
     for (std::size_t j = i + 1; j < result.size(); j++) {
-      double distance = (result[i] - result[j]).norm2();
+      double distance = (result[i] - result[j]).norm();
       if (distance < min_distance) {
         min_distance = distance;
       }
