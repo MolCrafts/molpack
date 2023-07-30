@@ -1,7 +1,18 @@
 #ifndef MOLPACK_VEC3_H_
 #define MOLPACK_VEC3_H_
 #include <cmath>
+#include <type_traits>
 namespace molpack {
+
+template <typename T>
+class Vec3;
+
+template <typename T>
+struct is_arithmetic_vec3 : std::false_type {};
+
+template <typename T>
+struct is_arithmetic_vec3<Vec3<T>> : std::is_arithmetic<T> {};
+
 template <typename T>
 class Vec3 {
  private:
@@ -19,31 +30,186 @@ class Vec3 {
   inline void setY(T new_val) { inner_[1] = new_val; }
   inline void setZ(T new_val) { inner_[2] = new_val; }
 
-  template <typename U>
-  inline friend Vec3<decltype(T{} + U{})> operator+(
-      const Vec3<T>& lhs, const Vec3<U>& rhs) {
-    return {lhs.getX() + rhs.getX(), lhs.getY() + rhs.getY(),
-            lhs.getZ() + rhs.getZ()};
+  const T& operator[](std::size_t index) const { return inner_[index]; }
+  T& operator[](std::size_t index) { return inner_[index]; }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator+(const Vec3<T>& lhs, const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      return Vec3<decltype(T{} + U{})>(lhs.getX() + rhs, lhs.getY() + rhs,
+                                       lhs.getZ() + rhs);
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      return Vec3<decltype(T{} + U{}[0])>(lhs.getX() + rhs.getX(),
+                                          lhs.getY() + rhs.getY(),
+                                          lhs.getZ() + rhs.getZ());
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>,
+            typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator+(const U& lhs, const Vec3<T>& rhs) {
+    return rhs + lhs;
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator-(const Vec3<T>& lhs, const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      return Vec3<decltype(T{} - U{})>(lhs.getX() - rhs, lhs.getY() - rhs,
+                                       lhs.getZ() - rhs);
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      return Vec3<decltype(T{} - U{}[0])>(lhs.getX() - rhs.getX(),
+                                          lhs.getY() - rhs.getY(),
+                                          lhs.getZ() - rhs.getZ());
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+  }
+
+  template <typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline Vec3<T> operator-() const {
+    return {-inner_[0], -inner_[1], -inner_[2]};
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>,
+            typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator-(const U& lhs, const Vec3<T>& rhs) {
+    return Vec3<decltype(U{} - T{})>{lhs - rhs.getX(), lhs - rhs.getY(),
+                                     lhs - rhs.getZ()};
   }
 
   template <typename U>
-  inline friend Vec3<decltype(T{} - U{})> operator-(
-      const Vec3<T>& lhs, const Vec3<U>& rhs) {
-    return {lhs.getX() - rhs.getX(), lhs.getY() - rhs.getY(),
-            lhs.getZ() - rhs.getZ()};
+  inline friend auto operator*(const Vec3<T>& lhs, const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      return Vec3<decltype(T{} * U{})>(lhs.getX() * rhs, lhs.getY() * rhs,
+                                       lhs.getZ() * rhs);
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      return Vec3<decltype(T{} * U{}[0])>(lhs.getX() * rhs.getX(),
+                                          lhs.getY() * rhs.getY(),
+                                          lhs.getZ() * rhs.getZ());
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>,
+            typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator*(const U& lhs, const Vec3<T>& rhs) {
+    return rhs * lhs;
   }
 
   template <typename U>
-  inline Vec3<decltype(T{} * U{})> operator*(const U& rhs) const {
-    return {inner_[0] * rhs, inner_[1] * rhs, inner_[2] * rhs};
+  inline friend auto operator/(const Vec3<T>& lhs, const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      return Vec3<decltype(T{} / U{})>(lhs.getX() / rhs, lhs.getY() / rhs,
+                                       lhs.getZ() / rhs);
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      return Vec3<decltype(T{} / U{}[0])>(lhs.getX() / rhs.getX(),
+                                          lhs.getY() / rhs.getY(),
+                                          lhs.getZ() / rhs.getZ());
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
   }
 
-  inline double norm2() const {
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>,
+            typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline friend auto operator/(const U& lhs, const Vec3<T>& rhs) {
+    return Vec3<decltype(U{} / T{})>{lhs / rhs.getX(), lhs / rhs.getY(),
+                                     lhs / rhs.getZ()};
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline Vec3<T>& operator+=(const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      inner_[0] += rhs;
+      inner_[1] += rhs;
+      inner_[2] += rhs;
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      inner_[0] += rhs.getX();
+      inner_[1] += rhs.getY();
+      inner_[2] += rhs.getZ();
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+    return *this;
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline Vec3<T>& operator-=(const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      inner_[0] -= rhs;
+      inner_[1] -= rhs;
+      inner_[2] -= rhs;
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      inner_[0] -= rhs.getX();
+      inner_[1] -= rhs.getY();
+      inner_[2] -= rhs.getZ();
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+    return *this;
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline Vec3<T>& operator*=(const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      inner_[0] *= rhs;
+      inner_[1] *= rhs;
+      inner_[2] *= rhs;
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      inner_[0] *= rhs.getX();
+      inner_[1] *= rhs.getY();
+      inner_[2] *= rhs.getZ();
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+    return *this;
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline Vec3<T>& operator/=(const U& rhs) {
+    if constexpr (std::is_arithmetic_v<U>) {
+      inner_[0] /= rhs;
+      inner_[1] /= rhs;
+      inner_[2] /= rhs;
+    } else if constexpr (is_arithmetic_vec3<U>::value) {
+      inner_[0] /= rhs.getX();
+      inner_[1] /= rhs.getY();
+      inner_[2] /= rhs.getZ();
+    } else {
+      // std::is_arithmetic_v<U> always false, use this to avoid clangd error
+      static_assert(std::is_arithmetic_v<U>,
+                    "Invalid type: only arithmetic type or Vec3 are allowed");
+    }
+    return *this;
+  }
+
+  template <typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline double norm() const {
     return std::sqrt(inner_[0] * inner_[0] + inner_[1] * inner_[1] +
                      inner_[2] * inner_[2]);
   }
 
-  inline T product() const { return inner_[0] * inner_[1] * inner_[2]; }
+  template <typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline T product() const {
+    return inner_[0] * inner_[1] * inner_[2];
+  }
 };
 }  // namespace molpack
 #endif

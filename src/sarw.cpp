@@ -14,10 +14,10 @@ bool SARW::hasNearby(Vec3<double> position, double cutoff_length,
   bool has_nearby = false;
   this->cell_list_.foreachNeighbor(position, [&](const auto& neighbor) {
     if (exclude_position.has_value() &&
-        (neighbor.first - exclude_position.value()).norm2() < EPS) {
+        (neighbor.first - exclude_position.value()).norm() < EPS) {
       return false;
     }
-    if ((neighbor.first - position).norm2() < cutoff_length) {
+    if ((neighbor.first - position).norm() < cutoff_length) {
       has_nearby = true;
       return true;
     }
