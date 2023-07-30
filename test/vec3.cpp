@@ -1,7 +1,8 @@
-#include <cmath>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest/doctest.h"
 #include "vec3.hpp"
+
+#include <cmath>
+
+#include "doctest/doctest.h"
 
 TEST_CASE("testing the vec3 algorithm with int") {
   molpack::Vec3<int> v1(1, 2, 3);

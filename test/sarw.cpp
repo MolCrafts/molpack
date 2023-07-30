@@ -1,8 +1,8 @@
-#include "vec3.hpp"
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "sarw.hpp"
+
 #include "doctest/doctest.h"
 #include "region.hpp"
-#include "sarw.hpp"
+#include "vec3.hpp"
 
 TEST_CASE("testing single walk sarw") {
   auto region = std::make_unique<molpack::SphericalRegion>(

@@ -4,7 +4,8 @@ project(molpack_test)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
- 
+set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
+
 include(FetchContent)
 FetchContent_Declare(
   DocTest
@@ -13,12 +14,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(DocTest)
 
-function(molpack_test target_name)
-    add_executable(${target_name}_test ${target_name}_test.cpp)
-    add_test(NAME ${target_name}_test COMMAND ${target_name}_test)
-    target_link_libraries(${target_name}_test PUBLIC doctest::doctest molpack)
-endfunction()
-molpack_test(vec3)
-molpack_test(region)
-molpack_test(cell_list)
-molpack_test(sarw)
+add_executable(${PROJECT_NAME}
+    main.cpp
+    cell_list.cpp
+    region.cpp
+    sarw.cpp
+    vec3.cpp
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE doctest::doctest molpack)
+include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
+doctest_discover_tests(${PROJECT_NAME})
