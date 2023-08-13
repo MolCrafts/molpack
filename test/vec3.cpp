@@ -492,6 +492,39 @@ TEST_SUITE("vec3") {
     }
   }
 
+  TEST_CASE("testing the vec3 uniary operator") {
+    molpack::Vec3<double> v1(1.1, 2.2, 3.3);
+    molpack::Vec3<int> v2(1, 2, 3);
+
+    SUBCASE("") {
+      v1 = -v1;
+      CHECK(v1.getX() == doctest::Approx(-1.1));
+      CHECK(v1.getY() == doctest::Approx(-2.2));
+      CHECK(v1.getZ() == doctest::Approx(-3.3));
+    }
+
+    SUBCASE("") {
+      v2 = -v2;
+      CHECK(v2.getX() == -1);
+      CHECK(v2.getY() == -2);
+      CHECK(v2.getZ() == -3);
+    }
+  }
+
+  TEST_CASE("testing the vec3 equility") {
+    molpack::Vec3<double> v1(1.1, 2.2, 3.3);
+    molpack::Vec3<double> v2(1.1, 2.2, 3.3);
+    molpack::Vec3<double> v3(1.1, 2.2, 3.4);
+    molpack::Vec3<int> v4(1, 2, 3);
+    molpack::Vec3<int> v5(1, 2, 3);
+    molpack::Vec3<int> v6(1, 2, 4);
+
+    CHECK(v1 == v2);
+    CHECK(v4 == v5);
+    CHECK(v1 != v3);
+    CHECK(v4 != v6);
+  }
+
   TEST_CASE("testing the vec3 function norm") {
     molpack::Vec3<double> v1(1.1, 2.2, 3.3);
     molpack::Vec3<int> v2(1, 2, 3);

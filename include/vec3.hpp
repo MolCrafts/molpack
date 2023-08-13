@@ -204,6 +204,18 @@ public:
     return *this;
   }
 
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline bool operator==(const U& rhs) const {
+    if constexpr (is_arithmetic_vec3<U>::value)
+      return inner_[0] == rhs[0] && inner_[1] == rhs[1] && inner_[2] == rhs[2];
+  }
+
+  template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  inline bool operator!=(const U& rhs) const {
+    if constexpr (is_arithmetic_vec3<U>::value)
+      return !((*this)==rhs);
+  }
+
   template <typename = std::enable_if_t<std::is_arithmetic_v<T>>>
   inline double norm() const {
     return std::sqrt(inner_[0] * inner_[0] + inner_[1] * inner_[1] + inner_[2] * inner_[2]);
