@@ -10,11 +10,11 @@
 namespace molpack {
 
 template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-inline auto translate(Vec3<T>& v, Vec3<T>& t) {
+inline auto translate(Vec3<T>& v, const Vec3<T>& t) {
   return v + t;
 }
 template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-inline auto rotate(Vec3<T>& v, Mat3<T>& rot) {
+inline auto rotate(Vec3<T>& v, const Mat3<T>& rot) {
   return rot * v;
 }
 /**
@@ -27,7 +27,7 @@ inline auto rotate(Vec3<T>& v, Mat3<T>& rot) {
  * @return Vec3<T>&
  */
 template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-inline auto rotate(Vec3<T>& v, Vec3<T>& axis, T theta) {
+inline auto rotate(Vec3<T>& v, const Vec3<T>& axis, T theta) {
 
   // convert degree to radian
     theta = theta * M_PI / 180.0;
@@ -35,12 +35,12 @@ inline auto rotate(Vec3<T>& v, Vec3<T>& axis, T theta) {
   auto rot = Mat3<double>::zero();
 
   // normalize axis
-    axis /= axis.norm();
+    auto naxis = axis / axis.norm();
 
  Mat3<double> K{
-     0, -axis[2], axis[1],
-     axis[2], 0, -axis[0],
-     -axis[1], axis[0], 0};
+     0, -naxis[2], naxis[1],
+     naxis[2], 0, -naxis[0],
+     -naxis[1], naxis[0], 0};
 
     rot = Mat3<double>::unit() + sin(theta) * K + (1 - cos(theta)) * K.dot(K);
 
