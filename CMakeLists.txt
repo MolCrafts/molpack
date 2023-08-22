@@ -31,6 +31,7 @@ target_compile_options(${PROJECT_NAME}_bin PRIVATE
 )
 
 if(MOLPACK_BUILD_TESTS)
+    message(STATUS "Building molpack tests")
     enable_testing()
     add_subdirectory(test)
 endif()
