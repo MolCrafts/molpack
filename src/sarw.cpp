@@ -6,7 +6,6 @@
 #include <random>
 
 #include "cell_list.hpp"
-#define M_PI 3.14159265358979323846 /* pi */
 namespace molpack {
 constexpr double EPS = 1e-6;
 bool SARW::hasNearby(Vec3<double> position, double cutoff_length,

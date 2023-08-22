@@ -21,6 +21,7 @@ add_executable(${PROJECT_NAME}
     sarw.cpp
     vec3.cpp
     mat3.cpp
+    geom.cpp
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE doctest::doctest molpack)
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
