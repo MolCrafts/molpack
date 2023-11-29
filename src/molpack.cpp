@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "region.hpp"
-#include "sarw.hpp"
+#include "packer/sarw.hpp"
 int main() {
   auto region = std::make_unique<molpack::SphericalRegion>(
       molpack::Vec3<double>(0, 0, 0), 10);

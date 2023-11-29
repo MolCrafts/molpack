@@ -16,14 +16,20 @@ namespace molpack
         public:
 
         Structure();
+        Structure(const Structure& other);
         ~Structure();
 
         void addAtom(const Vec3<double>& xyz);
-        void addBond(int i, int j);
+        void addBond(size_t i, size_t j);
 
         Structure& translate(const Vec3<double>& xyz);
         Structure& rotate(const Vec3<double>& axis, double angle);
         Structure& rotate(double alpha, double beta, double gamma);
+
+        Structure& move_to(const Vec3<double>& xyz);
+        Structure clone() const;
+
+        Vec3<double> getCenterOfMass() const;
 
         private:
 

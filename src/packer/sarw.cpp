@@ -1,11 +1,10 @@
-#include "sarw.hpp"
+#include "packer/sarw.hpp"
 
 #include <cmath>
 #include <deque>
 #include <optional>
 #include <random>
 
-#include "cell_list.hpp"
 #define M_PI 3.14159265358979323846 /* pi */
 namespace molpack {
 constexpr double EPS = 1e-6;
@@ -104,6 +103,16 @@ std::deque<Vec3<double>> SARW::walk(std::size_t num_steps) {
     result.emplace_back(next_point);
   }
 
+  return result;
+}
+
+std::vector<Structure> SARW::pack(const Structure& structure, size_t num_steps) {
+  std::vector<Structure> result;
+  auto sites = walk(num_steps);
+  for (const auto& site : sites) {
+    auto new_struct = structure.clone().move_to(site);
+    result.emplace_back(new_struct);
+  }
   return result;
 }
 
