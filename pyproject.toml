@@ -1,0 +1,57 @@
+[project]
+name = "molcrafts-molpack"
+
+version = "0.0.1"
+
+authors = [
+    { name = "Roy Kid", email = "lijichen365@gmail.com" }
+]
+
+description = "Fundamental package for computational chemistry in Python"
+
+readme = "README.md"
+
+requires-python = ">=3.10"
+
+classifiers = [
+    "License :: OSI Approved :: BSD License",
+    "Development Status :: 1 - Planning",
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+    'Programming Language :: C',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Software Development',
+    'Topic :: Scientific/Engineering',
+    'Typing :: Typed',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX',
+    'Operating System :: Unix',
+    'Operating System :: MacOS',
+]
+
+license = {file = "LICENSE"}
+
+dependencies = [
+  "numpy",  # https://github.com/numpy/numpy,
+  # "molpy"
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+test = ["pytest", "coverage"]
+
+[project.urls]
+Homepage = "https://github.com/MolCrafts/molpy"
+Issues = "https://github.com/MolCrafts/molpy/issues"
+
+[build-system]
+requires = [
+    "setuptools",
+]
+build-backend = "setuptools.build_meta"
