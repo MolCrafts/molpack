@@ -35,7 +35,16 @@ class Packmol(Optimizer):
 
             tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".pdb")
 
-            mp.io.save_frame(tmpfile.name, struct)  # TODO: 
+            mp.io.save_frame(tmpfile.name, struct)
+
+            # NOTE: chemfiles has abnormal output for pdb
+            # need to remove "CONECT I " lines manually
+            pdb_lines = []
+            with open(tmpfile.name, "r") as f:
+                pdb_lines = f.readlines()
+                pdb_lines = filter(lambda line: not (line.startswith("CONECT") and len(line.split()) < 3), pdb_lines)
+            with open(tmpfile.name, "w") as f:
+                f.writelines(list(pdb_lines))
 
             lines.append(f"structure {tmpfile.name}")
             lines.append(f"  number {number}")

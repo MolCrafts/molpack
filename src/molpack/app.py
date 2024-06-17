@@ -1,5 +1,6 @@
 import molpy as mp
 from molpack.optimizer import get_optimizer
+from pathlib import Path
 
 class Target:
 
@@ -15,7 +16,7 @@ class Molpack:
         
         self.targets = []
 
-    def add_struct(self, struct:mp.Struct, number:int, region:mp.Region, direction: str = "inside"):
+    def add_struct(self, struct:mp.Struct|Path, number:int, region:mp.Region, direction: str = "inside"):
         self.targets.append(Target(struct, number, region, direction))
 
     def set_optimizer(self, optimizer: str = "packmol"):
