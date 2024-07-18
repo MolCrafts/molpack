@@ -35,7 +35,7 @@ class Packmol(Optimizer):
 
             tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".pdb")
 
-            mp.io.save_frame(tmpfile.name, struct)
+            mp.io.save_struct(tmpfile.name, struct)
 
             # NOTE: chemfiles has abnormal output for pdb
             # need to remove "CONECT I " lines manually
