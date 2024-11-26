@@ -1,26 +1,27 @@
 import molpy as mp
 from molpack.optimizer import get_optimizer
-from pathlib import Path
+from typing import Literal
+import random
 
 class Target:
 
-    def __init__(self, struct, number, region, direction: str = "inside"):
-        self.struct = struct
+    def __init__(self, frame, number, region, direction: str = "inside"):
+        self.frame = frame
         self.number = number
         self.region = region
         self.direction = direction
 
 class Molpack:
 
-    def __init__(self):
+    def __init__(self, optimizer: Literal["packmol"] = "packmol"):
         
         self.targets = []
-
-    def add_struct(self, struct:mp.Struct|Path, number:int, region:mp.Region, direction: str = "inside"):
-        self.targets.append(Target(struct, number, region, direction))
-
-    def set_optimizer(self, optimizer: str = "packmol"):
         self.optimizer = get_optimizer(optimizer)
 
-    def optimize(self):
-        self.optimizer.optimize(self.targets)
+    def add_target(self, frame:mp.Frame, number:int, region:mp.Region, direction: str = "inside"):
+        self.targets.append(Target(frame, number, region, direction))
+
+    def optimize(self, max_steps: int = 1000, seed: int|None = None):
+        if seed is None:
+            seed = random.randint(1, 10000)
+        return self.optimizer.optimize(self.targets, max_steps=max_steps, seed=seed)
