@@ -5,11 +5,10 @@ import random
 
 class Target:
 
-    def __init__(self, frame, number, region, direction: str = "inside"):
+    def __init__(self, frame, number, region):
         self.frame = frame
         self.number = number
         self.region = region
-        self.direction = direction
 
 class Molpack:
 
