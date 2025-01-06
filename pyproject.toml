@@ -39,7 +39,7 @@ license = {file = "LICENSE"}
 
 dependencies = [
   "numpy",  # https://github.com/numpy/numpy,
-  # "molpy"
+  "nlopt",  # https://pypi.org/project/nlopt/
 ]
 
 [project.optional-dependencies]
