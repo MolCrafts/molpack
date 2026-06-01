@@ -1,18 +1,22 @@
 name: Benchmark
 
-# Continuous performance tracking via benchmark-action/github-action-benchmark.
-# Runs the criterion benches, emits libtest "bencher" output, and stores the
-# trend on the `gh-pages` branch so regressions are visible over time.
+# Performance tracking via benchmark-action/github-action-benchmark, stored on gh-pages.
 #
-# Local runs on a shared/noisy machine are unreliable (load drift dwarfs the
-# signal); the authoritative numbers come from this workflow on a clean runner.
+# Runs the fast micro/kernel benches plus the end-to-end pack benches across ALL
+# example cases. The e2e benches rely on natural convergence (pack() breaks when
+# fdist/frest < precision); max_loops is only a safety cap. 3 samples per example.
+#
+# molpack builds against the PUBLISHED molrs crate (the `path = "../molrs/..."` in
+# Cargo.toml is local-dev only); we strip those path keys so Cargo uses crates.io.
+# molpack is checked out at the workspace root so benchmark-action has a git repo
+# for the gh-pages push.
 on:
   push:
     branches: [master, main]
   workflow_dispatch:
 
 permissions:
-  contents: write # push results to gh-pages
+  contents: write
   deployments: write
 
 jobs:
@@ -21,36 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: MolCrafts/molrs
-          path: molrs
-      - uses: actions/checkout@v6
-        with:
-          path: molpack
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: molpack
-      - name: Cache test data
-        uses: actions/cache@v5
-        with:
-          path: molrs/molrs-core/target/tests-data
-          key: ${{ runner.os }}-test-data-${{ hashFiles('molrs/scripts/fetch-test-data.sh') }}
-      - name: Fetch test data
-        run: bash scripts/fetch-test-data.sh
-        working-directory: molrs
 
-      # End-to-end packing benches are optimizer-iteration-dominated and the
-      # `solvprotein` case is slow + high-variance, so run them at criterion's
-      # floor (sample-size 10). Microbenches are cheap and deterministic, so
-      # give them more samples for tighter intervals.
-      - name: Run e2e benches (few samples)
-        run: >
-          cargo bench --bench pack_end_to_end --features cli,rayon --
-          --output-format bencher --sample-size 10 --warm-up-time 1
-          | tee bench-e2e.txt
-        working-directory: molpack
-      - name: Run kernel / micro benches (more samples)
+      - name: Build against published molrs (drop local path deps)
+        run: |
+          sed -i -E 's#path = "\.\./molrs/[^"]*", ##g' Cargo.toml
+
+      - name: Run kernel / micro benches
         run: >
           cargo bench
           --bench objective_dispatch --bench pair_kernel --bench evaluate_unscaled
@@ -58,21 +40,30 @@ jobs:
           --features cli,rayon --
           --output-format bencher --sample-size 50
           | tee bench-kernel.txt
-        working-directory: molpack
+
+      - name: Run e2e benches (all examples, 3 samples)
+        run: >
+          cargo bench --bench pack_end_to_end --features cli,rayon --
+          --output-format bencher
+          | tee bench-e2e.txt
+
       - name: Merge bench output
-        run: cat bench-e2e.txt bench-kernel.txt > output.txt
-        working-directory: molpack
+        run: cat bench-kernel.txt bench-e2e.txt > output.txt
+
+      # benchmark-action switches to gh-pages in this same tree; restore the
+      # sed-modified Cargo.toml (+ build-updated lock) so the switch isn't blocked
+      # by dirty tracked files. output.txt is untracked and survives.
+      - name: Restore working tree
+        run: git checkout -- .
 
       - name: Store + compare benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: molpack criterion
           tool: cargo
-          output-file-path: molpack/output.txt
+          output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          # Noise-tolerant: the e2e cases swing widely on shared runners.
-          # Tighten once the trend stabilises (or split e2e into its own chart).
           alert-threshold: "200%"
           comment-on-alert: true
           fail-on-alert: false
