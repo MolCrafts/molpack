@@ -28,11 +28,11 @@ jobs:
     steps:
       # molpack path-depends on ../molrs/molrs, so both repos are checked out
       # side by side (matching ci.yml) — hence molpack lives in a subdir.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: MolCrafts/molrs
           path: molrs
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: molpack
       - uses: dtolnay/rust-toolchain@stable
@@ -68,7 +68,7 @@ jobs:
       contents: write
       deployments: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: bench-output

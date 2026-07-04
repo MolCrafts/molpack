@@ -38,7 +38,7 @@ jobs:
     if: github.repository == 'MolCrafts/molpack'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - name: Build site
         # Install the doc group into a venv under python/ (mirrors the ci.yml

@@ -31,11 +31,11 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: MolCrafts/molrs
           path: molrs
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: molpack
       - uses: actions/setup-python@v6
@@ -59,11 +59,11 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: MolCrafts/molrs
           path: molrs
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: molpack
       - uses: actions/setup-python@v6
@@ -83,11 +83,11 @@ jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: MolCrafts/molrs
           path: molrs
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: molpack
       - name: Build sdist
