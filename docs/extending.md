@@ -1,6 +1,6 @@
 # Extending the Crate
 
-Tutorials for writing your own `Restraint` / `Region` / `Handler` /
+Tutorials for writing your own `AtomRestraint` / `Region` / `Handler` /
 `Relaxer` types. Every extension trait in this crate follows the same
 shape (direction-3 rule — see [`concepts`](crate::concepts)):
 
@@ -8,18 +8,7 @@ shape (direction-3 rule — see [`concepts`](crate::concepts)):
 > User types `impl X` identically. No built-in/plugin type-level
 > distinction.
 
-## Table of contents
-
-1. [Custom `Restraint`](#custom-restraint)
-2. [Custom `Region`](#custom-region)
-3. [Custom `Handler`](#custom-handler)
-4. [Custom `Relaxer`](#custom-relaxer)
-5. [Testing discipline](#testing-discipline)
-6. [Benchmarking discipline](#benchmarking-discipline)
-7. [Common pitfalls](#common-pitfalls)
-8. [Contributing flow](#contributing-flow)
-
-## Custom `Restraint`
+## Custom `AtomRestraint`
 
 Goal: pull atoms toward a target plane with a quadratic attractive
 well.
@@ -28,7 +17,7 @@ well.
 
 ```rust
 use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PlaneTether {
@@ -36,7 +25,7 @@ pub struct PlaneTether {
     pub offset: F,
     pub k: F,
 }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -44,18 +33,18 @@ pub struct PlaneTether {
 
 - `pub` fields — users construct with `PlaneTether { normal, offset,
   k }`, no builder.
-- `Debug` required because [`Restraint`](crate::Restraint) has a
+- `Debug` required because [`AtomRestraint`](crate::AtomRestraint) has a
   `Debug` supertrait bound (so `Target`'s derived `Debug` keeps
   working).
 
-### Step 2 — implement `Restraint`
+### Step 2 — implement `AtomRestraint`
 
 ```rust
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug)]
 # pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-impl Restraint for PlaneTether {
+impl AtomRestraint for PlaneTether {
     fn f(&self, pos: &[F; 3], _scale: F, _scale2: F) -> F {
         let d = self.normal[0] * pos[0]
               + self.normal[1] * pos[1]
@@ -89,11 +78,11 @@ Three contracts that all restraints must obey:
 
 ### Step 3 — write a gradient test
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -121,11 +110,11 @@ kinks).
 
 ### Step 4 — use it
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug, Clone, Copy)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -139,6 +128,57 @@ let target = Target::from_coords(pos, rad, 100)
 
 Built-in `InsideBoxRestraint` and user `PlaneTether` take the same
 code path — direction-3 in action.
+
+### In Python — the same restraint, duck-typed
+
+The interfaces are also exposed to Python through a *duck-typed* protocol: a
+restraint is any object exposing `f` and `fg`, and the packer consumes it on the
+same code path as a built-in. That makes Python the natural place to *prototype*
+a restraint the input grammar can't express — a few lines, no recompile — and
+then, once it earns its place, swap in the native equivalent with the driver
+script unchanged.
+
+A duck-typed restraint is any object exposing `f` and `fg`. The Python protocol
+differs from the Rust trait in exactly one way: `fg` **returns**
+`(energy, (gx, gy, gz))` instead of accumulating into a `&mut [F; 3]` — the
+binding does the `+=` for you. The contracts are otherwise identical: `fg`
+returns the energy, the gradient is the chain rule `(dU/dξ)·∇ξ`, a linear-energy
+penalty rides `scale` (a quadratic one `scale2`). A missing `f` or `fg` is
+rejected at attach time with a `TypeError`, and an exception raised inside `fg`
+propagates back out of `pack`. The `PlaneTether` above, duck-typed in Python:
+
+```python
+import numpy as np
+
+class PlaneTether:
+    """Pull a site toward the plane z = offset (a per-site geometric bias)."""
+    def __init__(self, normal, offset, k):
+        n = np.asarray(normal, float)
+        self.n, self.offset, self.k = n / np.linalg.norm(n), offset, k
+
+    def f(self, x, scale, scale2):
+        d = float(self.n @ np.asarray(x, float)) - self.offset
+        return scale * 0.5 * self.k * d * d
+
+    def fg(self, x, scale, scale2):
+        d = float(self.n @ np.asarray(x, float)) - self.offset
+        g = scale * self.k * d * self.n
+        return scale * 0.5 * self.k * d * d, (float(g[0]), float(g[1]), float(g[2]))
+```
+
+Attach it with `with_atom_restraint` (a site subset) or `with_restraint` (every
+copy), and pack.
+
+> **A per-site field cannot reproduce a distribution.** It is tempting to build a
+> per-site penalty from a target density `ρ*` (e.g. Boltzmann inversion
+> `U = −kT·ln ρ*`) to make sites *follow* `ρ*`. This fails under packing's energy
+> **minimisation**: `∑ᵢ U(xᵢ)` is minimised by driving *every* site to the single
+> minimum of `U` — the mode of `ρ*` — so the sites collapse onto the peak instead
+> of spreading over the distribution. To drive a whole species onto a target
+> profile, use a **collective** restraint (`Target.with_collective_restraint`,
+> e.g. the built-in `ProfileMatch`), whose penalty is a function of the entire
+> group and whose gradient couples the copies, so the fixed point is *empirical
+> distribution = target*.
 
 ## Custom `Region`
 
@@ -177,7 +217,7 @@ impl Region for ConeRegion {
 
 ### Compose with built-ins
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
 # use molpack::Region;
 # #[derive(Debug, Clone, Copy)]
@@ -237,7 +277,7 @@ fn signed_distance_grad(&self, x: &[F; 3]) -> [F; 3] {
 # }
 ```
 
-Then finite-difference check it — same pattern as the `Restraint`
+Then finite-difference check it — same pattern as the `AtomRestraint`
 test.
 
 ## Custom `Handler`
@@ -245,7 +285,7 @@ test.
 Goal: a handler that writes a CSV row per step so you can plot the
 objective evolution.
 
-```rust,no_run
+```no_run
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use molpack::{F, Handler, PackContext, StepInfo};
@@ -293,7 +333,8 @@ Handler notes:
 Goal: a relaxer that tries random rigid-body translations and accepts
 if the objective decreases.
 
-```rust,no_run
+```no_run
+use molrs::Frame;
 use molrs::types::F;
 use molpack::{Relaxer, RelaxerRunner};
 use rand::{Rng, RngCore};
@@ -305,7 +346,7 @@ pub struct JiggleRelaxer {
 }
 
 impl Relaxer for JiggleRelaxer {
-    fn spawn(&self, _ref_coords: &[[F; 3]]) -> Box<dyn RelaxerRunner> {
+    fn spawn(&self, _frame: Option<&Frame>, _ref_coords: &[[F; 3]]) -> Box<dyn RelaxerRunner> {
         Box::new(JiggleRunner {
             steps: self.steps,
             max_delta: self.max_delta,
@@ -361,7 +402,7 @@ Relaxer notes:
 
 - **Two-part design.** [`Relaxer`](crate::Relaxer) is the immutable
   builder; [`RelaxerRunner`](crate::RelaxerRunner) holds per-pack
-  state. `build()` is called once per target type at `pack()` entry.
+  state. `spawn()` is called once per target type at `pack()` entry.
 - **`evaluate` closure tests trial coords against the full objective**
   without mutating the reference — use it as often as you like.
 - **Return `Some(new_coords)` only if something changed.** The packer
@@ -378,7 +419,6 @@ Relaxer notes:
 | Integration test | `tests/<name>.rs` | `use molpack::{…};` only public API |
 | Gradient finite-difference | alongside unit test | ε=1e-5, tol=1e-3 |
 | Regression vs Packmol | `tests/examples_batch.rs` (`#[ignore]`) | Run with `--ignored --release` |
-| Microbench | `benches/<name>.rs` | criterion with `iter_batched` |
 
 Run all:
 
@@ -389,47 +429,13 @@ cargo test --release --test examples_batch -- --ignored
 
 Rules:
 
-- Every new `Restraint` gets an FD gradient test.
+- Every new `AtomRestraint` gets an FD gradient test.
 - Every new `Region` gets a boolean-algebra + signed-distance sign
   test and (for hot-path use) an analytic-gradient FD test.
-- Every hot-path change gets a microbench following the `fn` +
-  `caller` two-bench pattern (see `benches/run_phase.rs`).
-
-## Benchmarking discipline
-
-Catastrophic-regression alarm:
-
-```bash
-cargo bench --bench pack_end_to_end -- mixture
-```
-
-Five workloads available: `mixture` (~2s), `bilayer` (~10s),
-`interface` (~5s), `solvprotein` (~30s), `spherical` (~45 min —
-18k molecules).
-
-Microbenches (fast, run after any hot-path edit):
-
-```bash
-cargo bench --bench evaluate_unscaled
-cargo bench --bench run_iteration
-cargo bench --bench run_phase
-cargo bench --bench objective_dispatch
-```
-
-Performance gates:
-
-| Scope | Hard | Soft |
-|---|---|---|
-| Per-fn microbench | ≤ +1% | ≤ 0% |
-| Caller microbench (includes indirection) | ≤ +2% | ≤ +1% |
-| `pack_end_to_end` | ≤ +10% | ≤ +5% |
-
-Cross the soft gate → attach a flamegraph and a one-paragraph
-root-cause note. Cross the hard gate → tighten the change or roll back.
 
 ## Common pitfalls
 
-- **Gradient sign.** Every `Restraint` accumulates `∂penalty/∂x`.
+- **Gradient sign.** Every `AtomRestraint` accumulates `∂penalty/∂x`.
   Optimizer negates for descent. If your molecules fly out of the
   region, the gradient has the wrong sign — penalty should point
   toward the violation boundary.
@@ -460,6 +466,3 @@ root-cause note. Cross the hard gate → tighten the change or roll back.
    cargo clippy -- -D warnings
    cargo fmt --all --check
    ```
-4. Hot-path changes: run the relevant microbench plus
-   `cargo bench --bench pack_end_to_end -- mixture` before and after.
-   Attach numbers to the PR.

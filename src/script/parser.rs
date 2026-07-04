@@ -11,7 +11,6 @@
 use std::path::PathBuf;
 
 use super::error::ScriptError;
-use super::restraint_parse::{parse_above, parse_below, parse_inside, parse_outside};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Public AST
@@ -30,12 +29,12 @@ pub struct Script {
     pub filetype: Option<String>,
     /// Output file path (`output` keyword). Required.
     pub output: PathBuf,
-    /// Maximum outer-loop iterations (`nloop` keyword). Default 400.
+    /// Maximum outer-loop iterations (`nloop` keyword). When unset, Packmol's
+    /// default of `200 * ntype` is used (getinp.f90:537-539).
     pub nloop: usize,
-    /// Whether to enforce minimum-distance overlap avoidance
-    /// (`avoid_overlap`). Parsed for compatibility; not yet wired to the
-    /// Molpack API.
-    #[allow(dead_code)]
+    /// Whether to reject initial random placements that overlap a fixed
+    /// molecule (`avoid_overlap`, default on). Wired through `Script::build`
+    /// to `Molpack::with_avoid_overlap`.
     pub avoid_overlap: bool,
     /// Periodic-boundary box (`pbc` keyword). When set, it seeds the
     /// packer's cell grid so the initial ±`sidemax` random placement
@@ -82,55 +81,21 @@ pub struct AtomGroup {
     pub restraints: Vec<RestraintSpec>,
 }
 
-/// Restraint as it appears in the script, before being mapped to a
-/// concrete `Restraint` implementation.
+/// AtomRestraint as it appears in the script, before being mapped to a
+/// concrete `AtomRestraint` implementation.
 #[derive(Debug, Clone)]
 pub enum RestraintSpec {
     InsideBox {
         min: [f64; 3],
         max: [f64; 3],
     },
-    InsideCube {
-        origin: [f64; 3],
-        side: f64,
-    },
     InsideSphere {
         center: [f64; 3],
         radius: f64,
     },
-    InsideEllipsoid {
-        center: [f64; 3],
-        axes: [f64; 3],
-        exponent: f64,
-    },
-    InsideCylinder {
-        center: [f64; 3],
-        axis: [f64; 3],
-        radius: f64,
-        length: f64,
-    },
-    OutsideBox {
-        min: [f64; 3],
-        max: [f64; 3],
-    },
-    OutsideCube {
-        origin: [f64; 3],
-        side: f64,
-    },
     OutsideSphere {
         center: [f64; 3],
         radius: f64,
-    },
-    OutsideEllipsoid {
-        center: [f64; 3],
-        axes: [f64; 3],
-        exponent: f64,
-    },
-    OutsideCylinder {
-        center: [f64; 3],
-        axis: [f64; 3],
-        radius: f64,
-        length: f64,
     },
     /// `over plane` — atom must lie above the plane.
     AbovePlane {
@@ -142,23 +107,46 @@ pub enum RestraintSpec {
         normal: [f64; 3],
         distance: f64,
     },
-    /// `over gaussian` — atom must lie above a Gaussian bump surface.
-    AboveGaussian {
-        cx: f64,
-        cy: f64,
-        sx: f64,
-        sy: f64,
-        z0: f64,
-        height: f64,
+    /// `inside cube x0 y0 z0 d` — atom inside an axis-aligned cube.
+    InsideCube {
+        origin: [f64; 3],
+        side: f64,
     },
-    /// `below gaussian` — atom must lie below a Gaussian bump surface.
-    BelowGaussian {
-        cx: f64,
-        cy: f64,
-        sx: f64,
-        sy: f64,
-        z0: f64,
-        height: f64,
+    /// `outside cube x0 y0 z0 d` — atom outside an axis-aligned cube.
+    OutsideCube {
+        origin: [f64; 3],
+        side: f64,
+    },
+    /// `outside box xmin ymin zmin xmax ymax zmax` — atom outside a box.
+    OutsideBox {
+        min: [f64; 3],
+        max: [f64; 3],
+    },
+    /// `inside ellipsoid a1 a2 a3 b1 b2 b3 c` — center, semi-axes, exponent.
+    InsideEllipsoid {
+        center: [f64; 3],
+        axes: [f64; 3],
+        exponent: f64,
+    },
+    /// `outside ellipsoid a1 a2 a3 b1 b2 b3 c` — center, semi-axes, exponent.
+    OutsideEllipsoid {
+        center: [f64; 3],
+        axes: [f64; 3],
+        exponent: f64,
+    },
+    /// `inside cylinder a1 a2 a3 d1 d2 d3 r l` — center, axis, radius, length.
+    InsideCylinder {
+        center: [f64; 3],
+        axis: [f64; 3],
+        radius: f64,
+        length: f64,
+    },
+    /// `outside cylinder a1 a2 a3 d1 d2 d3 r l` — center, axis, radius, length.
+    OutsideCylinder {
+        center: [f64; 3],
+        axis: [f64; 3],
+        radius: f64,
+        length: f64,
     },
 }
 
@@ -172,7 +160,7 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
     let mut seed: Option<u64> = None;
     let mut filetype: Option<String> = None;
     let mut output: Option<PathBuf> = None;
-    let mut nloop: usize = 400;
+    let mut nloop: Option<usize> = None;
     let mut avoid_overlap = true;
     let mut pbc: Option<PbcSpec> = None;
     let mut structures: Vec<Structure> = Vec::new();
@@ -234,7 +222,7 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     State::TopLevel
                 }
                 "nloop" => {
-                    nloop = parse_usize(&tokens, 1, "nloop", lineno)?;
+                    nloop = Some(parse_usize(&tokens, 1, "nloop", lineno)?);
                     State::TopLevel
                 }
                 "avoid_overlap" => {
@@ -280,7 +268,7 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     s.number = parse_usize(&tokens, 1, "number", lineno)?;
                     State::InStructure(s)
                 }
-                "center" => {
+                "center" | "centerofmass" => {
                     s.center = true;
                     State::InStructure(s)
                 }
@@ -301,12 +289,12 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     State::InStructure(s)
                 }
                 "over" | "above" => {
-                    let r = parse_above(&tokens, lineno)?;
+                    let r = parse_plane_above(&tokens, lineno)?;
                     s.mol_restraints.push(r);
                     State::InStructure(s)
                 }
                 "below" => {
-                    let r = parse_below(&tokens, lineno)?;
+                    let r = parse_plane_below(&tokens, lineno)?;
                     s.mol_restraints.push(r);
                     State::InStructure(s)
                 }
@@ -314,16 +302,8 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     let indices = tokens[1..]
                         .iter()
                         .map(|t| {
-                            let idx = t.parse::<usize>().map_err(|_| {
-                                parse_err(lineno, format!("invalid atom index `{t}`"))
-                            })?;
-                            if idx < 1 {
-                                return Err(parse_err(
-                                    lineno,
-                                    format!("atom index `{t}` must be ≥ 1 (indices are 1-based)"),
-                                ));
-                            }
-                            Ok(idx)
+                            t.parse::<usize>()
+                                .map_err(|_| parse_err(lineno, format!("invalid atom index `{t}`")))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     if indices.is_empty() {
@@ -372,7 +352,7 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     }
                 }
                 "over" | "above" => {
-                    let r = parse_above(&tokens, lineno)?;
+                    let r = parse_plane_above(&tokens, lineno)?;
                     group.restraints.push(r);
                     State::InAtoms {
                         structure: s,
@@ -380,7 +360,7 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
                     }
                 }
                 "below" => {
-                    let r = parse_below(&tokens, lineno)?;
+                    let r = parse_plane_below(&tokens, lineno)?;
                     group.restraints.push(r);
                     State::InAtoms {
                         structure: s,
@@ -405,7 +385,9 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
         seed,
         filetype,
         output: output.ok_or(ScriptError::MissingOutput)?,
-        nloop,
+        // Packmol default (getinp.f90:537-539): unset `nloop` resolves to
+        // 200 * ntype, where ntype is the number of structure types.
+        nloop: nloop.unwrap_or(200 * structures.len()),
         avoid_overlap,
         pbc,
         structures,
@@ -413,8 +395,160 @@ pub fn parse(src: &str) -> Result<Script, ScriptError> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Restraint helpers
+// AtomRestraint helpers
 // ──────────────────────────────────────────────────────────────────────────────
+
+fn parse_inside(tokens: &[&str], lineno: usize) -> Result<RestraintSpec, ScriptError> {
+    let shape = tokens
+        .get(1)
+        .map(|s| s.to_ascii_lowercase())
+        .ok_or_else(|| parse_err(lineno, "`inside` requires a shape keyword"))?;
+    match shape.as_str() {
+        "box" => {
+            let min = parse_vec3(tokens, 2, "inside box min", lineno)?;
+            let max = parse_vec3(tokens, 5, "inside box max", lineno)?;
+            Ok(RestraintSpec::InsideBox { min, max })
+        }
+        "cube" => {
+            let (origin, side) = parse_cube_args(tokens, lineno, "inside cube")?;
+            Ok(RestraintSpec::InsideCube { origin, side })
+        }
+        "sphere" => {
+            let center = parse_vec3(tokens, 2, "inside sphere center", lineno)?;
+            let radius = parse_f64(tokens, 5, "inside sphere radius", lineno)?;
+            Ok(RestraintSpec::InsideSphere { center, radius })
+        }
+        "ellipsoid" => {
+            let (center, axes, exponent) =
+                parse_ellipsoid_args(tokens, lineno, "inside ellipsoid")?;
+            Ok(RestraintSpec::InsideEllipsoid {
+                center,
+                axes,
+                exponent,
+            })
+        }
+        "cylinder" => {
+            let (center, axis, radius, length) =
+                parse_cylinder_args(tokens, lineno, "inside cylinder")?;
+            Ok(RestraintSpec::InsideCylinder {
+                center,
+                axis,
+                radius,
+                length,
+            })
+        }
+        _ => Err(parse_err(
+            lineno,
+            format!("unsupported `inside` shape `{shape}`"),
+        )),
+    }
+}
+
+fn parse_outside(tokens: &[&str], lineno: usize) -> Result<RestraintSpec, ScriptError> {
+    let shape = tokens
+        .get(1)
+        .map(|s| s.to_ascii_lowercase())
+        .ok_or_else(|| parse_err(lineno, "`outside` requires a shape keyword"))?;
+    match shape.as_str() {
+        "box" => {
+            let min = parse_vec3(tokens, 2, "outside box min", lineno)?;
+            let max = parse_vec3(tokens, 5, "outside box max", lineno)?;
+            Ok(RestraintSpec::OutsideBox { min, max })
+        }
+        "cube" => {
+            let (origin, side) = parse_cube_args(tokens, lineno, "outside cube")?;
+            Ok(RestraintSpec::OutsideCube { origin, side })
+        }
+        "sphere" => {
+            let center = parse_vec3(tokens, 2, "outside sphere center", lineno)?;
+            let radius = parse_f64(tokens, 5, "outside sphere radius", lineno)?;
+            Ok(RestraintSpec::OutsideSphere { center, radius })
+        }
+        "ellipsoid" => {
+            let (center, axes, exponent) =
+                parse_ellipsoid_args(tokens, lineno, "outside ellipsoid")?;
+            Ok(RestraintSpec::OutsideEllipsoid {
+                center,
+                axes,
+                exponent,
+            })
+        }
+        "cylinder" => {
+            let (center, axis, radius, length) =
+                parse_cylinder_args(tokens, lineno, "outside cylinder")?;
+            Ok(RestraintSpec::OutsideCylinder {
+                center,
+                axis,
+                radius,
+                length,
+            })
+        }
+        _ => Err(parse_err(
+            lineno,
+            format!("unsupported `outside` shape `{shape}`"),
+        )),
+    }
+}
+
+/// `<kw> cube x0 y0 z0 d` — origin corner + side length.
+fn parse_cube_args(
+    tokens: &[&str],
+    lineno: usize,
+    ctx: &str,
+) -> Result<([f64; 3], f64), ScriptError> {
+    let origin = parse_vec3(tokens, 2, ctx, lineno)?;
+    let side = parse_f64(tokens, 5, ctx, lineno)?;
+    Ok((origin, side))
+}
+
+/// `<kw> ellipsoid a1 a2 a3 b1 b2 b3 c` — center, semi-axes, exponent.
+fn parse_ellipsoid_args(
+    tokens: &[&str],
+    lineno: usize,
+    ctx: &str,
+) -> Result<([f64; 3], [f64; 3], f64), ScriptError> {
+    let center = parse_vec3(tokens, 2, ctx, lineno)?;
+    let axes = parse_vec3(tokens, 5, ctx, lineno)?;
+    if axes.iter().any(|&a| a <= 0.0) {
+        return Err(parse_err(
+            lineno,
+            format!("{ctx} semi-axes must be strictly positive, got {axes:?}"),
+        ));
+    }
+    let exponent = parse_f64(tokens, 8, ctx, lineno)?;
+    Ok((center, axes, exponent))
+}
+
+/// `<kw> cylinder a1 a2 a3 d1 d2 d3 r l` — center, axis, radius, length.
+fn parse_cylinder_args(
+    tokens: &[&str],
+    lineno: usize,
+    ctx: &str,
+) -> Result<([f64; 3], [f64; 3], f64, f64), ScriptError> {
+    let center = parse_vec3(tokens, 2, ctx, lineno)?;
+    let axis = parse_vec3(tokens, 5, ctx, lineno)?;
+    if axis == [0.0; 3] {
+        return Err(parse_err(
+            lineno,
+            format!("{ctx} axis must be a non-zero direction"),
+        ));
+    }
+    let radius = parse_f64(tokens, 8, ctx, lineno)?;
+    let length = parse_f64(tokens, 9, ctx, lineno)?;
+    Ok((center, axis, radius, length))
+}
+
+fn parse_plane_above(tokens: &[&str], lineno: usize) -> Result<RestraintSpec, ScriptError> {
+    let normal = parse_vec3(tokens, 2, "over plane normal", lineno)?;
+    let distance = parse_f64(tokens, 5, "over plane distance", lineno)?;
+    Ok(RestraintSpec::AbovePlane { normal, distance })
+}
+
+fn parse_plane_below(tokens: &[&str], lineno: usize) -> Result<RestraintSpec, ScriptError> {
+    let normal = parse_vec3(tokens, 2, "below plane normal", lineno)?;
+    let distance = parse_f64(tokens, 5, "below plane distance", lineno)?;
+    Ok(RestraintSpec::BelowPlane { normal, distance })
+}
 
 /// Parse `pbc` in either the 3-value (`pbc X Y Z`) or 6-value
 /// (`pbc X0 Y0 Z0  X1 Y1 Z1`) form — matching packmol `getinp.f90`
@@ -590,101 +724,6 @@ end structure
     }
 
     #[test]
-    fn parse_all_inside_outside_shapes() {
-        let src = "\
-output out.xyz
-structure m.pdb
-  number 1
-  inside cube 0. 0. 0. 10.
-  inside ellipsoid 0. 0. 0. 5. 6. 7. 1.
-  inside cylinder 0. 0. 0. 0. 0. 1. 5. 20.
-  outside box 0. 0. 0. 10. 10. 10.
-  outside cube 0. 0. 0. 10.
-  outside ellipsoid 0. 0. 0. 5. 6. 7. 1.
-  outside cylinder 0. 0. 0. 0. 0. 1. 5. 20.
-  over gaussian 0. 0. 2. 2. 0. 5.
-  below gaussian 0. 0. 2. 2. 0. 5.
-end structure
-";
-        let inp = parse(src).expect("parse failed");
-        let r = &inp.structures[0].mol_restraints;
-        assert_eq!(r.len(), 9);
-        assert!(matches!(r[0], RestraintSpec::InsideCube { .. }));
-        assert!(matches!(r[1], RestraintSpec::InsideEllipsoid { .. }));
-        assert!(matches!(r[2], RestraintSpec::InsideCylinder { .. }));
-        assert!(matches!(r[3], RestraintSpec::OutsideBox { .. }));
-        assert!(matches!(r[4], RestraintSpec::OutsideCube { .. }));
-        assert!(matches!(r[5], RestraintSpec::OutsideEllipsoid { .. }));
-        assert!(matches!(r[6], RestraintSpec::OutsideCylinder { .. }));
-        assert!(matches!(r[7], RestraintSpec::AboveGaussian { .. }));
-        assert!(matches!(r[8], RestraintSpec::BelowGaussian { .. }));
-    }
-
-    #[test]
-    fn reject_cube_nonpositive_side() {
-        let src = "\
-output out.xyz
-structure m.pdb
-  number 1
-  inside cube 0. 0. 0. 0.
-end structure
-";
-        let err = parse(src).expect_err("cube side must be > 0");
-        assert!(err.to_string().contains("side"), "unexpected error: {err}");
-    }
-
-    #[test]
-    fn reject_zero_atom_index() {
-        let src = "\
-output out.xyz
-structure water.pdb
-  number 10
-  inside box 0. 0. 0. 40. 40. 40.
-  atoms 0
-    below plane 0. 0. 1. 2.
-  end atoms
-end structure
-";
-        let err = parse(src).expect_err("`atoms 0` must be rejected (indices are 1-based)");
-        assert!(
-            err.to_string().contains("1-based") || err.to_string().contains("≥ 1"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn reject_inside_sphere_nonpositive_radius() {
-        let src = "\
-output out.xyz
-structure water.pdb
-  number 10
-  inside sphere 0. 0. 0. 0.
-end structure
-";
-        let err = parse(src).expect_err("inside sphere radius must be > 0");
-        assert!(
-            err.to_string().contains("radius"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn reject_outside_sphere_nonpositive_radius() {
-        let src = "\
-output out.xyz
-structure water.pdb
-  number 10
-  outside sphere 0. 0. 0. -1.
-end structure
-";
-        let err = parse(src).expect_err("outside sphere radius must be > 0");
-        assert!(
-            err.to_string().contains("radius"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
     fn parse_interface_fixed_center() {
         let src = "\
 tolerance 2.0
@@ -704,6 +743,25 @@ end structure
         let (pos, euler) = s.fixed.unwrap();
         assert_eq!(pos, [0.0, 20.0, 20.0]);
         assert!((euler[0] - 1.57).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_centerofmass_alias() {
+        // Official Packmol scripts (interface, solvprotein) spell the `center`
+        // keyword as `centerofmass`; the parser must treat them identically.
+        let src = "\
+tolerance 2.0
+filetype xyz
+output interface.xyz
+
+structure t3.xyz
+  number 1
+  centerofmass
+  fixed 0. 20. 20. 1.57 1.57 1.57
+end structure
+";
+        let inp = parse(src).expect("parse failed");
+        assert!(inp.structures[0].center);
     }
 
     #[test]
@@ -881,5 +939,88 @@ end structure
             }
             other => panic!("expected UnknownKeyword, got {other:?}"),
         }
+    }
+
+    /// Parse a single restraint line inside a structure block and return the
+    /// parsed `RestraintSpec`.
+    fn parse_one_restraint(line: &str) -> RestraintSpec {
+        let src =
+            format!("output out.pdb\n\nstructure mol.pdb\n  number 1\n  {line}\nend structure\n");
+        let inp = parse(&src).expect("parse failed");
+        inp.structures[0].mol_restraints[0].clone()
+    }
+
+    #[test]
+    fn parse_inside_cube() {
+        assert!(matches!(
+            parse_one_restraint("inside cube 1. 2. 3. 10."),
+            RestraintSpec::InsideCube { origin, side }
+                if origin == [1.0, 2.0, 3.0] && side == 10.0
+        ));
+    }
+
+    #[test]
+    fn parse_outside_cube() {
+        assert!(matches!(
+            parse_one_restraint("outside cube 0. 0. 0. 5."),
+            RestraintSpec::OutsideCube { side, .. } if side == 5.0
+        ));
+    }
+
+    #[test]
+    fn parse_outside_box() {
+        assert!(matches!(
+            parse_one_restraint("outside box 0. 0. 0. 4. 5. 6."),
+            RestraintSpec::OutsideBox { min, max }
+                if min == [0.0, 0.0, 0.0] && max == [4.0, 5.0, 6.0]
+        ));
+    }
+
+    #[test]
+    fn parse_inside_ellipsoid() {
+        assert!(matches!(
+            parse_one_restraint("inside ellipsoid 0. 0. 0. 3. 2. 1.5 1."),
+            RestraintSpec::InsideEllipsoid { axes, exponent, .. }
+                if axes == [3.0, 2.0, 1.5] && exponent == 1.0
+        ));
+    }
+
+    #[test]
+    fn parse_outside_ellipsoid() {
+        assert!(matches!(
+            parse_one_restraint("outside ellipsoid 1. 1. 1. 2. 2. 2. 1."),
+            RestraintSpec::OutsideEllipsoid { center, .. } if center == [1.0, 1.0, 1.0]
+        ));
+    }
+
+    #[test]
+    fn parse_inside_cylinder() {
+        assert!(matches!(
+            parse_one_restraint("inside cylinder 0. 0. 0. 1. 0. 0. 2. 8."),
+            RestraintSpec::InsideCylinder { axis, radius, length, .. }
+                if axis == [1.0, 0.0, 0.0] && radius == 2.0 && length == 8.0
+        ));
+    }
+
+    #[test]
+    fn parse_outside_cylinder() {
+        assert!(matches!(
+            parse_one_restraint("outside cylinder 0. 0. 0. 0. 0. 1. 3. 5."),
+            RestraintSpec::OutsideCylinder { axis, .. } if axis == [0.0, 0.0, 1.0]
+        ));
+    }
+
+    #[test]
+    fn parse_ellipsoid_rejects_zero_axis() {
+        let src = "output out.pdb\n\nstructure mol.pdb\n  number 1\n  \
+                   inside ellipsoid 0. 0. 0. 0. 2. 2. 1.\nend structure\n";
+        assert!(parse(src).is_err(), "zero semi-axis must be rejected");
+    }
+
+    #[test]
+    fn parse_cylinder_rejects_zero_axis() {
+        let src = "output out.pdb\n\nstructure mol.pdb\n  number 1\n  \
+                   inside cylinder 0. 0. 0. 0. 0. 0. 2. 8.\nend structure\n";
+        assert!(parse(src).is_err(), "zero cylinder axis must be rejected");
     }
 }

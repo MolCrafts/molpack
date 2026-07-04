@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::context::PackContext;
-use crate::error::PackError;
 use crate::frame::compute_mol_ids;
 use crate::numerics::objective_small_floor;
 
@@ -39,6 +38,27 @@ pub struct PhaseReport {
     pub frest: F,
     /// Whether the phase converged under `precision`.
     pub converged: bool,
+}
+
+/// Screen-log detail level for LAMMPS-style packer output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum MolpackLogLevel {
+    /// Print nothing.
+    #[default]
+    Quiet,
+    /// Print system setup, phase summaries, and final summary.
+    Summary,
+    /// Print per-step thermo-style progress lines.
+    Progress,
+    /// Print the same progress lines plus extra diagnostic columns.
+    Verbose,
+}
+
+impl MolpackLogLevel {
+    #[inline]
+    pub const fn is_enabled(self) -> bool {
+        !matches!(self, Self::Quiet)
+    }
 }
 
 /// Per-iteration progress snapshot.
@@ -74,27 +94,17 @@ pub trait Handler: Send {
 
     /// Called once after initialization completes, with valid `xcart` positions.
     /// Use this to write the initial conformation (e.g. [`XYZHandler`]).
-    ///
-    /// Returns `Err` to abort packing — e.g. a trajectory writer that cannot
-    /// open its output file.
-    fn on_initialized(&mut self, _sys: &PackContext) -> Result<(), PackError> {
-        Ok(())
-    }
+    fn on_initialized(&mut self, _sys: &PackContext) {}
 
-    /// Called after each outer optimization loop iteration. Returns `Err` to
-    /// abort packing (the error surfaces from `pack()`), e.g. on a write
-    /// failure in a trajectory writer.
-    fn on_step(&mut self, info: &StepInfo, sys: &PackContext) -> Result<(), PackError>;
+    /// Called after each outer optimization loop iteration.
+    fn on_step(&mut self, info: &StepInfo, sys: &PackContext);
 
     /// Called at the start of each packing phase (per-type and all-types).
     /// Allows stateful handlers to reset between phases.
     fn on_phase_start(&mut self, _info: &PhaseInfo) {}
 
     /// Called once after the packing loop finishes (convergence or max loops).
-    /// Returns `Err` to surface a teardown/flush failure from `pack()`.
-    fn on_finish(&mut self, _sys: &PackContext) -> Result<(), PackError> {
-        Ok(())
-    }
+    fn on_finish(&mut self, _sys: &PackContext) {}
 
     /// Return `true` to request early termination of the packing loop.
     fn should_stop(&self) -> bool {
@@ -130,9 +140,7 @@ pub trait Handler: Send {
 pub struct NullHandler;
 
 impl Handler for NullHandler {
-    fn on_step(&mut self, _info: &StepInfo, _sys: &PackContext) -> Result<(), PackError> {
-        Ok(())
-    }
+    fn on_step(&mut self, _info: &StepInfo, _sys: &PackContext) {}
 }
 
 // ── XYZHandler ────────────────────────────────────────────────────────────────
@@ -166,39 +174,29 @@ impl XYZHandler {
         }
     }
 
-    fn open(&mut self) -> Result<(), PackError> {
+    fn open(&mut self) {
         if self.file.is_some() {
-            return Ok(());
+            return;
         }
-        let f = std::fs::OpenOptions::new()
+        match std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(&self.path)
-            .map_err(|e| {
-                PackError::HandlerIo(format!(
-                    "XYZHandler: cannot open {}: {e}",
-                    self.path.display()
-                ))
-            })?;
-        self.file = Some(BufWriter::new(f));
-        Ok(())
+        {
+            Ok(f) => self.file = Some(BufWriter::new(f)),
+            Err(e) => log::warn!("XYZHandler: cannot open {}: {e}", self.path.display()),
+        }
     }
 
-    fn write_frame(&mut self, comment: &str, sys: &PackContext) -> Result<(), PackError> {
-        self.open()?;
-        let w = self.file.as_mut().expect("file opened above");
+    fn write_frame(&mut self, comment: &str, sys: &PackContext) {
+        self.open();
+        let Some(ref mut w) = self.file else { return };
         use std::io::Write;
-        let io = |r: std::io::Result<()>| {
-            r.map_err(|e| PackError::HandlerIo(format!("XYZHandler: write failed: {e}")))
-        };
-        let nat = sys.eval.xcart.len();
-        io(writeln!(w, "{nat}"))?;
-        io(writeln!(
-            w,
-            "Properties=species:S:1:pos:R:3:mol:I:1  {comment}"
-        ))?;
-        for (icart, pos) in sys.eval.xcart.iter().enumerate() {
+        let nat = sys.xcart.len();
+        let _ = writeln!(w, "{nat}");
+        let _ = writeln!(w, "Properties=species:S:1:pos:R:3:mol:I:1  {comment}");
+        for (icart, pos) in sys.xcart.iter().enumerate() {
             let elem = sys
                 .elements
                 .get(icart)
@@ -206,27 +204,25 @@ impl XYZHandler {
                 .map(|e| e.symbol())
                 .unwrap_or("X");
             let mol_id = self.mol_ids.get(icart).copied().unwrap_or(0);
-            io(writeln!(
+            let _ = writeln!(
                 w,
                 "{elem}  {:.6}  {:.6}  {:.6}  {mol_id}",
                 pos[0], pos[1], pos[2]
-            ))?;
+            );
         }
-        io(w.flush())
+        let _ = w.flush();
     }
 }
 
 impl Handler for XYZHandler {
-    fn on_initialized(&mut self, sys: &PackContext) -> Result<(), PackError> {
+    fn on_initialized(&mut self, sys: &PackContext) {
         self.mol_ids = compute_mol_ids(sys);
-        Ok(())
     }
 
-    fn on_step(&mut self, info: &StepInfo, sys: &PackContext) -> Result<(), PackError> {
-        if info.loop_idx % self.every == 0 {
-            self.write_frame(&format!("step {}", info.loop_idx), sys)?;
+    fn on_step(&mut self, info: &StepInfo, sys: &PackContext) {
+        if info.loop_idx.is_multiple_of(self.every) {
+            self.write_frame(&format!("step {}", info.loop_idx), sys);
         }
-        Ok(())
     }
 }
 
@@ -257,13 +253,12 @@ impl Handler for ProgressHandler {
         eprintln!("Packing {ntotmol} molecules ({ntotat} atoms)...");
     }
 
-    fn on_initialized(&mut self, sys: &PackContext) -> Result<(), PackError> {
+    fn on_initialized(&mut self, sys: &PackContext) {
         let elapsed = self.start.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
         eprintln!(
             "  Initializing... done ({:.1}s)  overlap: {:.4e}  constraints: {:.4e}",
-            elapsed, sys.eval.fdist, sys.eval.frest
+            elapsed, sys.fdist, sys.frest
         );
-        Ok(())
     }
 
     fn on_phase_start(&mut self, info: &PhaseInfo) {
@@ -274,7 +269,7 @@ impl Handler for ProgressHandler {
         eprintln!("  Phase [{}/{}] {desc}", info.phase + 1, info.total_phases,);
     }
 
-    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) -> Result<(), PackError> {
+    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) {
         let elapsed = self.start.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
         eprintln!(
             "    Step [{}/{}]  overlap: {:.2e}  constraints: {:.2e}  improved {:.1}%  ({:.1}s)",
@@ -285,23 +280,202 @@ impl Handler for ProgressHandler {
             info.improvement_pct,
             elapsed,
         );
-        Ok(())
     }
 
-    fn on_finish(&mut self, sys: &PackContext) -> Result<(), PackError> {
+    fn on_finish(&mut self, sys: &PackContext) {
         let elapsed = self.start.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
-        if sys.eval.fdist < 0.01 && sys.eval.frest < 0.01 {
+        if sys.fdist < 0.01 && sys.frest < 0.01 {
             eprintln!(
                 "  Converged in {:.1}s — overlap: {:.2e}  constraints: {:.2e}",
-                elapsed, sys.eval.fdist, sys.eval.frest,
+                elapsed, sys.fdist, sys.frest,
             );
         } else {
             eprintln!(
                 "  Did not converge ({:.1}s) — overlap: {:.2e}  constraints: {:.2e}",
-                elapsed, sys.eval.fdist, sys.eval.frest,
+                elapsed, sys.fdist, sys.frest,
             );
         }
-        Ok(())
+    }
+}
+
+// ── LammpsLogHandler ─────────────────────────────────────────────────────────
+
+/// LAMMPS-style screen log for packing runs.
+///
+/// Most users should enable this through
+/// [`Molpack::with_lammps_output`][crate::packer::Molpack::with_lammps_output]
+/// or [`Molpack::with_log_level`][crate::packer::Molpack::with_log_level]
+/// instead of attaching the handler manually.
+pub struct LammpsLogHandler {
+    level: MolpackLogLevel,
+    every: usize,
+    tolerance: F,
+    precision: F,
+    seed: u64,
+    max_loops: usize,
+    ntypes: usize,
+    periodic_box: Option<([F; 3], [F; 3], [bool; 3])>,
+    start: Option<Instant>,
+    phase_start: Option<Instant>,
+}
+
+impl LammpsLogHandler {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        level: MolpackLogLevel,
+        every: usize,
+        tolerance: F,
+        precision: F,
+        seed: u64,
+        max_loops: usize,
+        ntypes: usize,
+        periodic_box: Option<([F; 3], [F; 3], [bool; 3])>,
+    ) -> Self {
+        Self {
+            level,
+            every: every.max(1),
+            tolerance,
+            precision,
+            seed,
+            max_loops,
+            ntypes,
+            periodic_box,
+            start: None,
+            phase_start: None,
+        }
+    }
+
+    fn elapsed(&self) -> F {
+        self.start.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0)
+    }
+
+    fn phase_elapsed(&self) -> F {
+        self.phase_start
+            .map(|t| t.elapsed().as_secs_f64())
+            .unwrap_or(0.0)
+    }
+}
+
+impl Handler for LammpsLogHandler {
+    fn on_start(&mut self, ntotat: usize, ntotmol: usize) {
+        if !self.level.is_enabled() {
+            return;
+        }
+
+        let now = Instant::now();
+        self.start = Some(now);
+        self.phase_start = Some(now);
+
+        eprintln!("Molpack screen log");
+        eprintln!("System information:");
+        eprintln!("  molecule types = {}", self.ntypes);
+        eprintln!("  molecules      = {ntotmol}");
+        eprintln!("  atoms          = {ntotat}");
+        eprintln!("Settings:");
+        eprintln!("  tolerance      = {:.6} A", self.tolerance);
+        eprintln!("  precision      = {:.6}", self.precision);
+        eprintln!("  seed           = {}", self.seed);
+        eprintln!("  nloop          = {}", self.max_loops);
+        match self.periodic_box {
+            Some((min, max, flags)) => eprintln!(
+                "  pbc            = [{:.6}, {:.6}, {:.6}] -> [{:.6}, {:.6}, {:.6}]  flags={:?}",
+                min[0], min[1], min[2], max[0], max[1], max[2], flags
+            ),
+            None => eprintln!("  pbc            = off"),
+        }
+    }
+
+    fn on_initialized(&mut self, sys: &PackContext) {
+        if !self.level.is_enabled() {
+            return;
+        }
+        eprintln!(
+            "Initialization: time={:.3}s overlap={:.4e} restraints={:.4e}",
+            self.elapsed(),
+            sys.fdist,
+            sys.frest
+        );
+    }
+
+    fn on_phase_start(&mut self, info: &PhaseInfo) {
+        if !self.level.is_enabled() {
+            return;
+        }
+        self.phase_start = Some(Instant::now());
+        let desc = match info.molecule_type {
+            Some(itype) => format!("type {itype} compaction"),
+            None => "all-type optimization".to_string(),
+        };
+        eprintln!("Phase {}/{}: {desc}", info.phase + 1, info.total_phases);
+        if self.level >= MolpackLogLevel::Progress {
+            if self.level >= MolpackLogLevel::Verbose {
+                eprintln!(
+                    "{:>8} {:>14} {:>14} {:>10} {:>10} {:>10}",
+                    "Step", "Overlap", "Restraint", "Improve%", "RadScale", "Time"
+                );
+            } else {
+                eprintln!(
+                    "{:>8} {:>14} {:>14} {:>10} {:>10}",
+                    "Step", "Overlap", "Restraint", "Improve%", "Time"
+                );
+            }
+        }
+    }
+
+    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) {
+        if self.level < MolpackLogLevel::Progress || !info.loop_idx.is_multiple_of(self.every) {
+            return;
+        }
+        if self.level >= MolpackLogLevel::Verbose {
+            eprintln!(
+                "{:>8} {:>14.6e} {:>14.6e} {:>10.3} {:>10.4} {:>10.3}",
+                info.loop_idx + 1,
+                info.fdist,
+                info.frest,
+                info.improvement_pct,
+                info.radscale,
+                self.elapsed(),
+            );
+        } else {
+            eprintln!(
+                "{:>8} {:>14.6e} {:>14.6e} {:>10.3} {:>10.3}",
+                info.loop_idx + 1,
+                info.fdist,
+                info.frest,
+                info.improvement_pct,
+                self.elapsed(),
+            );
+        }
+    }
+
+    fn on_phase_end(&mut self, info: &PhaseInfo, report: &PhaseReport) {
+        if !self.level.is_enabled() {
+            return;
+        }
+        eprintln!(
+            "Phase {}/{} summary: steps={} converged={} overlap={:.6e} restraints={:.6e} time={:.3}s",
+            info.phase + 1,
+            info.total_phases,
+            report.iterations,
+            report.converged,
+            report.fdist,
+            report.frest,
+            self.phase_elapsed(),
+        );
+    }
+
+    fn on_finish(&mut self, sys: &PackContext) {
+        if !self.level.is_enabled() {
+            return;
+        }
+        let converged = sys.fdist < self.precision && sys.frest < self.precision;
+        eprintln!(
+            "Final summary: converged={} overlap={:.6e} restraints={:.6e} elapsed={:.3}s",
+            converged,
+            sys.fdist,
+            sys.frest,
+            self.elapsed(),
+        );
     }
 }
 
@@ -358,11 +532,10 @@ impl Default for EarlyStopHandler {
 }
 
 impl Handler for EarlyStopHandler {
-    fn on_initialized(&mut self, _sys: &PackContext) -> Result<(), PackError> {
+    fn on_initialized(&mut self, _sys: &PackContext) {
         self.prev_violation = F::INFINITY;
         self.stall_count = 0;
         self.stop = false;
-        Ok(())
     }
 
     fn on_phase_start(&mut self, _info: &PhaseInfo) {
@@ -371,11 +544,11 @@ impl Handler for EarlyStopHandler {
         self.stop = false;
     }
 
-    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) -> Result<(), PackError> {
+    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) {
         let v = info.fdist + info.frest;
         if info.loop_idx <= self.warmup {
             self.prev_violation = v;
-            return Ok(());
+            return;
         }
         let rel_change = if self.prev_violation > 0.0 {
             (self.prev_violation - v) / self.prev_violation
@@ -399,7 +572,6 @@ impl Handler for EarlyStopHandler {
             self.stall_count = 0;
         }
         self.prev_violation = v;
-        Ok(())
     }
 
     fn should_stop(&self) -> bool {

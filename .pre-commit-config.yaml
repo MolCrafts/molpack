@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: fmt
       - id: clippy
-        args: ["--all-targets", "--features", "cli", "--", "-D", "warnings"]
+        args: ["--all-targets", "--all-features", "--", "-D", "warnings"]
 
   - repo: local
     hooks:

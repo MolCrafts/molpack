@@ -50,15 +50,9 @@ def main() -> None:
     )
 
     show_progress = os.environ.get("MOLPACK_EXAMPLE_PROGRESS", "1") != "0"
-    packer = (
-        molpack.Molpack()
-        .with_tolerance(2.0)
-        .with_precision(0.01)
-        .with_progress(show_progress)
-        .with_seed(1_234_567)
-    )
+    packer = molpack.Molpack().with_progress(show_progress)
 
-    result = packer.pack([water, chloroform, t3], max_loops=400)
+    result = packer.pack_with_report([water, chloroform, t3], max_loops=400)
 
     print(
         f"converged={result.converged} natoms={result.natoms} "

@@ -1,70 +1,114 @@
-<div align="center">
+# molcrafts-molpack
 
-<h1>
-  <img src=".github/assets/moko.svg" alt="" height="48" align="absmiddle">
-  &nbsp;molpack
-</h1>
+[![CI](https://github.com/MolCrafts/molpack/actions/workflows/ci.yml/badge.svg)](https://github.com/MolCrafts/molpack/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/molcrafts-molpack.svg)](https://crates.io/crates/molcrafts-molpack)
+[![PyPI](https://img.shields.io/pypi/v/molcrafts-molpack.svg)](https://pypi.org/project/molcrafts-molpack/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/badge/type--checked-ty-informational)](https://github.com/astral-sh/ty)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-<p><strong>Packmol-grade molecular packing — Rust core, Python bindings, and a Packmol-compatible CLI.</strong></p>
-
-<p>
-  <a href="https://github.com/MolCrafts/molpack/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/MolCrafts/molpack/ci.yml?style=flat-square&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
-  <a href="https://crates.io/crates/molcrafts-molpack"><img src="https://img.shields.io/crates/v/molcrafts-molpack?style=flat-square&logo=rust&logoColor=white" alt="Crates.io"></a>
-  <a href="https://pypi.org/project/molcrafts-molpack/"><img src="https://img.shields.io/pypi/v/molcrafts-molpack?style=flat-square&logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--3--Clause-18432B?style=flat-square" alt="License"></a>
-</p>
-
-<p>
-  <a href="https://molcrafts.github.io/molpack/"><b>Documentation</b></a> &nbsp;&middot;&nbsp;
-  <a href="#quick-start"><b>Quick start</b></a> &nbsp;&middot;&nbsp;
-  <a href="#molcrafts-ecosystem"><b>Ecosystem</b></a>
-</p>
-
-</div>
-
-molpack produces non-overlapping arrangements of many molecule types with copy
-counts and geometric restraints, using a faithful Rust port of Packmol's
-GENCAN-driven three-phase algorithm. It ships as a Rust library, a Python wheel,
-and a CLI that reads Packmol `.inp` scripts.
-
-> **Under active development.** Public APIs may change between minor releases.
-
-## Capabilities
-
-| Module | Capability |
-|---|---|
-| `packer` | `Molpack` builder + outer-loop driver; runs the three-phase pack and returns a `PackResult` |
-| `gencan` | Bound-constrained GENCAN optimizer (conjugate gradient + spectral projected gradient) |
-| `target` | `Target` molecule descriptor — copy counts, centering modes, fixed placements, Euler angles |
-| `restraint` | `Restraint` trait + 14 concrete soft-penalty types (box, cube, sphere, ellipsoid, cylinder, plane, gaussian; inside/outside/above/below variants) |
-| `region` | `Region` signed-distance predicates with `And` / `Or` / `Not` combinators, liftable to restraints |
-| `relaxer` | In-loop reference-geometry relaxers; `TorsionMcRelaxer` for flexible-molecule torsion MC |
-| `handler` | Progress-callback handlers — `Progress`, `EarlyStop`, `XYZ`, `Null` |
-| `validation` | Post-pack constraint checking — `ValidationReport`, `ViolationMetrics` |
-| `script` | Packmol `.inp` parser + lowering to targets, with format-aware file I/O (`io` feature) |
-| `bin/molpack` | `molpack` CLI — drop-in `.inp` runner accepting file-arg or stdin input (`cli` feature) |
-
-File formats (via the `io` feature): reads PDB, XYZ, SDF/MOL, LAMMPS dump, and
-LAMMPS data; writes PDB, XYZ, and LAMMPS dump.
+Packmol-grade molecular packing in pure Rust, with Python bindings.
+Part of the [molrs](https://github.com/MolCrafts/molrs) toolkit.
 
 ## Install
 
+**CLI**
+
 ```bash
-# Rust library
-cargo add molcrafts-molpack
-
-# CLI (Packmol-compatible .inp runner)
 cargo install molcrafts-molpack --features cli
+```
 
-# Python
+**Rust library**
+
+```bash
+cargo add molcrafts-molpack
+```
+
+**Python**
+
+```bash
 pip install molcrafts-molpack molcrafts-molrs
 ```
 
-The Rust library depends on `molcrafts-molrs-core` for shared data structures;
-the `io` and `cli` features additionally pull in `molcrafts-molrs-io`. The Python
-wheel loads frames through the `molcrafts-molrs` Python package.
+## CLI
+
+The `molpack` binary accepts the same `.inp` script format as Packmol, making it a drop-in replacement. Relative file paths in the script are resolved against the script's own directory (file-arg mode) or the current directory (stdin mode).
+
+```bash
+# File argument (paths resolved relative to the .inp file's directory)
+molpack mixture.inp
+
+# Stdin — compatible with Packmol usage
+molpack < mixture.inp
+cat mixture.inp | molpack
+```
+
+**Supported `.inp` keywords**
+
+| Keyword | Description |
+|---|---|
+| `tolerance <f>` | Minimum atom–atom distance (Å). Default 2.0 |
+| `seed <n>` | Random seed for reproducibility |
+| `filetype <fmt>` | Input format for all structure files |
+| `output <path>` | Output file path (format inferred from extension) |
+| `nloop <n>` | Maximum outer-loop iterations. Default 400 |
+| `pbc x y z` / `pbc x0 y0 z0 x1 y1 z1` | Periodic box: side lengths from origin, or explicit min+max |
+| `avoid_overlap <no\|false\|0>` | Reject initial placements that land inside a fixed molecule (default on; faithful to Packmol's `initial.f90`) |
+| `structure <file>` … `end structure` | One block per molecule type |
+| `number <n>` | Copies to pack |
+| `inside\|outside box x0 y0 z0 x1 y1 z1` | Axis-aligned box restraint |
+| `inside\|outside cube x0 y0 z0 d` | Axis-aligned cube (origin corner + side) |
+| `inside\|outside sphere cx cy cz r` | Sphere restraint |
+| `inside\|outside ellipsoid a1 a2 a3 b1 b2 b3 c` | Ellipsoid (center, semi-axes, exponent) |
+| `inside\|outside cylinder a1 a2 a3 d1 d2 d3 r l` | Finite cylinder (center, axis, radius, length) |
+| `over\|above plane nx ny nz d` | Half-space (above) restraint |
+| `below plane nx ny nz d` | Half-space (below) restraint |
+| `center` | Center molecule at origin before packing |
+| `fixed x y z ex ey ez` | Fix molecule at position + Euler angles |
+| `atoms i j …` … `end atoms` | Per-atom-subset restraints |
+
+All 12 box/cube/sphere/ellipsoid/cylinder/plane restraints are reachable from
+both whole-molecule and `atoms … end atoms` blocks. The Gaussian-surface
+restraints (`AboveGaussianRestraint` / `BelowGaussianRestraint`) are available
+through the Rust/Python API but not yet exposed as `.inp` keywords. To drive a
+whole species onto a target spatial distribution, use the collective
+`ProfileMatch` restraint via the Rust/Python API (`with_collective_restraint`).
+
+**Extended format support** — beyond Packmol's PDB/XYZ, molpack also reads SDF/MOL, LAMMPS dump, and LAMMPS data files. Set `filetype` to `sdf`, `lammps_dump`, or `lammps_data`, or use the matching file extension:
+
+| Format | Read | Write | Extension / filetype |
+|---|---|---|---|
+| PDB | ✓ | ✓ | `.pdb` / `pdb` |
+| XYZ | ✓ | ✓ | `.xyz` / `xyz` |
+| SDF / MOL | ✓ | — | `.sdf`, `.mol` / `sdf` |
+| LAMMPS dump | ✓ | ✓ | `.lammpstrj` / `lammps_dump` |
+| LAMMPS data | ✓ | — | `.data` / `lammps_data` |
 
 ## Quick start
+
+**Rust**
+
+```rust
+use molpack::{InsideBoxRestraint, Molpack, Target};
+
+let positions = [[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
+let radii = [1.52, 1.20, 1.20];
+
+let target = Target::from_coords(&positions, &radii, 100)
+    .with_name("water")
+    .with_restraint(InsideBoxRestraint::new([0.0; 3], [40.0; 3], [false; 3]));
+
+// `pack` returns the packed, topology-complete `molrs::Frame`.
+// Every tuning knob has a Packmol-matching default, so `new().pack(...)`
+// is a complete call; `200` is the outer-loop budget.
+let frame = Molpack::new().pack(&[target], 200)?;
+
+// For full diagnostics, use `pack_with_report` → `PackResult`
+// (`frame`, `fdist`, `frest`, `converged`).
+let report = Molpack::new().pack_with_report(&[target], 200)?;
+```
+
+**Python**
 
 ```python
 import molrs
@@ -77,49 +121,59 @@ water = (
     .with_name("water")
     .with_restraint(InsideBoxRestraint([0, 0, 0], [40, 40, 40]))
 )
-result = (
-    Molpack()
-    .with_tolerance(2.0)
-    .with_seed(42)
-    .pack([water], max_loops=200)
-)
+frame = Molpack().pack([water], max_loops=200)
 ```
 
-Rust API, CLI usage, the `.inp` keyword reference, and more worked examples are
-in the documentation.
+## Examples
+
+Five canonical workloads ship in `examples/` (they need the `io` feature
+to read the bundled structure files):
+
+```bash
+cargo run --release --example pack_mixture     --features io   # 1000 water + 400 urea in a cube
+cargo run --release --example pack_bilayer     --features io   # membrane leaflets via per-atom plane restraints
+cargo run --release --example pack_interface   --features io   # water + chloroform around a fixed molecule
+cargo run --release --example pack_spherical   --features io   # concentric lipid/water shells (largest case)
+cargo run --release --example pack_solvprotein --features io   # fixed protein solvated in a sphere (avoid_overlap)
+```
+
+The same workloads run through the CLI from their bundled `.inp` scripts,
+e.g. `cargo run --release --features cli --bin molpack -- examples/pack_mixture/mixture.inp`.
+Python equivalents are in [`python/examples/`](./python/examples/).
+
+A measurement harness also lives under `examples/`: `mt_scaling` (parallel
+speed-up-vs-size sweep, needs `--features rayon`).
+
+## Testing
+
+```bash
+cargo test                                                  # unit + integration
+cargo test --release --test examples_batch -- --ignored     # Packmol regression (all 5 workloads)
+cargo bench --benches                                       # criterion regression benches (no io)
+cd python && maturin develop --release && pytest            # Python wheel
+```
 
 ## Documentation
 
-- **Site** — [molcrafts.github.io/molpack](https://molcrafts.github.io/molpack/) — Home, Get Started, Guide, Internals
-- **Rust API** — [docs.rs/molcrafts-molpack](https://docs.rs/molcrafts-molpack)
-- **Python** — [`python/docs/`](./python/docs/)
-- **Examples** — runnable programs in [`examples/`](./examples/) and [`python/examples/`](./python/examples/)
-
-## MolCrafts ecosystem
-
-| Project | Role |
-|---------|------|
-| [molpy](https://github.com/MolCrafts/molpy)     | Python toolkit — the shared molecular data model & workflow layer |
-| [molrs](https://github.com/MolCrafts/molrs)     | Rust core — molecular data structures & compute kernels (native + WASM) |
-| **molpack** | Packmol-grade molecular packing (Rust + Python) — this repo |
-| [molvis](https://github.com/MolCrafts/molvis)   | WebGL molecular visualization & editing |
-| [molexp](https://github.com/MolCrafts/molexp)   | Workflow & experiment-management platform |
-| [molnex](https://github.com/MolCrafts/molnex)   | Molecular machine-learning framework |
-| [molq](https://github.com/MolCrafts/molq)       | Unified job queue — local / SLURM / PBS / LSF |
-| [molcfg](https://github.com/MolCrafts/molcfg)   | Layered configuration library |
-| [mollog](https://github.com/MolCrafts/mollog)   | Structured logging, stdlib-compatible |
-| [molhub](https://github.com/MolCrafts/molhub)   | Molecular dataset hub |
-| [molmcp](https://github.com/MolCrafts/molmcp)   | MCP server for the ecosystem |
-| [molrec](https://github.com/MolCrafts/molrec)   | Atomistic record specification |
+- **Guide** — the Markdown chapters under [`docs/`](./docs/): install,
+  getting started, concepts, examples, Packmol parity, architecture, and
+  extending.
+- **Rust API** — `cargo doc --open`, or [docs.rs](https://docs.rs/molcrafts-molpack).
+  The four long-form chapters (getting started, concepts, architecture,
+  extending) are also embedded in the rustdoc as
+  `molpack::getting_started`, `molpack::concepts`,
+  `molpack::architecture`, and `molpack::extending`.
+- **Python** — the binding docs under [`docs/python/`](./docs/python/)
+  (installation, guide, examples, and the Python API reference), published as
+  the **Python** section of the same Zensical site.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests via
-[GitHub Issues](https://github.com/MolCrafts/molpack/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests via [GitHub Issues](https://github.com/MolCrafts/molpack/issues).
 
 ## License
 
-BSD-3-Clause — see [LICENSE](LICENSE).
+BSD-3-Clause
 
 ## References
 
@@ -127,9 +181,3 @@ BSD-3-Clause — see [LICENSE](LICENSE).
   **PACKMOL: A package for building initial configurations for molecular dynamics simulations.**
   *J. Comput. Chem.* **2009**, *30* (13), 2157–2164.
   https://doi.org/10.1002/jcc.21224
-
-<hr>
-
-<div align="center">
-<sub>Crafted with 💚 by <a href="https://github.com/MolCrafts">MolCrafts</a></sub>
-</div>

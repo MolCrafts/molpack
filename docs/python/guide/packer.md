@@ -1,0 +1,140 @@
+# Packer
+
+`Molpack` drives the GENCAN-based three-phase optimizer. All tuning
+is through `with_*` builder methods — the constructor takes no
+arguments.
+
+## Constructor
+
+```python
+from molpack import Molpack
+
+packer = Molpack()
+```
+
+All defaults match Packmol's reference behaviour. Override any of
+them via the builders below.
+
+## Builder methods
+
+Every builder returns a **new** `Molpack`:
+
+```python
+packer = (
+    Molpack()
+    .with_tolerance(2.0)            # minimum allowed pairwise distance (Å)
+    .with_precision(0.01)           # convergence threshold on fdist and frest
+    .with_inner_iterations(20)      # GENCAN inner-loop cap (Packmol `maxit`)
+    .with_init_passes(0)            # initial compaction passes (Packmol `nloop0`; 0 = auto)
+    .with_init_box_half_size(1000)  # hard bound on init placement (Packmol `sidemax`)
+    .with_perturb_fraction(0.05)    # fraction of atoms re-sampled per stall
+    .with_random_perturb(False)     # randomize perturbation target selection
+    .with_perturb(True)             # enable the stall-perturbation heuristic
+    .with_seed(42)                  # deterministic RNG
+    .with_parallel_eval(False)      # rayon-backed pair-kernel eval (opt-in)
+    .with_lammps_output(True)       # attach LAMMPS-style screen output
+    .with_log_level("progress")     # quiet | summary | progress | verbose
+    .with_log_frequency(1)          # print every N outer steps
+)
+```
+
+Use `.with_lammps_output(False)` or `.with_log_level("quiet")` to run
+silently (the default). `.with_progress()` is kept as a compatibility
+alias for enabling/disabling progress output.
+
+A few more builders cover specific needs:
+
+```python
+packer = (
+    packer
+    .with_periodic_box([0, 0, 0], [30, 30, 30])  # fully-periodic cell (Packmol `pbc`)
+    .with_avoid_overlap(True)                     # reject init placements onto a fixed molecule
+    .with_xyz_output("traj.xyz", every=5)         # record the packing trajectory
+)
+```
+
+## Global restraints
+
+Attach a single restraint to every target in a pack:
+
+```python
+packer = packer.with_global_restraint(
+    InsideBoxRestraint([0, 0, 0], [40, 40, 40])
+)
+```
+
+Semantically equivalent to calling `.with_restraint(r)` on every
+target.
+
+## Handlers
+
+Attach any object implementing some subset of `on_start(ntotat, ntotmol)`,
+`on_step(info) -> bool | None`, `on_finish()`:
+
+```python
+class MyHandler:
+    def on_step(self, info):
+        print(f"phase={info.phase} loop={info.loop_idx} fdist={info.fdist:.3f}")
+        return None  # or True to request early stop
+
+packer = packer.with_handler(MyHandler())
+```
+
+Returning `True` from `on_step` halts the run at the next check. See
+the `Handler` Protocol in `molpack`.
+
+## Periodic boundaries
+
+PBC can be declared per-axis on an `InsideBoxRestraint`, or as a
+fully-periodic cell directly on the packer via
+`.with_periodic_box(min, max)`. See
+[Periodic boundaries](periodic-boundaries.md).
+
+## Running
+
+```python
+frame = packer.pack(targets, max_loops=200)
+```
+
+- `targets`   — list of `Target` objects (must be non-empty).
+- `max_loops` — per-phase outer-iteration budget.
+
+Raises one of the typed `PackError` subclasses on failure
+(`NoTargetsError`, `InvalidPBCBoxError`,
+`ConflictingPeriodicBoxesError`, …).
+
+`pack()` returns a `molrs.Frame`. To retrieve structured diagnostics,
+use `pack_with_report()`:
+
+```python
+result = packer.pack_with_report(targets, max_loops=200)
+```
+
+## PackResult
+
+```python
+result.positions   # (N, 3) float64 ndarray — packed coordinates
+result.frame       # molrs.Frame — topology-complete packed frame
+result.elements    # list[str]  — one entry per atom
+result.natoms      # int
+result.converged   # bool — True iff both fdist and frest < precision
+result.fdist       # float — final distance-violation sum
+result.frest       # float — final restraint-violation sum
+```
+
+Inspect convergence:
+
+```python
+if not result.converged:
+    print(f"not converged: fdist={result.fdist:.4f} frest={result.frest:.4f}")
+```
+
+`PackResult.frame` is the same Frame returned by `pack()`. Pass it to a
+writer of your choice (e.g. `molrs.write_pdb`). molpack does **not**
+provide writers.
+
+## Reproducibility
+
+Packing is deterministic for a given `(targets, tolerance, precision,
+seed)` tuple. Capture the builder chain and `max_loops` to reproduce
+a result later.

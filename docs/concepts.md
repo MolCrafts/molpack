@@ -3,15 +3,15 @@
 This chapter defines each abstraction in the crate in one place.
 Cross-link to the types for full API details.
 
-## Restraint
+## AtomRestraint
 
-A [`Restraint`](crate::Restraint) is a **soft penalty** applied per
+An [`AtomRestraint`](crate::AtomRestraint) is a **soft penalty** applied per
 atom: `f(x, scale, scale2) -> F` and `fg(x, scale, scale2, g) -> F`.
 It contributes to the packing objective and — in all current
 implementations — derives from Packmol's `comprest.f90` / `gwalls.f90`.
 
 ```text
-pub trait Restraint: Send + Sync + std::fmt::Debug {
+pub trait AtomRestraint: Send + Sync + std::fmt::Debug {
     fn f (&self, x: &[F; 3], scale: F, scale2: F) -> F;
     fn fg(&self, x: &[F; 3], scale: F, scale2: F, g: &mut [F; 3]) -> F;
     fn is_parallel_safe(&self) -> bool { true }
@@ -84,7 +84,7 @@ targets.
 
 Two-part design — builder + runner:
 
-- `Relaxer::build(&self, ref_coords) -> Box<dyn RelaxerRunner>` is
+- `Relaxer::spawn(&self, frame, ref_coords) -> Box<dyn RelaxerRunner>` is
   called once at `pack()` entry.
 - `RelaxerRunner::on_iter(&mut self, coords, f_current, evaluate, rng)`
   runs between movebad and GENCAN each outer iteration; returns
@@ -165,15 +165,20 @@ passing it to the packer has no effect.
 
 ```text
 Molpack::new()
-    .with_tolerance(2.0)
-    .with_precision(0.01)
-    .with_inner_iterations(20)
+    .with_log_level(...)
     .with_handler(...)
-    .with_global_restraint(...) // broadcast to every target
-    // PBC declared via InsideBoxRestraint::new(min, max, [true; 3])
-    // on any target restraint — not a Molpack method.
-    .pack(&[targets], max_loops, seed)
+    .with_global_restraint(...)  // broadcast to every target
+    .with_periodic_box(min, max) // or via periodic InsideBoxRestraint
+    .pack(&[targets], max_loops)
 ```
+
+Every tuning knob (`with_tolerance`, `with_precision`,
+`with_inner_iterations`, `with_seed`, `with_avoid_overlap`, …) has a
+Packmol-matching default, so `Molpack::new().pack(&targets, max_loops)`
+is a complete call. You only set a knob to *change* its default — e.g.
+`with_avoid_overlap(false)` to let solvent seed inside a fixed solute
+(on by default), or `with_seed(n)` to pick a different RNG stream (the
+default seed is Packmol's `1_234_567`).
 
 Every setter consumes and returns `self`. `pack` takes `&mut self`
 (handlers are invoked through it).

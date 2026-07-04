@@ -25,42 +25,42 @@ fn build_water_box(n_mols: usize, box_side: F, seed: u64) -> (PackContext, Vec<F
     let ntype = 1usize;
     let mut sys = PackContext::new(ntotat, n_mols, ntype);
     sys.ntype_with_fixed = ntype;
-    sys.topology.nmols = vec![n_mols];
-    sys.topology.natoms = vec![atoms_per_mol];
-    sys.topology.idfirst = vec![0];
-    sys.is_type_active = vec![true; ntype];
+    sys.nmols = vec![n_mols];
+    sys.natoms = vec![atoms_per_mol];
+    sys.idfirst = vec![0];
+    sys.comptype = vec![true; ntype];
     sys.constrain_rot = vec![[false; 3]; ntype];
     sys.rot_bound = vec![[[0.0; 2]; 3]; ntype];
-    sys.topology.coor = vec![[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
-    sys.eval.radius.fill(1.0);
-    sys.eval.radius_ini.fill(1.0);
-    sys.eval.fscale.fill(1.0);
+    sys.coor = vec![[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
+    sys.radius.fill(1.0);
+    sys.radius_ini.fill(1.0);
+    sys.fscale.fill(1.0);
 
     for imol in 0..n_mols {
         for iatom in 0..atoms_per_mol {
             let icart = imol * atoms_per_mol + iatom;
-            sys.atom_type_idx[icart] = 0;
-            sys.atom_mol_idx[icart] = imol;
+            sys.ibtype[icart] = 0;
+            sys.ibmol[icart] = imol;
         }
     }
     sys.iratom_offsets = vec![0; ntotat + 1];
     sys.iratom_data.clear();
 
     let pad: F = 3.0;
-    sys.pbc.min = [-pad, -pad, -pad];
-    sys.pbc.length = [box_side + 2.0 * pad; 3];
+    sys.pbc_min = [-pad, -pad, -pad];
+    sys.pbc_length = [box_side + 2.0 * pad; 3];
     let cell_side: F = 2.0;
     for k in 0..3 {
-        sys.cells.ncells[k] = ((sys.pbc.length[k] / cell_side).floor() as usize).max(1);
-        sys.cells.cell_length[k] = sys.pbc.length[k] / sys.cells.ncells[k] as F;
+        sys.ncells[k] = ((sys.pbc_length[k] / cell_side).floor() as usize).max(1);
+        sys.cell_length[k] = sys.pbc_length[k] / sys.ncells[k] as F;
     }
     sys.resize_cell_arrays();
 
-    sys.sizemin = sys.pbc.min;
+    sys.sizemin = sys.pbc_min;
     sys.sizemax = [
-        sys.pbc.min[0] + sys.pbc.length[0],
-        sys.pbc.min[1] + sys.pbc.length[1],
-        sys.pbc.min[2] + sys.pbc.length[2],
+        sys.pbc_min[0] + sys.pbc_length[0],
+        sys.pbc_min[1] + sys.pbc_length[1],
+        sys.pbc_min[2] + sys.pbc_length[2],
     ];
 
     sys.sync_atom_props();
@@ -196,13 +196,13 @@ fn pack_seed_parity_serial_vs_parallel() {
     let serial = Molpack::new()
         .with_seed(SEED)
         .with_parallel_eval(false)
-        .pack(&[build_target()], MAX_LOOPS)
+        .pack_with_report(&[build_target()], MAX_LOOPS)
         .expect("serial pack failed");
 
     let parallel = Molpack::new()
         .with_seed(SEED)
         .with_parallel_eval(true)
-        .pack(&[build_target()], MAX_LOOPS)
+        .pack_with_report(&[build_target()], MAX_LOOPS)
         .expect("parallel pack failed");
 
     assert_eq!(

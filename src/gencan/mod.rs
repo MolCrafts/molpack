@@ -6,7 +6,7 @@ use molrs::types::F;
 pub mod cg;
 pub mod spg;
 
-use crate::context::EvalMode;
+use crate::constraints::EvalMode;
 use crate::numerics::{numeric_controls, positive_norm_floor};
 use crate::objective::Objective;
 
@@ -25,8 +25,8 @@ impl Default for GencanParams {
         Self {
             epsgpsn: 1.0e-6,
             maxit: 20,
-            maxfc: 200, // 10 * maxit
-            delmin: 2.0,
+            maxfc: 200,     // 10 * maxit
+            delmin: 1.0e-2, // Packmol easygencan default (gencan.f: delmin = 1.d-2)
             iprint: 0,
             ncomp: 50,
         }
@@ -56,13 +56,6 @@ pub struct GencanWorkspace {
     cg_scratch: cg::CgScratch,
     spg_scratch: spg::SpgScratch,
     tnls_scratch: TnLsScratch,
-    /// Reusable no-gradient-progress history buffer (maxitngp = 1000).
-    lastgpns: Vec<F>,
-    /// Reusable bounds vectors for pgencan.
-    bounds_l: Vec<F>,
-    bounds_u: Vec<F>,
-    /// Reusable coords snapshot for relaxer MC block in packer.
-    pub coords_snapshot: Vec<[F; 3]>,
 }
 
 impl GencanWorkspace {
@@ -76,10 +69,6 @@ impl GencanWorkspace {
             cg_scratch: cg::CgScratch::new(0),
             spg_scratch: spg::SpgScratch::new(0),
             tnls_scratch: TnLsScratch::new(0),
-            lastgpns: Vec::new(),
-            bounds_l: Vec::new(),
-            bounds_u: Vec::new(),
-            coords_snapshot: Vec::new(),
         }
     }
 
@@ -125,18 +114,11 @@ pub fn pgencan(
 ) -> GencanResult {
     let n = x.len();
 
-    workspace.bounds_l.resize(n, 0.0);
-    workspace.bounds_u.resize(n, 0.0);
-    obj.bounds(&mut workspace.bounds_l, &mut workspace.bounds_u);
+    let mut l = vec![0.0 as F; n];
+    let mut u = vec![0.0 as F; n];
+    obj.bounds(&mut l, &mut u);
 
-    // Swap bounds out of workspace to avoid borrow conflicts when passing
-    // both the slices and `&mut workspace` to `gencan`.
-    let bounds_l = std::mem::take(&mut workspace.bounds_l);
-    let bounds_u = std::mem::take(&mut workspace.bounds_u);
-    let result = gencan(x, &bounds_l, &bounds_u, obj, params, precision, workspace);
-    workspace.bounds_l = bounds_l;
-    workspace.bounds_u = bounds_u;
-    result
+    gencan(x, &l, &u, obj, params, precision, workspace)
 }
 
 /// Main GENCAN loop.
@@ -193,8 +175,8 @@ pub fn gencan(
     g.fill(0.0);
     let mut f = obj.evaluate(x, EvalMode::FAndGradient, Some(g)).f_total;
 
-    // Packmol behavior: check packmolprecision before counting this first eval.
-    if packmolprecision(obj, precision) {
+    // Packmol behavior: check convergence before counting this first eval.
+    if converged(obj, precision) {
         return GencanResult {
             f,
             gpsupn: 0.0,
@@ -244,8 +226,7 @@ pub fn gencan(
     let mut fprev = INFABS;
     let mut bestprog = 0.0 as F;
     let mut itnfp = 0usize;
-    workspace.lastgpns.resize(maxitngp, INFABS);
-    let lastgpns = &mut workspace.lastgpns;
+    let mut lastgpns = vec![INFABS; maxitngp];
 
     // Working vectors
     let d = &mut workspace.d;
@@ -255,7 +236,7 @@ pub fn gencan(
     // Main loop
     loop {
         // Packmol behavior: recompute precision test with computef at each iteration.
-        if packmolprecision(obj, precision) {
+        if converged(obj, precision) {
             break;
         }
 
@@ -604,7 +585,7 @@ fn projected_gradient_info(
 
 /// Packmol precision check (`packmolprecision` in `pgencan.f90`):
 /// recompute objective-side violations and test `fdist/frest`.
-fn packmolprecision(obj: &dyn Objective, precision: F) -> bool {
+fn converged(obj: &dyn Objective, precision: F) -> bool {
     obj.fdist() < precision && obj.frest() < precision
 }
 

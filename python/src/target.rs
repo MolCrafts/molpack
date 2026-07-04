@@ -1,19 +1,16 @@
 //! Python wrapper for packing `Target`.
 //!
 //! [`PyTarget`] describes one type of molecule to pack: its template
-//! geometry, element symbols, and the number of copies.
+//! geometry, topology, and the number of copies.
 //!
-//! The constructor accepts any ``frame``-like object with a ``"atoms"`` block:
-//!
-//! - ``molrs.Frame`` (from ``molrs.read_pdb`` / ``read_xyz``) — block columns
-//!   are accessed via ``.view(name)`` since ``molrs.Block`` has no ``__getitem__``.
-//! - ``molpy.Frame`` / plain dicts — columns accessed via ``block[name]``.
-//!
-//! Rust calls the appropriate Python method by probing ``.view()`` first, then
-//! falling back to ``[]``.  The element column is tried as ``"element"`` first
-//! (molpy, XYZ), then ``"symbol"`` (molrs PDB).
+//! The constructor accepts a real molrs/molpy `Frame` (``molrs.Frame`` or
+//! ``molpy.Frame``) carrying an ``"atoms"`` block. The frame crosses the
+//! language boundary **zero-copy** through its stable-FFI capsule (see
+//! [`crate::interop`]) — no dict marshalling, no consumer-side data type. The
+//! full frame, with topology, is handed to the core [`Target`], which owns the
+//! assembly.
 
-use crate::constraint::extract_restraint;
+use crate::constraint::{extract_collective_restraint, extract_restraint, try_atom_builtin};
 use crate::helpers::NpF;
 use crate::types::{PyAngle, PyAxis, PyCenteringMode};
 use molpack::F;
@@ -22,104 +19,21 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
-/// Bondi (1964) van der Waals radius for a given element symbol (Å).
-/// Falls back to 1.50 Å for unknowns.
-pub(crate) fn vdw_radius_for(element: &str) -> NpF {
-    match element.to_uppercase().as_str() {
-        "H" => 1.20,
-        "C" => 1.70,
-        "N" => 1.55,
-        "O" => 1.52,
-        "F" => 1.47,
-        "P" => 1.80,
-        "S" => 1.80,
-        "CL" => 1.75,
-        "BR" => 1.85,
-        "I" => 1.98,
-        "NA" => 2.27,
-        "K" => 2.75,
-        "CA" => 1.73,
-        "MG" => 1.73,
-        "ZN" => 1.39,
-        "FE" => 1.94,
-        _ => 1.50,
-    }
-}
-
 /// Build a [`Target`] from any frame-like Python object plus a copy count.
 ///
-/// Used by both [`PyTarget::new`] and the script loader so they share one
-/// duck-typed extraction path. The frame may be a [`molrs.Frame`] (block
-/// columns via `.view(name)`), a `molpy.Frame`, or a plain dict.
+/// Shared by [`PyTarget::new`] and the script loader. The frame is converted to
+/// a Rust [`molrs::Frame`] so the core retains its full topology.
 pub(crate) fn target_from_frame(frame: &Bound<'_, PyAny>, count: usize) -> PyResult<Target> {
-    if count == 0 {
-        return Err(PyValueError::new_err("count must be ≥ 1"));
-    }
-    let atoms = frame
-        .get_item("atoms")
-        .map_err(|_| PyValueError::new_err(r#"frame must have an "atoms" block"#))?;
-
-    let x: Vec<NpF> = read_column(&atoms, "x")?;
-    let y: Vec<NpF> = read_column(&atoms, "y")?;
-    let z: Vec<NpF> = read_column(&atoms, "z")?;
-    let elements: Vec<String> = read_element_column(&atoms)?;
-
-    let n = x.len();
-    if y.len() != n || z.len() != n || elements.len() != n {
+    let rust_frame = crate::interop::owned_frame_from_py(frame)?;
+    let atoms = rust_frame
+        .get("atoms")
+        .ok_or_else(|| PyValueError::new_err(r#"frame must have an "atoms" block"#))?;
+    if atoms.get("x").is_none() {
         return Err(PyValueError::new_err(
-            "x, y, z, and element arrays must all have the same length",
+            r#"atoms block must have "x" / "y" / "z" columns"#,
         ));
     }
-
-    let coords: Vec<[F; 3]> = x
-        .iter()
-        .zip(y.iter())
-        .zip(z.iter())
-        .map(|((xi, yi), zi)| [*xi, *yi, *zi])
-        .collect();
-    let radii: Vec<F> = elements.iter().map(|e| vdw_radius_for(e)).collect();
-
-    let mut target = Target::from_coords(&coords, &radii, count);
-    target.elements = elements;
-    Ok(target)
-}
-
-/// Read a numeric column from an atoms block.
-///
-/// Tries `block.view(name)` first (``molrs.Block``), then ``block[name]``
-/// (``molpy.Block`` / plain dict).
-fn read_column(block: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<NpF>> {
-    if let Ok(col) = block.call_method1("view", (name,)) {
-        return col.extract();
-    }
-    block
-        .get_item(name)
-        .map_err(|_| PyValueError::new_err(format!(r#"atoms block has no "{name}" column"#)))?
-        .extract()
-}
-
-/// Read the element-symbol column from an atoms block.
-///
-/// Tries the columns ``"element"`` and ``"symbol"`` in order, using both
-/// ``.view()`` (molrs) and ``[]`` (molpy / dict) access per column.
-///
-/// | Source          | Column    | Access  |
-/// |-----------------|-----------|---------|
-/// | molrs PDB       | ``symbol``  | `.view()` |
-/// | molrs XYZ       | ``element`` | `.view()` |
-/// | molpy / dict    | ``element`` | `[]`    |
-fn read_element_column(block: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
-    for col in ["element", "symbol"] {
-        if let Ok(arr) = block.call_method1("view", (col,)) {
-            return arr.extract();
-        }
-        if let Ok(arr) = block.get_item(col) {
-            return arr.extract();
-        }
-    }
-    Err(PyValueError::new_err(
-        r#"atoms block must have an "element" or "symbol" column"#,
-    ))
+    Ok(Target::new(rust_frame, count))
 }
 
 #[pyclass(name = "Target", from_py_object)]
@@ -134,9 +48,10 @@ impl PyTarget {
     ///
     /// Parameters
     /// ----------
-    /// frame : Frame-like
-    ///     Any object with ``frame["atoms"]`` returning a block.
-    ///     Supports ``molrs.Frame``, ``molpy.Frame``, and plain dicts.
+    /// frame : molrs.Frame | molpy.Frame
+    ///     A molrs/molpy frame with an ``"atoms"`` block (``x`` / ``y`` / ``z``
+    ///     columns). Resolved zero-copy via its FFI capsule — a plain ``dict``
+    ///     is no longer accepted; build a ``molrs.Frame`` first.
     /// count : int
     ///     Number of copies to pack.
     ///
@@ -155,11 +70,73 @@ impl PyTarget {
         }
     }
 
+    /// Attach a restraint to this target — the single unified extension point.
+    ///
+    /// Accepts:
+    ///
+    /// * a built-in **geometric** restraint (:class:`InsideBoxRestraint`,
+    ///   :class:`InsideSphereRestraint`, :class:`OutsideSphereRestraint`,
+    ///   :class:`AbovePlaneRestraint`, :class:`BelowPlaneRestraint`) — its
+    ///   ``f`` / ``fg`` see **one atom** at a time;
+    /// * a built-in **distribution** restraint (:class:`GaussianPlane`,
+    ///   :class:`GaussianPoint`, :class:`ExponentialPlane`,
+    ///   :class:`ExponentialPoint`, :class:`TabulatedPlane`,
+    ///   :class:`TabulatedPoint`);
+    /// * any object with callable ``f`` / ``fg`` — the duck-typed extension
+    ///   point.
+    ///
+    /// For the geometric built-ins ``f(x, scale, scale2)`` /
+    /// ``fg(x, scale, scale2)`` see a single atom's ``(x, y, z)``. For the
+    /// distribution and custom (duck-typed) restraints,
+    /// ``f(coords, scale, scale2)`` / ``fg(coords, scale, scale2)`` see **every
+    /// copy's** ``(x, y, z)`` (``coords`` is the full list) and ``fg`` returns
+    /// ``(energy, [(gx, gy, gz), ...])`` — one gradient triple per copy.
     fn with_restraint(&self, restraint: &Bound<'_, pyo3::types::PyAny>) -> PyResult<Self> {
-        let r = extract_restraint(restraint)?;
-        Ok(PyTarget {
-            inner: self.inner.clone().with_restraint(r),
-        })
+        if let Some(atom_r) = try_atom_builtin(restraint) {
+            Ok(PyTarget {
+                inner: self.inner.clone().with_restraint(atom_r),
+            })
+        } else {
+            let group_r = extract_collective_restraint(restraint)?;
+            Ok(PyTarget {
+                inner: self.inner.clone().with_collective_restraint(group_r),
+            })
+        }
+    }
+
+    /// Attach an in-loop geometry relaxer (relaxation-assisted packing).
+    ///
+    /// Accepts either built-in relaxer:
+    ///
+    /// * :class:`TorsionMcRelaxer` — engine-free Monte-Carlo torsion sampling
+    ///   (always available);
+    /// * :class:`LBFGSRelaxer` — force-field L-BFGS minimization (`ff` feature).
+    ///
+    /// Requires ``count == 1`` — every copy shares the reference geometry the
+    /// relaxer rewrites, so a relaxed target packs one molecule.
+    fn with_relaxer(&self, relaxer: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if self.inner.count != 1 {
+            return Err(PyValueError::new_err(format!(
+                "with_relaxer requires count == 1 (all copies share the reference \
+                 geometry the relaxer rewrites), got count = {}",
+                self.inner.count
+            )));
+        }
+        // Torsion-MC relaxer is core (no feature gate).
+        if let Ok(tm) = relaxer.extract::<crate::relaxer::PyTorsionMcRelaxer>() {
+            return Ok(PyTarget {
+                inner: self.inner.clone().with_relaxer(tm.inner),
+            });
+        }
+        #[cfg(feature = "ff")]
+        if let Ok(lb) = relaxer.extract::<crate::relaxer::PyLBFGSRelaxer>() {
+            return Ok(PyTarget {
+                inner: self.inner.clone().with_relaxer(lb.inner),
+            });
+        }
+        Err(PyValueError::new_err(
+            "with_relaxer expects a TorsionMcRelaxer or LBFGSRelaxer",
+        ))
     }
 
     /// Attach a restraint to selected atoms of every copy.

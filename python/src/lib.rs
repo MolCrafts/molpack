@@ -6,7 +6,7 @@
 //! |------------------|----------------------|------------------------------------|
 //! | `Target`         | [`PyTarget`]         | Molecule specification for packing |
 //! | `Molpack`        | [`PyPacker`]         | Molecular packer (Packmol port)    |
-//! | `PackResult`     | [`PyPackResult`]     | Pack output (positions, elements)  |
+//! | `PackResult`     | [`PyPackResult`]     | Diagnostics from `pack_with_report` |
 //! | `StepInfo`       | [`PyStepInfo`]       | Read-only snapshot for handlers    |
 //! | `InsideBox`      | [`PyInsideBox`]      | Box restraint                      |
 //! | `InsideSphere`   | [`PyInsideSphere`]   | Sphere restraint (inside)          |
@@ -24,6 +24,8 @@
 
 use pyo3::prelude::*;
 
+mod interop;
+
 mod helpers;
 use helpers::register_errors;
 
@@ -32,11 +34,9 @@ use types::{PyAngle, PyAxis, PyCenteringMode};
 
 mod constraint;
 use constraint::{
-    PyAboveGaussianRestraint, PyAbovePlaneRestraint, PyBelowGaussianRestraint,
-    PyBelowPlaneRestraint, PyInsideBoxRestraint, PyInsideCubeRestraint, PyInsideCylinderRestraint,
-    PyInsideEllipsoidRestraint, PyInsideSphereRestraint, PyOutsideBoxRestraint,
-    PyOutsideCubeRestraint, PyOutsideCylinderRestraint, PyOutsideEllipsoidRestraint,
-    PyOutsideSphereRestraint,
+    PyAbovePlaneRestraint, PyBelowPlaneRestraint, PyExponentialPlane, PyExponentialPoint,
+    PyGaussianPlane, PyGaussianPoint, PyInsideBoxRestraint, PyInsideSphereRestraint,
+    PyOutsideSphereRestraint, PyTabulatedPlane, PyTabulatedPoint,
 };
 
 mod handler;
@@ -45,8 +45,13 @@ use handler::PyStepInfo;
 mod target;
 use target::PyTarget;
 
+mod relaxer;
+
 mod packer;
 use packer::{PyPackResult, PyPacker};
+
+mod parallel;
+use parallel::{init_thread_pool, num_threads, rayon_enabled};
 
 mod script;
 use script::{PyScriptJob, load_script};
@@ -58,27 +63,32 @@ fn molpack(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCenteringMode>()?;
 
     m.add_class::<PyInsideBoxRestraint>()?;
-    m.add_class::<PyInsideCubeRestraint>()?;
     m.add_class::<PyInsideSphereRestraint>()?;
-    m.add_class::<PyInsideEllipsoidRestraint>()?;
-    m.add_class::<PyInsideCylinderRestraint>()?;
-    m.add_class::<PyOutsideBoxRestraint>()?;
-    m.add_class::<PyOutsideCubeRestraint>()?;
     m.add_class::<PyOutsideSphereRestraint>()?;
-    m.add_class::<PyOutsideEllipsoidRestraint>()?;
-    m.add_class::<PyOutsideCylinderRestraint>()?;
     m.add_class::<PyAbovePlaneRestraint>()?;
     m.add_class::<PyBelowPlaneRestraint>()?;
-    m.add_class::<PyAboveGaussianRestraint>()?;
-    m.add_class::<PyBelowGaussianRestraint>()?;
+    m.add_class::<PyGaussianPlane>()?;
+    m.add_class::<PyGaussianPoint>()?;
+    m.add_class::<PyExponentialPlane>()?;
+    m.add_class::<PyExponentialPoint>()?;
+    m.add_class::<PyTabulatedPlane>()?;
+    m.add_class::<PyTabulatedPoint>()?;
 
     m.add_class::<PyTarget>()?;
     m.add_class::<PyPacker>()?;
     m.add_class::<PyPackResult>()?;
     m.add_class::<PyStepInfo>()?;
 
+    m.add_class::<relaxer::PyTorsionMcRelaxer>()?;
+    #[cfg(feature = "ff")]
+    m.add_class::<relaxer::PyLBFGSRelaxer>()?;
+
     m.add_class::<PyScriptJob>()?;
     m.add_function(wrap_pyfunction!(load_script, m)?)?;
+
+    m.add_function(wrap_pyfunction!(rayon_enabled, m)?)?;
+    m.add_function(wrap_pyfunction!(num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(init_thread_pool, m)?)?;
 
     register_errors(m.py(), m)?;
 

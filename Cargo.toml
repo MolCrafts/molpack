@@ -2,7 +2,7 @@
 name = "molcrafts-molpack"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 authors = ["MolCrafts"]
 license = "BSD-3-Clause"
 description = "Faithful Rust port of Packmol molecular packing (split off from molrs)"
@@ -15,20 +15,27 @@ categories = ["science", "algorithms"]
 
 [lib]
 name = "molpack"
+# The library carries no `#[bench]` functions; disabling its auto-generated
+# libtest bench harness keeps `cargo bench` (and criterion pass-through args
+# like `--output-format bencher`) scoped to the real criterion benches under
+# `benches/`, which is what the bench CI runs.
+bench = false
 
 [dependencies]
 # Path deps are for local development; `version` fields are used by
 # `cargo publish` to resolve against the crates.io registry.
 #
-# Library-required:
-molrs = { path = "../molrs/molrs-core", version = "0.0.17", package = "molcrafts-molrs-core", default-features = false }
-# Only required when the `io` (or `cli`) feature is enabled. Front-ends that
-# bring their own frame loader — notably the PyO3 wheel, which delegates to
-# molrs's Python bindings — opt out and avoid the static-link cost.
-molrs_io = { path = "../molrs/molrs-io", version = "0.0.17", package = "molcrafts-molrs-io", default-features = false, optional = true }
+# Library-required. The merged `molcrafts-molrs` crate exposes its former member
+# crates as feature-gated modules: `core` is always on (re-exported at the crate
+# root), while `io` and `ff` are opt-in via the molpack features below.
+molrs = { path = "../molrs/molrs", version = "0.6.0", package = "molcrafts-molrs", default-features = false }
 rand = "0.9"
 ndarray = "0.17"
 log = "0.4"
+# Provides `erf` for the profile-distribution penalties (the error-function
+# interface profile); `erf` is not in Rust stable std. Already in the lockfile
+# as a transitive dep of molrs-core, so this adds no new download.
+libm = "0.2"
 
 # Opt-in parallelism:
 rayon = { version = "1.11", optional = true }
@@ -39,64 +46,40 @@ clap = { version = "4", features = ["derive"], optional = true }
 [features]
 default = []
 rayon = ["dep:rayon", "molrs/rayon"]
-# Pulls in molrs-io for the built-in script loader, example programs, and the
-# molpack CLI. PyO3 / WASM front-ends typically leave this off and provide
-# their own frame loader through `Script::lower` + `Target::from_frame_parts`.
-io = ["dep:molrs_io"]
+# Pulls in molrs's `io` module for the built-in script loader, example programs,
+# and the molpack CLI. PyO3 / WASM front-ends typically leave this off and
+# provide their own frame loader through `Script::lower` + `Target::from_frame_parts`.
+io = ["molrs/io"]
 # Enables the `molpack` binary and its integration tests.
 cli = ["dep:clap", "io"]
+# Force-field geometry relaxer: enables molrs's `ff` module (MMFF typifier +
+# L-BFGS minimizer) so packing can relax flexible-molecule internal geometry.
+ff = ["molrs/ff"]
 
 [dev-dependencies]
-criterion = "0.5"
 # Used by the example programs under `examples/`.
 env_logger = "0.11"
-
-[[bench]]
-name = "pack_end_to_end"
-harness = false
-required-features = ["io"]
-
-[[bench]]
-name = "evaluate_unscaled"
-harness = false
-required-features = ["io"]
-
-[[bench]]
-name = "run_iteration"
-harness = false
-
-[[bench]]
-name = "run_phase"
-harness = false
-
-[[bench]]
-name = "objective_dispatch"
-harness = false
-
-[[bench]]
-name = "pair_kernel"
-harness = false
-
-[[bench]]
-name = "partial_gradient_merge"
-harness = false
-required-features = ["rayon"]
+# Criterion harness for the benchmark suite under `benches/`.
+criterion = "0.5"
 
 [[bin]]
 name = "molpack"
 path = "src/bin/molpack/main.rs"
 required-features = ["cli"]
+bench = false
 
 [[test]]
 name = "cli"
 path = "tests/cli.rs"
 required-features = ["cli"]
+bench = false
 
 # Uses the `cases` example harness, which reads PDB files via molrs-io.
 [[test]]
 name = "examples_batch"
 path = "tests/examples_batch.rs"
 required-features = ["io"]
+bench = false
 
 # Example programs all read PDB files via molrs-io directly, so they need
 # the `io` feature on. Run with `cargo run --example <name> --features io`.
@@ -125,15 +108,43 @@ name = "pack_spherical"
 path = "examples/pack_spherical/main.rs"
 required-features = ["io"]
 
+# Parallel-scaling measurement harness (molpack-jcc paper figure). Needs rayon,
+# not io.
 [[example]]
-name = "pack_polymer_vesicle"
-path = "examples/pack_polymer_vesicle/main.rs"
-required-features = ["io"]
+name = "mt_scaling"
+path = "examples/mt_scaling/main.rs"
+required-features = ["rayon"]
 
-[[example]]
-name = "mc_fold_chain"
-path = "examples/mc_fold_chain/main.rs"
-required-features = ["io"]
+# Criterion regression benchmarks under `benches/`. Each is a SMALL, fast
+# regression alarm (one tens-to-few-hundred-atom workload, `sample_size(10)`,
+# ~500 ms measurement) — a guard against a perf regression, not a throughput
+# measurement (the size-swept scaling study is `examples/mt_scaling`). Every
+# bench synthesizes its own geometry in-process, so none require the `io`
+# feature. Each sets `harness = false` for the criterion `main` entry point.
+[[bench]]
+name = "pair_kernel"
+path = "benches/pair_kernel.rs"
+harness = false
+
+[[bench]]
+name = "objective_dispatch"
+path = "benches/objective_dispatch.rs"
+harness = false
+
+[[bench]]
+name = "run_iteration"
+path = "benches/run_iteration.rs"
+harness = false
+
+[[bench]]
+name = "restraint_eval"
+path = "benches/restraint_eval.rs"
+harness = false
+
+[[bench]]
+name = "pack_end_to_end"
+path = "benches/pack_end_to_end.rs"
+harness = false
 
 [profile.release]
 lto = "thin"

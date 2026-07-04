@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use molpack::{
     Angle, CenteringMode, InsideBoxRestraint, Molpack, ProgressHandler, Target, XYZHandler,
 };
-use molrs_io::pdb::read_pdb_frame;
+use molrs::io::data::pdb::read_pdb_frame;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = env_logger::try_init();
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Angle::from_radians(1.57),
         ]);
 
-    let mut packer = Molpack::new().with_seed(1_234_567);
+    let mut packer = Molpack::new();
     if std::env::var_os("MOLRS_PACK_EXAMPLE_PROGRESS").is_some() {
         packer = packer.with_handler(ProgressHandler::new());
     }

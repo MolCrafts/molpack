@@ -17,6 +17,11 @@ workloads.
 
 - Initialization with constraint-only fitting (`initial` / `restmol` /
   `swaptype`).
+- `avoid_overlap` (on by default, faithful to `initial.f90`): initial
+  placements that land inside a fixed molecule are rejected. This matters
+  for dense solvation around a large fixed solute — without it a sizeable
+  fraction of solvent seeds inside the solute, roughly doubling the
+  initial overlap and slowing convergence by about an order of magnitude.
 - Phased main optimization — per-type pre-compaction, then all-types.
 - `movebad` heuristic for stalled molecules.
 - Radius-scaling (`radscale`) decay across each phase.
@@ -24,11 +29,18 @@ workloads.
 - Precision gate on `fdist` (overlap) and `frest` (restraint
   violation).
 
-**Restraint vocabulary used by the canonical examples**
+**Restraint vocabulary**
 
-- `inside box`, `inside sphere`, `outside sphere`
-- `above plane` / `below plane`
+- `inside`/`outside box`, `cube`, `sphere`, `ellipsoid`, `cylinder`
+- `over plane` (above) / `below plane`
 - fixed molecule placement
+
+All twelve box/cube/sphere/ellipsoid/cylinder/plane kinds lower through a single
+`restraint_from_spec` table in `script::build`, so each is reachable from both
+whole-molecule and `atoms … end atoms` blocks. The two Gaussian-surface kinds
+(14/15) exist in the Rust/Python API but have no `.inp` keyword yet — Packmol's
+Gaussian grammar is not pinned down here, and emitting a wrong parameter mapping
+would silently mis-pack, so the parser rejects them rather than guessing.
 
 **Periodicity**
 
@@ -73,7 +85,10 @@ same thresholds.
 
 ## Accepted differences
 
-- Packed coordinates are not bit-identical with Packmol even at the
-  same seed.
-- Acceptance is functional: same restraints, same conflict criteria,
-  same magnitude of tolerance / precision, comparable violation metrics.
+- Packed coordinates are not bit-identical with Packmol, even at the same
+  seed — the inner solver and RNG are independent implementations.
+- The two Gaussian-surface restraint kinds have no `.inp` keyword; they
+  are reachable only from the Rust/Python API.
+- Acceptance is therefore functional rather than numerical: the same
+  restraints, the same conflict criteria, the same order of magnitude of
+  tolerance / precision, and comparable violation metrics.

@@ -11,12 +11,12 @@ pub struct RuntimeState<'a> {
 impl<'a> RuntimeState<'a> {
     #[inline]
     pub fn fdist(&self) -> F {
-        self.ctx.eval.fdist
+        self.ctx.fdist
     }
 
     #[inline]
     pub fn frest(&self) -> F {
-        self.ctx.eval.frest
+        self.ctx.frest
     }
 
     #[inline]
@@ -37,8 +37,8 @@ pub struct RuntimeStateMut<'a> {
 
 impl<'a> RuntimeStateMut<'a> {
     #[inline]
-    pub fn set_selective_repack_mode(&mut self, enabled: bool) {
-        self.ctx.selective_repack_mode = enabled;
+    pub fn set_move_flag(&mut self, enabled: bool) {
+        self.ctx.move_flag = enabled;
     }
 
     #[inline]

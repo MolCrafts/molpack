@@ -4,21 +4,25 @@
 use std::sync::Arc;
 
 use molrs::Element;
+use molrs::spatial::region::simbox::SimBox;
 use molrs::types::F;
+use ndarray::Array1;
 use rand::SeedableRng;
 use rand::rngs::SmallRng;
 
-use crate::context::EvalMode;
+use crate::constraints::EvalMode;
 use crate::context::PackContext;
 use crate::error::PackError;
 use crate::euler::{compcart, eulerfixed};
 use crate::gencan::{GencanParams, GencanWorkspace, pgencan};
-use crate::handler::{Handler, PhaseInfo, StepInfo};
+use crate::handler::{
+    Handler, LammpsLogHandler, MolpackLogLevel, PhaseInfo, PhaseReport, StepInfo,
+};
 use crate::initial::{SwapState, init_xcart_from_x, initial};
 use crate::movebad::{MoveBadConfig, movebad};
 use crate::numerics::objective_small_floor;
 use crate::relaxer::RelaxerRunner;
-use crate::restraint::Restraint;
+use crate::restraint::AtomRestraint;
 use crate::target::{CenteringMode, Target};
 
 /// Result of a packing run.
@@ -29,11 +33,9 @@ use crate::target::{CenteringMode, Target};
 pub struct PackResult {
     /// Atoms frame with x, y, z (f32), element (String), mol_id (i64).
     pub frame: molrs::Frame,
-    /// Maximum inter-molecular distance violation at termination. The name
-    /// is Packmol's (`fdist`); kept as-is because it is public API.
+    /// Maximum inter-molecular distance violation at termination.
     pub fdist: F,
-    /// Maximum constraint (restraint) violation at termination. The name is
-    /// Packmol's (`frest`); kept as-is because it is public API.
+    /// Maximum constraint violation at termination.
     pub frest: F,
     /// Whether the packing converged (`fdist < precision && frest < precision`).
     pub converged: bool,
@@ -60,35 +62,6 @@ impl PackResult {
     }
 }
 
-/// Validate packing inputs at the boundary: at least one target, and no
-/// empty molecule templates.
-fn validate_inputs(targets: &[Target]) -> Result<(), PackError> {
-    if targets.is_empty() {
-        return Err(PackError::NoTargets);
-    }
-    for (i, t) in targets.iter().enumerate() {
-        if t.natoms() == 0 {
-            return Err(PackError::EmptyMolecule(i));
-        }
-    }
-    Ok(())
-}
-
-/// Fully-built packing state handed from [`Molpack::prepare_system`] to the
-/// main loop: the runtime context, the initial variable vector, per-type move
-/// budgets (referenced by `MoveBadConfig`), spawned relaxer runners, and the
-/// system dimensions.
-struct Prepared {
-    sys: PackContext,
-    x: Vec<F>,
-    maxmove_per_type: Vec<usize>,
-    relaxer_runners: Vec<(usize, Vec<Box<dyn RelaxerRunner>>)>,
-    ntype: usize,
-    ntype_with_fixed: usize,
-    ntotmol_free: usize,
-    ntotat: usize,
-}
-
 /// Default Packmol parameters
 const PRECISION: F = 0.01;
 // Packmol default from getinp.f90: discale = 1.1d0
@@ -103,13 +76,8 @@ const MOVEFRAC: F = 0.05;
 /// Atom radii are set to `tolerance / 2` for all atoms, matching Packmol's
 /// `radius(i) = dism/2.d0` (packmol.f90 line 283).
 const DEFAULT_TOLERANCE: F = 2.0;
-/// `movebad` fires once the radii are full-size (`radscale == 1.0`) and the
-/// previous iteration's percentage improvement has dropped to this threshold
-/// or below — i.e. the loop has nearly stalled (packmol.f90 line 815).
-const MOVEBAD_FIMP_THRESHOLD: F = 10.0;
-/// Symmetric clamp on the percentage-improvement metric `fimp`
-/// (packmol.f90 lines 848-849: `fimp ∈ [-99.99, 99.99]`).
-const FIMP_CLAMP: F = 99.99;
+/// Default RNG seed (Packmol's `seed` default = 1234567, getinp.f90 line 33).
+const DEFAULT_SEED: u64 = 1_234_567;
 
 /// The packer.
 pub struct Molpack {
@@ -117,7 +85,7 @@ pub struct Molpack {
     /// Global restraints — broadcast to every target at `pack()` time
     /// (semantic equivalence to calling `target.with_restraint(r.clone())`
     /// on every target; no separate global-storage code path).
-    global_restraints: Vec<Arc<dyn Restraint>>,
+    global_restraints: Vec<Arc<dyn AtomRestraint>>,
     precision: F,
     discale: F,
     /// Minimum atom-atom distance (Packmol's `tolerance`/`dism`). Default 2.0 Å.
@@ -136,7 +104,8 @@ pub struct Molpack {
     /// Master switch for the stall-perturbation heuristic (inverts Packmol's
     /// `disable_movebad`: `true` = perturb enabled, `false` = disabled).
     perturb: bool,
-    /// Seed for the internal RNG. Default `0` (deterministic).
+    /// Seed for the internal RNG. Default `1_234_567` (Packmol's default;
+    /// deterministic — the same seed reproduces the same packing).
     seed: u64,
     /// Run the pair-kernel reductions on rayon. Off by default: see
     /// [`with_parallel_eval`][Self::with_parallel_eval].
@@ -147,6 +116,16 @@ pub struct Molpack {
     /// present, they must match exactly or `pack()` returns
     /// [`PackError::ConflictingPeriodicBoxes`].
     periodic_box: Option<PeriodicSpec>,
+    /// Built-in LAMMPS-style screen output detail.
+    log_level: MolpackLogLevel,
+    /// Print every N outer iterations when `log_level` includes progress.
+    log_frequency: usize,
+    /// Reject initial random placements that overlap a fixed molecule
+    /// (Packmol's `avoid_overlap`, default on). Critical when packing a dense
+    /// solvent around a large fixed solute: without it ~15-20% of the solvent
+    /// seeds inside the solute, inflating the initial overlap ~2× and stalling
+    /// GENCAN. Has no effect when there are no fixed molecules.
+    avoid_overlap: bool,
 }
 
 impl Default for Molpack {
@@ -177,9 +156,12 @@ impl Molpack {
             perturb_fraction: MOVEFRAC,
             random_perturb: false,
             perturb: true,
-            seed: 0,
+            seed: DEFAULT_SEED,
             parallel_eval: false,
             periodic_box: None,
+            log_level: MolpackLogLevel::Quiet,
+            log_frequency: 1,
+            avoid_overlap: true,
         }
     }
 
@@ -201,7 +183,7 @@ impl Molpack {
     /// Implementation mirrors the equivalence — no separate "global
     /// restraint" storage path in `PackContext`; the restraint is cloned
     /// into each target's `molecule_restraints` when `pack()` is invoked.
-    pub fn with_global_restraint(mut self, r: impl Restraint + 'static) -> Self {
+    pub fn with_global_restraint(mut self, r: impl AtomRestraint + 'static) -> Self {
         self.global_restraints.push(Arc::new(r));
         self
     }
@@ -222,6 +204,15 @@ impl Molpack {
     /// GENCAN inner iteration count (default `20`; Packmol `maxit`).
     pub fn with_inner_iterations(mut self, n: usize) -> Self {
         self.inner_iterations = n;
+        self
+    }
+
+    /// Whether to reject initial random placements that overlap a fixed
+    /// molecule (default `true`; Packmol's `avoid_overlap`). Leave on unless
+    /// you have a specific reason to allow solvent to seed inside a fixed
+    /// solute — disabling it can slow dense-solvation packing by 10× or more.
+    pub fn with_avoid_overlap(mut self, enabled: bool) -> Self {
+        self.avoid_overlap = enabled;
         self
     }
 
@@ -275,7 +266,8 @@ impl Molpack {
         self
     }
 
-    /// Seed for the internal RNG (default `0` — deterministic).
+    /// Seed for the internal RNG (default `1_234_567`, matching Packmol;
+    /// deterministic — the same seed reproduces the same packing).
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
@@ -302,6 +294,38 @@ impl Molpack {
         self
     }
 
+    /// Enable or disable built-in LAMMPS-style screen output.
+    ///
+    /// This is intentionally a builder-level concern: `pack()` returns the
+    /// packed [`molrs::Frame`], while timing, optimization diagnostics, and
+    /// system summaries are streamed to stderr when enabled.
+    pub fn with_lammps_output(mut self, enabled: bool) -> Self {
+        self.log_level = if enabled {
+            MolpackLogLevel::Progress
+        } else {
+            MolpackLogLevel::Quiet
+        };
+        self
+    }
+
+    /// Set built-in screen-log detail.
+    ///
+    /// `Quiet` is the default. `Summary` prints system/phase/final summaries,
+    /// `Progress` also prints thermo-style per-step lines, and `Verbose` adds
+    /// extra diagnostic columns.
+    pub fn with_log_level(mut self, level: MolpackLogLevel) -> Self {
+        self.log_level = level;
+        self
+    }
+
+    /// Print every `n` outer iterations for progress/verbose logs.
+    ///
+    /// Values below 1 are clamped to 1.
+    pub fn with_log_frequency(mut self, n: usize) -> Self {
+        self.log_frequency = n.max(1);
+        self
+    }
+
     /// Run the packing.
     ///
     /// `max_loops` is the outer iteration budget; it is positional
@@ -309,19 +333,105 @@ impl Molpack {
     /// on system size and convergence difficulty). Every other knob
     /// lives on the builder.
     ///
-    /// Returns a [`PackResult`] containing the final atom positions and
-    /// convergence information (`fdist`, `frest`, `converged`).
-    /// Build the runtime context, restraint tables, fixed placements, the
-    /// initial variable vector, and relaxer runners from `targets` (already
-    /// global-restraint-broadcasted). Pure setup — no handler callbacks and no
-    /// `initial()` solve, which the caller runs afterwards.
-    fn prepare_system(&self, targets: &[Target]) -> Prepared {
+    /// Returns the packed [`molrs::Frame`]. Enable built-in screen logging
+    /// with [`with_lammps_output`][Self::with_lammps_output] or
+    /// [`with_log_level`][Self::with_log_level] for timing, optimization
+    /// diagnostics, and system summaries.
+    pub fn pack(
+        &mut self,
+        targets: &[Target],
+        max_loops: usize,
+    ) -> Result<molrs::Frame, PackError> {
+        Ok(self.pack_with_report(targets, max_loops)?.frame)
+    }
+
+    /// Run the packing and retain structured convergence diagnostics.
+    ///
+    /// This is mainly for tests, bindings, and advanced programmatic callers.
+    /// The primary user-facing API is [`pack`][Self::pack], which returns only
+    /// the packed frame.
+    pub fn pack_with_report(
+        &mut self,
+        targets: &[Target],
+        max_loops: usize,
+    ) -> Result<PackResult, PackError> {
+        if targets.is_empty() {
+            return Err(PackError::NoTargets);
+        }
+
+        for (i, t) in targets.iter().enumerate() {
+            if t.natoms() == 0 {
+                return Err(PackError::EmptyMolecule(i));
+            }
+        }
+
+        // Scope equivalence (spec §4): broadcast global restraints to each target.
+        // If none were added via `Molpack::add_restraint`, this is a no-op.
+        let broadcast_targets: Vec<Target>;
+        let targets: &[Target] = if self.global_restraints.is_empty() {
+            targets
+        } else {
+            broadcast_targets = targets
+                .iter()
+                .map(|t| {
+                    let mut t = t.clone();
+                    for r in &self.global_restraints {
+                        t.molecule_restraints.push(Arc::clone(r));
+                    }
+                    t
+                })
+                .collect();
+            &broadcast_targets
+        };
+        // Derive the system periodic box from two independent sources:
+        //   1. `Molpack::with_periodic_box` — global PBC (script `pbc`).
+        //   2. `AtomRestraint::periodic_box` — per-restraint declarations,
+        //      e.g. `InsideBoxRestraint` with any axis marked periodic.
+        //
+        // The two must not disagree; if both are present they must
+        // match exactly (same bounds, same per-axis flags). Validate
+        // the global PBC extent here since `derive_periodic_box`
+        // already does this for restraint-sourced boxes.
+        if let Some((min, max, _)) = self.periodic_box {
+            let length = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+            if length.iter().any(|&v| v <= 0.0) {
+                return Err(PackError::InvalidPBCBox { min, max });
+            }
+        }
+        let pbc = match (self.periodic_box, derive_periodic_box(targets)?) {
+            (None, derived) => derived,
+            (Some(global), None) => Some(global),
+            (Some(global), Some(derived)) if global == derived => Some(global),
+            (Some(global), Some(derived)) => {
+                return Err(PackError::ConflictingPeriodicBoxes {
+                    first: global,
+                    second: derived,
+                });
+            }
+        };
+
+        let mut rng = SmallRng::seed_from_u64(self.seed);
+
         // Split into free and fixed targets
         let free_targets: Vec<&Target> = targets.iter().filter(|t| t.fixed_at.is_none()).collect();
         let fixed_targets: Vec<&Target> = targets.iter().filter(|t| t.fixed_at.is_some()).collect();
 
         let ntype = free_targets.len();
         let ntype_with_fixed = ntype + fixed_targets.len();
+
+        let mut handlers = std::mem::take(&mut self.handlers);
+        if self.log_level.is_enabled() {
+            handlers.push(Box::new(LammpsLogHandler::new(
+                self.log_level,
+                self.log_frequency,
+                self.tolerance,
+                self.precision,
+                self.seed,
+                max_loops,
+                ntype_with_fixed,
+                pbc,
+            )));
+        }
 
         // Count atoms
         let ntotmol_free: usize = free_targets.iter().map(|t| t.count).sum();
@@ -336,24 +446,24 @@ impl Molpack {
         let mut sys = PackContext::new(ntotat, ntotmol_free, ntype);
         sys.ntype_with_fixed = ntype_with_fixed;
         sys.nfixedat = ntotat_fixed;
-        // is_type_active is initialized with size ntype; resize to include fixed types
-        sys.is_type_active = vec![true; ntype_with_fixed];
+        // comptype is initialized with size ntype; resize to include fixed types
+        sys.comptype = vec![true; ntype_with_fixed];
 
         // Fill nmols, natoms, idfirst for free types
         let mut cum_atoms = 0usize;
         let mut coor = Vec::new();
         let mut maxmove_per_type = vec![0usize; ntype];
 
-        sys.topology.nmols = vec![0; ntype_with_fixed];
-        sys.topology.natoms = vec![0; ntype_with_fixed];
-        sys.topology.idfirst = vec![0; ntype_with_fixed];
+        sys.nmols = vec![0; ntype_with_fixed];
+        sys.natoms = vec![0; ntype_with_fixed];
+        sys.idfirst = vec![0; ntype_with_fixed];
         sys.constrain_rot = vec![[false; 3]; ntype];
         sys.rot_bound = vec![[[0.0; 2]; 3]; ntype];
 
         for (itype, target) in free_targets.iter().enumerate() {
-            sys.topology.nmols[itype] = target.count;
-            sys.topology.natoms[itype] = target.natoms();
-            sys.topology.idfirst[itype] = cum_atoms;
+            sys.nmols[itype] = target.count;
+            sys.natoms[itype] = target.natoms();
+            sys.idfirst[itype] = cum_atoms;
             coor.extend_from_slice(reference_coords(target));
             cum_atoms += target.natoms();
 
@@ -369,18 +479,18 @@ impl Molpack {
 
         for (fi, target) in fixed_targets.iter().enumerate() {
             let itype = ntype + fi;
-            sys.topology.nmols[itype] = 1;
-            sys.topology.natoms[itype] = target.natoms();
-            sys.topology.idfirst[itype] = cum_atoms;
+            sys.nmols[itype] = 1;
+            sys.natoms[itype] = target.natoms();
+            sys.idfirst[itype] = cum_atoms;
             coor.extend_from_slice(reference_coords(target));
             cum_atoms += target.natoms();
         }
-        sys.topology.coor = coor;
+        sys.coor = coor;
 
         // Assign radii, element symbols, and per-atom (itype, imol) tags.
         // Packmol uses `radius = tolerance/2` for ALL atoms (packmol.f90 line 283:
         //   `radius(i) = dism/2.d0`), not VdW radii from the PDB file.
-        // `atom_type_idx` / `atom_mol_idx` are derivable from position in the sequential
+        // `ibtype` / `ibmol` are derivable from position in the sequential
         // atom layout, so we set them here once instead of having
         // `insert_atom_in_cell` rewrite the same constants on every eval.
         let atom_radius = self.tolerance / 2.0;
@@ -388,10 +498,10 @@ impl Molpack {
         for (itype, target) in free_targets.iter().enumerate() {
             for imol in 0..target.count {
                 for iatom in 0..target.natoms() {
-                    sys.eval.radius[icart] = atom_radius;
-                    sys.eval.radius_ini[icart] = atom_radius;
-                    sys.atom_type_idx[icart] = itype;
-                    sys.atom_mol_idx[icart] = imol;
+                    sys.radius[icart] = atom_radius;
+                    sys.radius_ini[icart] = atom_radius;
+                    sys.ibtype[icart] = itype;
+                    sys.ibmol[icart] = imol;
                     sys.elements[icart] = Element::by_symbol(&target.elements[iatom]);
                     icart += 1;
                 }
@@ -400,10 +510,10 @@ impl Molpack {
         for (fi, target) in fixed_targets.iter().enumerate() {
             let itype = ntype + fi;
             for iatom in 0..target.natoms() {
-                sys.eval.radius[icart] = atom_radius;
-                sys.eval.radius_ini[icart] = atom_radius;
-                sys.atom_type_idx[icart] = itype;
-                sys.atom_mol_idx[icart] = 0;
+                sys.radius[icart] = atom_radius;
+                sys.radius_ini[icart] = atom_radius;
+                sys.ibtype[icart] = itype;
+                sys.ibmol[icart] = 0;
                 sys.elements[icart] = Element::by_symbol(&target.elements[iatom]);
                 icart += 1;
             }
@@ -450,6 +560,15 @@ impl Molpack {
             sys.iratom_data.extend(atom_restraints);
         }
 
+        // Group-level (collective) restraints: one entry per (free type, restraint).
+        // The free target's position is its 0-based type index `itype`.
+        sys.collective.clear();
+        for (itype, target) in free_targets.iter().enumerate() {
+            for r in &target.collective_restraints {
+                sys.collective.push((itype, std::sync::Arc::clone(r)));
+            }
+        }
+
         // Handle fixed molecules: place them using eulerfixed
         let free_atoms = ntotat_free;
         let mut fixed_icart = free_atoms;
@@ -463,7 +582,7 @@ impl Molpack {
             let ref_coords = reference_coords(target);
             for ref_coord in ref_coords.iter().take(target.natoms()) {
                 let pos = compcart(&fp.position, ref_coord, &v1, &v2, &v3);
-                sys.eval.xcart[fixed_icart] = pos;
+                sys.xcart[fixed_icart] = pos;
                 sys.fixedatom[fixed_icart] = true;
                 fixed_icart += 1;
             }
@@ -482,101 +601,10 @@ impl Molpack {
         crate::frame::init_frame_constants(&mut sys);
 
         // Initialize x vector
-        let x = vec![0.0 as F; n];
-
-        // Build relaxer runners from target relaxers (RelaxerRunner carries
-        // mutable MC state). Built here from reference coords, which `initial()`
-        // does not modify. Each entry: (type_index, Vec<Box<dyn RelaxerRunner>>).
-        let relaxer_runners: Vec<(usize, Vec<Box<dyn RelaxerRunner>>)> = free_targets
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| !t.relaxers.is_empty())
-            .map(|(i, t)| {
-                let base = sys.topology.idfirst[i];
-                let na = sys.topology.natoms[i];
-                let ref_slice = &sys.topology.coor[base..base + na];
-                let runners = t.relaxers.iter().map(|r| r.spawn(ref_slice)).collect();
-                (i, runners)
-            })
-            .collect();
-
-        Prepared {
-            sys,
-            x,
-            maxmove_per_type,
-            relaxer_runners,
-            ntype,
-            ntype_with_fixed,
-            ntotmol_free,
-            ntotat,
-        }
-    }
-
-    pub fn pack(&mut self, targets: &[Target], max_loops: usize) -> Result<PackResult, PackError> {
-        validate_inputs(targets)?;
-
-        // Scope equivalence (spec §4): broadcast global restraints to each target.
-        // If none were added via `Molpack::add_restraint`, this is a no-op.
-        let broadcast_targets: Vec<Target>;
-        let targets: &[Target] = if self.global_restraints.is_empty() {
-            targets
-        } else {
-            broadcast_targets = targets
-                .iter()
-                .map(|t| {
-                    let mut t = t.clone();
-                    for r in &self.global_restraints {
-                        t.molecule_restraints.push(Arc::clone(r));
-                    }
-                    t
-                })
-                .collect();
-            &broadcast_targets
-        };
-        // Derive the system periodic box from two independent sources:
-        //   1. `Molpack::with_periodic_box` — global PBC (script `pbc`).
-        //   2. `Restraint::periodic_box` — per-restraint declarations,
-        //      e.g. `InsideBoxRestraint` with any axis marked periodic.
-        //
-        // The two must not disagree; if both are present they must
-        // match exactly (same bounds, same per-axis flags). Validate
-        // the global PBC extent here since `derive_periodic_box`
-        // already does this for restraint-sourced boxes.
-        if let Some((min, max, _)) = self.periodic_box {
-            let length = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-            if length.iter().any(|&v| v <= 0.0) {
-                return Err(PackError::InvalidPBCBox { min, max });
-            }
-        }
-        let pbc = match (self.periodic_box, derive_periodic_box(targets)?) {
-            (None, derived) => derived,
-            (Some(global), None) => Some(global),
-            (Some(global), Some(derived)) if global == derived => Some(global),
-            (Some(global), Some(derived)) => {
-                return Err(PackError::ConflictingPeriodicBoxes {
-                    first: global,
-                    second: derived,
-                });
-            }
-        };
-
-        let mut rng = SmallRng::seed_from_u64(self.seed);
-
-        // Build the runtime context, restraint tables, fixed placements, the
-        // initial variable vector, and relaxer runners.
-        let Prepared {
-            mut sys,
-            mut x,
-            maxmove_per_type,
-            mut relaxer_runners,
-            ntype,
-            ntype_with_fixed,
-            ntotmol_free,
-            ntotat,
-        } = self.prepare_system(targets);
+        let mut x = vec![0.0 as F; n];
 
         // Notify handlers immediately (before any heavy computation)
-        for h in self.handlers.iter_mut() {
+        for h in handlers.iter_mut() {
             h.on_start(ntotat, ntotmol_free);
         }
 
@@ -597,14 +625,38 @@ impl Molpack {
             self.init_box_half_size,
             init_passes,
             pbc,
+            self.avoid_overlap,
             &movebad_cfg,
             &mut rng,
         );
 
         // Notify handlers: initialization complete, xcart is valid
-        for h in self.handlers.iter_mut() {
-            h.on_initialized(&sys)?;
+        for h in handlers.iter_mut() {
+            h.on_initialized(&sys);
         }
+
+        // Build relaxer runners from target relaxers (RelaxerRunner carries mutable MC state).
+        // Each entry: (type_index, Vec<Box<dyn RelaxerRunner>>).
+        let mut relaxer_runners: Vec<(usize, Vec<Box<dyn RelaxerRunner>>)> = free_targets
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| !t.relaxers.is_empty())
+            .map(|(i, t)| {
+                let base = sys.idfirst[i];
+                let na = sys.natoms[i];
+                let ref_slice = &sys.coor[base..base + na];
+                // Pass the molecule template (full topology) so a force-field
+                // relaxer can compile its potential; `None` for coord-only targets.
+                let frame = t.template.as_ref();
+                let runners = t
+                    .relaxers
+                    .iter()
+                    .map(|r| r.spawn(frame, ref_slice))
+                    .collect();
+                (i, runners)
+            })
+            .collect();
+
         // max_loops controls the outer loop count, matching Packmol's `nloop` parameter.
         let gencan_params = GencanParams {
             maxit: self.inner_iterations,
@@ -630,10 +682,7 @@ impl Molpack {
 
         let total_phases = ntype + 1;
 
-        for phase in (0..ntype)
-            .map(Phase::PerType)
-            .chain(std::iter::once(Phase::AllTypes))
-        {
+        for phase in 0..=(ntype) {
             let outcome = run_phase(
                 phase,
                 ntype,
@@ -649,10 +698,10 @@ impl Molpack {
                 &mut x,
                 &mut swap,
                 &mut relaxer_runners,
-                &mut self.handlers,
+                &mut handlers,
                 &mut gencan_workspace,
                 &mut rng,
-            )?;
+            );
             match outcome {
                 PhaseOutcome::Continue => {}
                 PhaseOutcome::Converged => {
@@ -665,29 +714,45 @@ impl Molpack {
         if !converged {
             log::warn!(
                 "  Pack did not fully converge (fdist={:.4e}, frest={:.4e})",
-                sys.eval.fdist,
-                sys.eval.frest
+                sys.fdist,
+                sys.frest
             );
         }
 
         // Rebuild final xcart from x (all types active)
         for itype in 0..ntype_with_fixed {
-            sys.is_type_active[itype] = true;
+            sys.comptype[itype] = true;
         }
         sys.ntotmol = ntotmol_free;
         init_xcart_from_x(&x, &mut sys);
 
         // Notify handlers of final state
-        for h in self.handlers.iter_mut() {
-            h.on_finish(&sys)?;
+        for h in handlers.iter_mut() {
+            h.on_finish(&sys);
         }
 
-        // Finalize frame: write positions into frame, move it out (zero-copy)
-        let frame = crate::frame::finalize_frame(&mut sys);
+        // Assemble the topology-complete result frame: replay each target's
+        // template onto the packed coordinates (shared Rust core, so every
+        // language binding gets an identical frame). Stamp the periodic box.
+        let xcart = std::mem::take(&mut sys.xcart);
+        let positions = positions_in_target_order(targets, &xcart, ntotat_free);
+        let mut frame = crate::assemble::assemble_frame(targets, &positions);
+        if let Some((min, max, flags)) = pbc {
+            let lengths = Array1::from_vec(vec![max[0] - min[0], max[1] - min[1], max[2] - min[2]]);
+            let origin = Array1::from_vec(min.to_vec());
+            if let Ok(simbox) = SimBox::ortho(lengths, origin, flags) {
+                frame.simbox = Some(simbox);
+            }
+        }
+        if self.log_level.is_enabled() {
+            handlers.pop();
+        }
+        self.handlers = handlers;
+
         Ok(PackResult {
             frame,
-            fdist: sys.eval.fdist,
-            frest: sys.eval.frest,
+            fdist: sys.fdist,
+            frest: sys.frest,
             converged,
         })
     }
@@ -697,7 +762,7 @@ impl Molpack {
 /// `derive_periodic_box` and its callers.
 type PeriodicSpec = ([F; 3], [F; 3], [bool; 3]);
 
-/// Scan every restraint on every target for a `Restraint::periodic_box`
+/// Scan every restraint on every target for a `AtomRestraint::periodic_box`
 /// override. Returns `Ok(None)` if no restraint declares one, `Ok(Some(...))`
 /// if exactly one unique declaration exists (duplicates with identical
 /// bounds + flags are allowed — they come from `with_global_restraint`
@@ -749,12 +814,43 @@ fn reference_coords(target: &Target) -> &[[F; 3]] {
     }
 }
 
+/// Reorder packed coordinates from the packer's internal `xcart` layout
+/// (all free targets first, then all fixed targets) into the target-declared
+/// order that [`crate::assemble::assemble_frame`] expects (target-by-target,
+/// copy-by-copy, atom-by-atom).
+///
+/// Without this, a fixed target declared *before* a free target — e.g. a
+/// `fixed` protein in a solvation box — has its topology replayed onto the
+/// free atoms' coordinates, scrambling the rigid molecule. A no-op when no
+/// target is fixed (the free blocks are already in declared order).
+fn positions_in_target_order(
+    targets: &[Target],
+    xcart: &[[F; 3]],
+    n_free_atoms: usize,
+) -> Vec<[F; 3]> {
+    let mut out = Vec::with_capacity(xcart.len());
+    let mut free_cursor = 0usize;
+    let mut fixed_cursor = n_free_atoms;
+    for t in targets {
+        if t.fixed_at.is_some() {
+            let n = t.natoms();
+            out.extend_from_slice(&xcart[fixed_cursor..fixed_cursor + n]);
+            fixed_cursor += n;
+        } else {
+            let n = t.count * t.natoms();
+            out.extend_from_slice(&xcart[free_cursor..free_cursor + n]);
+            free_cursor += n;
+        }
+    }
+    out
+}
+
 /// Evaluate the packing objective once under **unscaled** radii (`radius_ini`),
 /// restoring the caller's `radius` values on return.
 ///
-/// On return, `sys.eval.fdist` / `sys.eval.frest` / `sys.eval.fdist_atom` / `sys.eval.frest_atom`
+/// On return, `sys.fdist` / `sys.frest` / `sys.fdist_atom` / `sys.frest_atom`
 /// reflect the unscaled evaluation (the radius-dependent inner state); only
-/// `sys.eval.radius` itself is rolled back to what it was on entry.
+/// `sys.radius` itself is rolled back to what it was on entry.
 ///
 /// Returns `(f_total, fdist, frest)` from the unscaled evaluation — the exact
 /// triple the packer's main loop feeds to `flast` / `fimp` / handler `StepInfo`.
@@ -762,37 +858,17 @@ fn reference_coords(target: &Target) -> &[[F; 3]] {
 /// Pulled out of `pack()` in phase A.4.1 to de-duplicate three inline copies
 /// of the same swap-evaluate-restore dance (Packmol `computef` emulation).
 pub fn evaluate_unscaled(sys: &mut PackContext, xwork: &[F]) -> (F, F, F) {
-    let guard = UnscaledRadii::enter(sys);
-    let f_total = guard.sys.evaluate(xwork, EvalMode::FOnly, None).f_total;
-    (f_total, guard.sys.eval.fdist, guard.sys.eval.frest)
-    // `guard` drops here, restoring the scaled radii even on early return/panic.
-}
-
-/// RAII guard that swaps every atom's radius to its unscaled value
-/// (`radius_ini`) for the duration of an evaluation, then restores the scaled
-/// radii on drop. The originals are stashed in `work.radiuswork`. Using a guard
-/// (rather than an explicit restore pass) keeps the swap balanced even if the
-/// evaluation returns early or panics.
-struct UnscaledRadii<'a> {
-    sys: &'a mut PackContext,
-}
-
-impl<'a> UnscaledRadii<'a> {
-    fn enter(sys: &'a mut PackContext) -> Self {
-        sys.work.radiuswork.copy_from_slice(&sys.eval.radius);
-        for i in 0..sys.ntotat {
-            sys.set_radius(i, sys.eval.radius_ini[i]);
-        }
-        Self { sys }
+    sys.work.radiuswork.copy_from_slice(&sys.radius);
+    for i in 0..sys.ntotat {
+        sys.set_radius(i, sys.radius_ini[i]);
     }
-}
-
-impl Drop for UnscaledRadii<'_> {
-    fn drop(&mut self) {
-        for i in 0..self.sys.ntotat {
-            self.sys.set_radius(i, self.sys.work.radiuswork[i]);
-        }
+    let f_total = sys.evaluate(xwork, EvalMode::FOnly, None).f_total;
+    let fdist = sys.fdist;
+    let frest = sys.frest;
+    for i in 0..sys.ntotat {
+        sys.set_radius(i, sys.work.radiuswork[i]);
     }
+    (f_total, fdist, frest)
 }
 
 /// Outcome of one main-loop iteration inside a packing phase.
@@ -807,34 +883,6 @@ pub enum IterOutcome {
     Continue,
     Converged,
     EarlyStop,
-}
-
-/// Read-only configuration for one packing iteration — fixed for the whole
-/// phase. Bundled so [`run_iteration`] takes a handful of arguments instead of
-/// a long positional list.
-#[derive(Clone, Copy)]
-pub struct IterationConfig<'a> {
-    pub max_loops: usize,
-    /// `true` for the final all-type phase, `false` for a per-type phase.
-    pub is_all: bool,
-    pub phase: usize,
-    pub phase_info: PhaseInfo,
-    pub precision: F,
-    pub disable_movebad: bool,
-    pub movebad_cfg: &'a MoveBadConfig<'a>,
-    pub gencan_params: &'a GencanParams,
-}
-
-/// Mutable scalar state threaded across a phase's inner loop (Packmol carries
-/// these as loose `gencanloop` locals: `loop`, `flast`, `fimp`, `radscale`).
-pub struct IterationState {
-    pub loop_idx: usize,
-    /// Unscaled objective at the previous iteration (Packmol `flast`).
-    pub flast: F,
-    /// Previous-iteration percentage improvement (Packmol `fimp`); gates movebad.
-    pub fimp_prev: F,
-    /// Current radius scale factor (Packmol `radscale`).
-    pub radscale: F,
 }
 
 /// Run one iteration of a packing phase's main loop.
@@ -855,35 +903,34 @@ pub struct IterationState {
 /// iterations.
 #[allow(clippy::too_many_arguments)]
 pub fn run_iteration(
-    cfg: IterationConfig,
-    state: &mut IterationState,
+    loop_idx: usize,
+    max_loops: usize,
+    is_all: bool,
+    phase: usize,
+    phase_info: PhaseInfo,
+    precision: F,
+    disable_movebad: bool,
+    movebad_cfg: &MoveBadConfig,
+    gencan_params: &GencanParams,
     sys: &mut PackContext,
     xwork: &mut [F],
     swap: &mut SwapState,
+    flast: &mut F,
+    fimp_prev: &mut F,
+    radscale: &mut F,
     relaxer_runners: &mut Vec<(usize, Vec<Box<dyn RelaxerRunner>>)>,
     handlers: &mut [Box<dyn Handler>],
     gencan_workspace: &mut GencanWorkspace,
     rng: &mut SmallRng,
-) -> Result<IterOutcome, PackError> {
-    let IterationConfig {
-        max_loops,
-        is_all,
-        phase,
-        phase_info,
-        precision,
-        disable_movebad,
-        movebad_cfg,
-        gencan_params,
-    } = cfg;
-    let loop_idx = state.loop_idx;
+) -> IterOutcome {
     // movebad: Packmol triggers when radscale==1.0 AND fimp<=10.0
     // (packmol.f90 line 815). fimp here is from the PREVIOUS iteration.
     // After movebad, reset flast to the post-movebad f (Packmol line 821).
-    if !disable_movebad && state.radscale == 1.0 && state.fimp_prev <= MOVEBAD_FIMP_THRESHOLD {
+    if !disable_movebad && *radscale == 1.0 && *fimp_prev <= 10.0 {
         movebad(xwork, sys, precision, movebad_cfg, rng, gencan_workspace);
         // Reset flast to the post-movebad f value so fimp is measured
         // relative to movebad's starting point.
-        state.flast = evaluate_unscaled(sys, xwork).0;
+        *flast = evaluate_unscaled(sys, xwork).0;
     }
 
     // Relaxer MC block: run per-target relaxers between movebad and pgencan.
@@ -893,31 +940,27 @@ pub fn run_iteration(
             continue;
         }
 
-        let base = sys.topology.idfirst[*itype];
-        let na = sys.topology.natoms[*itype];
+        let base = sys.idfirst[*itype];
+        let na = sys.natoms[*itype];
 
         for runner in runners.iter_mut() {
-            // Reuse gencan_workspace buffer to avoid per-iteration allocation.
-            let snap = &mut gencan_workspace.coords_snapshot;
-            snap.resize(na, [0.0 as F; 3]);
-            snap.copy_from_slice(&sys.topology.coor[base..base + na]);
-            let saved: &[[F; 3]] = snap;
+            let saved: Vec<[F; 3]> = sys.coor[base..base + na].to_vec();
             let f_before = sys.evaluate(xwork, EvalMode::FOnly, None).f_total;
 
             let result = runner.on_iter(
-                saved,
+                &saved,
                 f_before,
                 &mut |trial: &[[F; 3]]| {
-                    sys.topology.coor[base..base + na].copy_from_slice(trial);
+                    sys.coor[base..base + na].copy_from_slice(trial);
                     let f = sys.evaluate(xwork, EvalMode::FOnly, None).f_total;
-                    sys.topology.coor[base..base + na].copy_from_slice(saved);
+                    sys.coor[base..base + na].copy_from_slice(&saved);
                     f
                 },
                 rng,
             );
 
             if let Some(new_coords) = result {
-                sys.topology.coor[base..base + na].copy_from_slice(&new_coords);
+                sys.coor[base..base + na].copy_from_slice(&new_coords);
             }
         }
     }
@@ -937,17 +980,17 @@ pub fn run_iteration(
 
     // fimp: percentage improvement in unscaled f from last iteration
     // Packmol line 846: if(flast>0) fimp = -100*(fx-flast)/flast
-    let mut fimp = if state.flast > 0.0 {
-        -100.0 * (fx_unscaled - state.flast) / state.flast
+    let mut fimp = if *flast > 0.0 {
+        -100.0 * (fx_unscaled - *flast) / *flast
     } else if fx_unscaled < objective_small_floor() {
         100.0 // already converged
     } else {
         F::INFINITY
     };
     // Packmol lines 848-849: clamp to [-99.99, 99.99]
-    fimp = fimp.clamp(-FIMP_CLAMP, FIMP_CLAMP);
-    state.flast = fx_unscaled;
-    state.fimp_prev = fimp;
+    fimp = fimp.clamp(-99.99, 99.99);
+    *flast = fx_unscaled;
+    *fimp_prev = fimp;
 
     if !handlers.is_empty() {
         let relaxer_acceptance: Vec<(usize, F)> = relaxer_runners
@@ -962,17 +1005,17 @@ pub fn run_iteration(
             fdist,
             frest,
             improvement_pct: fimp,
-            radscale: state.radscale,
+            radscale: *radscale,
             precision,
             relaxer_acceptance,
         };
         for h in handlers.iter_mut() {
-            h.on_step(&step_info, sys)?;
+            h.on_step(&step_info, sys);
         }
 
         if handlers.iter().any(|h| h.should_stop()) {
             log::debug!("  Early stop requested at loop {loop_idx}");
-            return Ok(IterOutcome::EarlyStop);
+            return IterOutcome::EarlyStop;
         }
     }
 
@@ -981,7 +1024,7 @@ pub fn run_iteration(
         res.f,
         fdist,
         frest,
-        state.radscale,
+        *radscale,
         fimp,
         sys.ncf(),
         sys.ncg(),
@@ -991,42 +1034,30 @@ pub fn run_iteration(
     // Check convergence
     if fdist < precision && frest < precision {
         log::debug!("  Converged at phase {phase} loop {loop_idx}");
-        return Ok(IterOutcome::Converged);
+        return IterOutcome::Converged;
     }
 
     // Radii reduction schedule (Packmol lines 940-948):
     //   if (fdist<precision && fimp<10%) || fimp<2%: reduce radscale
-    if state.radscale > 1.0 && (fimp < 2.0 || (fdist < precision && fimp < 10.0)) {
-        state.radscale = (0.9 * state.radscale).max(1.0);
+    if *radscale > 1.0 && (fimp < 2.0 || (fdist < precision && fimp < 10.0)) {
+        *radscale = (0.9 * *radscale).max(1.0);
         for i in 0..sys.ntotat {
-            let new_r = sys.eval.radius_ini[i].max(0.9 * sys.eval.radius[i]);
+            let new_r = sys.radius_ini[i].max(0.9 * sys.radius[i]);
             sys.set_radius(i, new_r);
         }
     }
 
-    Ok(IterOutcome::Continue)
+    IterOutcome::Continue
 }
 
 /// Outcome of one outer-loop phase in `pack()`.
 ///
 /// Pulled out of `pack()` in phase A.4.2 to isolate the outer per-phase scaffold
-/// (handler phase-start notification, is_type_active reconfiguration, radii reset,
+/// (handler phase-start notification, comptype reconfiguration, radii reset,
 /// swap setup, pre-loop precision short-circuit, inner GENCAN loop, swap
 /// restore / xwork-back copy). `Continue` means the outer phase loop should
 /// proceed; `Converged` means the all-type phase converged and the outer loop
 /// should break.
-/// Which phase of the outer packing loop is running. Packmol iterates
-/// `phase = 0..=ntype`: the first `ntype` are single-type pre-fit phases and
-/// the final one packs all types together. Replaces a bare `phase == ntype`
-/// sentinel comparison.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Phase {
-    /// Pre-fit phase for a single molecule type (0-based type index).
-    PerType(usize),
-    /// Final phase packing all types together.
-    AllTypes,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhaseOutcome {
     Continue,
@@ -1036,7 +1067,7 @@ pub enum PhaseOutcome {
 /// Run one phase of the main packing loop (per-type or all-type).
 ///
 /// Matches the outer `for phase in 0..=ntype` body of Packmol `app/packmol.f90`
-/// lines 740-990 (the swaptype / is_type_active dance bracketing the GENCAN inner
+/// lines 740-990 (the swaptype / comptype dance bracketing the GENCAN inner
 /// loop). For a per-type phase (`phase < ntype`), `xwork` is a compact
 /// `nmols[phase] * 6`-element slice produced by `SwapState::set_type`; for the
 /// all-type phase (`phase == ntype`), `xwork` is a full `6 * ntotmol_free`
@@ -1052,7 +1083,7 @@ pub enum PhaseOutcome {
 /// converged on its own (Packmol lets the all-type phase decide).
 #[allow(clippy::too_many_arguments)]
 pub fn run_phase(
-    phase: Phase,
+    phase: usize,
     ntype: usize,
     ntype_with_fixed: usize,
     total_phases: usize,
@@ -1069,14 +1100,8 @@ pub fn run_phase(
     handlers: &mut [Box<dyn Handler>],
     gencan_workspace: &mut GencanWorkspace,
     rng: &mut SmallRng,
-) -> Result<PhaseOutcome, PackError> {
-    let is_all = matches!(phase, Phase::AllTypes);
-    // Inside the body `phase` is the type index; the all-type phase uses the
-    // sentinel index `ntype` (guarded everywhere by `is_all`).
-    let phase = match phase {
-        Phase::PerType(i) => i,
-        Phase::AllTypes => ntype,
-    };
+) -> PhaseOutcome {
+    let is_all = phase == ntype;
 
     let phase_info = PhaseInfo {
         phase,
@@ -1089,9 +1114,9 @@ pub fn run_phase(
         h.on_phase_start(&phase_info);
     }
 
-    // Set is_type_active for this phase
+    // Set comptype for this phase
     for itype in 0..ntype_with_fixed {
-        sys.is_type_active[itype] = if is_all {
+        sys.comptype[itype] = if is_all {
             true
         } else {
             itype >= ntype || itype == phase
@@ -1109,8 +1134,9 @@ pub fn run_phase(
 
     // Compact x to this type (action=1) or restore full x (all-type phase)
     // Packmol resets radscale = discale at the START of each phase.
+    let mut radscale = discale;
     for icart in 0..sys.ntotat {
-        sys.set_radius(icart, discale * sys.eval.radius_ini[icart]);
+        sys.set_radius(icart, discale * sys.radius_ini[icart]);
     }
 
     // Get working x vector (compact for per-type, full for all-type)
@@ -1128,52 +1154,59 @@ pub fn run_phase(
     // Packmol checks whether the current approximation is already a solution
     // before entering the GENCAN loop for this phase (packmol.f90 lines 775-782).
     sys.evaluate(&xwork, EvalMode::FOnly, None);
-    if sys.eval.fdist < precision && sys.eval.frest < precision {
+    if sys.fdist < precision && sys.frest < precision {
+        let report = PhaseReport {
+            iterations: 0,
+            fdist: sys.fdist,
+            frest: sys.frest,
+            converged: true,
+        };
+        for h in handlers.iter_mut() {
+            h.on_phase_end(&phase_info, &report);
+        }
         if !is_all {
             swap.save_type(phase, &xwork, sys);
             swap.restore(x, sys);
-            return Ok(PhaseOutcome::Continue);
+            return PhaseOutcome::Continue;
         } else {
             x.clone_from(&xwork);
-            return Ok(PhaseOutcome::Converged);
+            return PhaseOutcome::Converged;
         }
     }
 
-    // Iteration config is fixed for the whole phase; iteration state evolves.
-    // Packmol resets radscale = discale at the START of each phase; flast is
-    // the unscaled f before gencanloop (lines 796-803); fimp_prev starts at
-    // +inf so movebad is NOT called on the first iteration (line 798).
-    let cfg = IterationConfig {
-        max_loops,
-        is_all,
-        phase,
-        phase_info,
-        precision,
-        disable_movebad,
-        movebad_cfg,
-        gencan_params,
-    };
-    let mut state = IterationState {
-        loop_idx: 0,
-        flast: evaluate_unscaled(sys, &xwork).0,
-        fimp_prev: F::INFINITY,
-        radscale: discale,
-    };
+    // Initialize flast = unscaled f before gencanloop
+    // (Packmol lines 796-803: compute bestf/flast with unscaled radii)
+    let mut flast = evaluate_unscaled(sys, &xwork).0;
+
+    // fimp from previous iteration — used for movebad gate (Packmol packmol.f90 line 798).
+    // Initialized to 1e99 so movebad is NOT called on the first iteration.
+    let mut fimp_prev = F::INFINITY;
     let mut converged_inner = false;
+    let mut iterations = 0usize;
 
     for loop_idx in 0..max_loops {
-        state.loop_idx = loop_idx;
         let outcome = run_iteration(
-            cfg,
-            &mut state,
+            loop_idx,
+            max_loops,
+            is_all,
+            phase,
+            phase_info,
+            precision,
+            disable_movebad,
+            movebad_cfg,
+            gencan_params,
             sys,
             &mut xwork,
             swap,
+            &mut flast,
+            &mut fimp_prev,
+            &mut radscale,
             relaxer_runners,
             handlers,
             gencan_workspace,
             rng,
-        )?;
+        );
+        iterations += 1;
         match outcome {
             IterOutcome::Continue => {}
             IterOutcome::Converged => {
@@ -1184,19 +1217,61 @@ pub fn run_phase(
         }
     }
 
+    let report = PhaseReport {
+        iterations,
+        fdist: sys.fdist,
+        frest: sys.frest,
+        converged: converged_inner,
+    };
+    for h in handlers.iter_mut() {
+        h.on_phase_end(&phase_info, &report);
+    }
+
     // After per-type phase: save results + restore full x
     // After all-type phase: copy xwork back to x
     if !is_all {
         // save_type was called inside the loop; restore full x now.
         // Per-type convergence does NOT exit the outer phase loop.
         swap.restore(x, sys);
-        Ok(PhaseOutcome::Continue)
+        PhaseOutcome::Continue
     } else {
         x.clone_from(&xwork);
         if converged_inner {
-            Ok(PhaseOutcome::Converged)
+            PhaseOutcome::Converged
         } else {
-            Ok(PhaseOutcome::Continue)
+            PhaseOutcome::Continue
         }
+    }
+}
+
+#[cfg(test)]
+mod reorder_tests {
+    use super::*;
+
+    #[test]
+    fn fixed_target_declared_first_maps_to_its_xcart_block() {
+        // Target A: fixed, 2 atoms, declared first.
+        // Target B: free, 3 atoms x 2 copies = 6 atoms.
+        // Internal xcart is free-first/fixed-last: [B(0..6) | A(6..8)].
+        let a = Target::from_coords(&[[0.0; 3]; 2], &[1.0; 2], 1).fixed_at([0.0, 0.0, 0.0]);
+        let b = Target::from_coords(&[[0.0; 3]; 3], &[1.0; 3], 2);
+        let targets = vec![a, b];
+        // x-coordinate encodes the xcart slot index, so we can read the mapping.
+        let xcart: Vec<[F; 3]> = (0..8).map(|i| [i as F, 0.0, 0.0]).collect();
+        let out = positions_in_target_order(&targets, &xcart, 6);
+        let x: Vec<F> = out.iter().map(|p| p[0]).collect();
+        // Declared order: A's fixed block (slots 6,7) then B's free block (0..6).
+        assert_eq!(x, vec![6.0, 7.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn no_fixed_targets_is_identity() {
+        let a = Target::from_coords(&[[0.0; 3]; 2], &[1.0; 2], 1);
+        let b = Target::from_coords(&[[0.0; 3]; 3], &[1.0; 3], 2);
+        let targets = vec![a, b];
+        let xcart: Vec<[F; 3]> = (0..8).map(|i| [i as F, 0.0, 0.0]).collect();
+        let out = positions_in_target_order(&targets, &xcart, 8);
+        let x: Vec<F> = out.iter().map(|p| p[0]).collect();
+        assert_eq!(x, (0..8).map(|i| i as F).collect::<Vec<_>>());
     }
 }

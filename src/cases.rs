@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-use molrs_io::pdb::read_pdb_frame;
+use molrs::io::data::pdb::read_pdb_frame;
 
 use crate::target::{Angle, CenteringMode, Target};
 use crate::{
@@ -211,7 +211,7 @@ pub fn build_targets(case: ExampleCase, base: &Path) -> Result<Vec<Target>, Box<
     Ok(targets)
 }
 
-pub fn render_molpack_input(case: ExampleCase, base: &Path, output: &Path, seed: u64) -> String {
+pub fn render_inp_script(case: ExampleCase, base: &Path, output: &Path, seed: u64) -> String {
     let water = base.join("water.pdb");
     let lipid = base.join("palmitoil.pdb");
     let urea = base.join("urea.pdb");

@@ -1,9 +1,9 @@
 //! Python wrapper for the Molpack molecular packer.
 //!
 //! [`PyPacker`] is the Python face of [`molpack::Molpack`]. Builders mirror
-//! the Rust names 1:1. [`PyPackResult`] is the output container — callers
-//! get a Frame-compatible `.frame` (dict with an `atoms` block) and a
-//! numpy `positions` view.
+//! the Rust names 1:1. `Molpack.pack()` returns a ready-to-use `molrs.Frame`;
+//! [`PyPackResult`] remains available through `pack_with_report()` for callers
+//! that need structured diagnostics.
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -11,100 +11,60 @@ use std::sync::atomic::AtomicBool;
 use crate::constraint::extract_restraint;
 use crate::handler::PyHandlerWrapper;
 use crate::helpers::{NpF, pack_error_to_pyerr, take_err};
+use crate::parallel::rayon_compiled;
 use crate::target::PyTarget;
 use molpack::F;
-use molpack::handler::ProgressHandler;
+use molpack::handler::MolpackLogLevel;
 use molpack::packer::{Molpack, PackResult};
 use numpy::IntoPyArray;
 use numpy::PyArray2;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
-
 // ── PackResult ─────────────────────────────────────────────────────────────
 
 #[pyclass(name = "PackResult", from_py_object)]
 #[derive(Clone)]
 pub struct PyPackResult {
     inner: PackResult,
+    /// The periodic box `(min, max)` the packer was configured with, if any.
+    /// Stamped onto `frame.box` so callers don't re-create it. `None` when no
+    /// box was declared (e.g. restraint-only packing).
+    box_bounds: Option<([F; 3], [F; 3])>,
 }
 
 #[pymethods]
 impl PyPackResult {
     /// Packed atom positions as a numpy array of shape ``(N, 3)``.
     #[getter]
-    fn positions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<NpF>>> {
+    fn positions<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<NpF>> {
         let pos = self.inner.positions();
         let n = pos.len();
         let flat: Vec<F> = pos.iter().flat_map(|p| [p[0], p[1], p[2]]).collect();
-        let arr = ndarray::Array2::from_shape_vec((n, 3), flat)
-            .map_err(|e| PyValueError::new_err(format!("malformed positions array: {e}")))?;
-        Ok(arr.into_pyarray(py))
+        let arr = ndarray::Array2::from_shape_vec((n, 3), flat).expect("positions shape");
+        arr.into_pyarray(py)
     }
 
-    /// Packed frame as a dict compatible with ``molrs.Frame``.
+    /// Packed result as a ready-to-use ``molrs.Frame``.
     ///
-    /// Contains a single ``"atoms"`` block with at least the columns
-    /// ``x``, ``y``, ``z``, ``element``. Users persist the result by
-    /// passing this frame to a writer — e.g. ``molrs.write_pdb``. molpack
-    /// does not provide writers.
+    /// The frame — full topology replayed onto the packed coordinates, plus the
+    /// periodic box if one was declared via :meth:`Molpack.with_periodic_box` —
+    /// is assembled by the Rust core (:mod:`molpack.assemble`), so every
+    /// language binding returns an identical result. This getter hands it back
+    /// as a ``molrs.Frame`` through a zero-copy FFI capsule (no marshalling).
+    /// Force fields are out of scope — merge them separately.
     #[getter]
-    fn frame<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let atoms_block = self
-            .inner
-            .frame
-            .get("atoms")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'atoms' block"))?;
-
-        let x = atoms_block
-            .get_float("x")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'x' column"))?;
-        let y = atoms_block
-            .get_float("y")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'y' column"))?;
-        let z = atoms_block
-            .get_float("z")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'z' column"))?;
-        let elements: Vec<String> = atoms_block
-            .get_string("element")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'element' column"))?
-            .iter()
-            .cloned()
-            .collect();
-
-        let atoms = PyDict::new(py);
-        atoms.set_item(
-            "x",
-            ndarray::Array1::from_iter(x.iter().copied()).into_pyarray(py),
-        )?;
-        atoms.set_item(
-            "y",
-            ndarray::Array1::from_iter(y.iter().copied()).into_pyarray(py),
-        )?;
-        atoms.set_item(
-            "z",
-            ndarray::Array1::from_iter(z.iter().copied()).into_pyarray(py),
-        )?;
-        atoms.set_item("element", elements)?;
-
-        let frame = PyDict::new(py);
-        frame.set_item("atoms", atoms)?;
-        Ok(frame)
+    fn frame<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::interop::frame_to_py(py, &self.inner.frame, self.box_bounds)
     }
 
     #[getter]
-    fn elements(&self) -> PyResult<Vec<String>> {
-        let atoms = self
-            .inner
-            .frame
-            .get("atoms")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'atoms' block"))?;
-        Ok(atoms
+    fn elements(&self) -> Vec<String> {
+        let atoms = self.inner.frame.get("atoms").expect("no atoms block");
+        atoms
             .get_string("element")
-            .ok_or_else(|| PyValueError::new_err("packed frame has no 'element' column"))?
+            .expect("no element column")
             .iter()
             .cloned()
-            .collect())
+            .collect()
     }
 
     #[getter]
@@ -162,14 +122,20 @@ pub struct PyPacker {
     pub(crate) perturb_fraction: Option<F>,
     pub(crate) random_perturb: Option<bool>,
     pub(crate) perturb: Option<bool>,
+    pub(crate) avoid_overlap: Option<bool>,
     pub(crate) seed: Option<u64>,
     pub(crate) parallel_eval: Option<bool>,
     pub(crate) progress: bool,
+    pub(crate) log_level: Option<MolpackLogLevel>,
+    pub(crate) log_frequency: Option<usize>,
     /// Global periodic-boundary box — `(min, max)` in Å. Every axis is
     /// treated as periodic.
     pub(crate) periodic_box: Option<([F; 3], [F; 3])>,
     pub(crate) py_handlers: Vec<Py<pyo3::types::PyAny>>,
     pub(crate) global_restraints: Vec<Py<pyo3::types::PyAny>>,
+    /// Built-in XYZ trajectory recorder: `(path, every)`. Installs molpack's
+    /// native [`molpack::XYZHandler`] at pack time.
+    pub(crate) xyz_output: Option<(String, usize)>,
 }
 
 impl Default for PyPacker {
@@ -183,12 +149,16 @@ impl Default for PyPacker {
             perturb_fraction: None,
             random_perturb: None,
             perturb: None,
+            avoid_overlap: None,
             seed: None,
             parallel_eval: None,
             progress: false,
+            log_level: None,
+            log_frequency: None,
             periodic_box: None,
             py_handlers: Vec::new(),
             global_restraints: Vec::new(),
+            xyz_output: None,
         }
     }
 }
@@ -257,21 +227,81 @@ impl PyPacker {
         cloned
     }
 
+    /// Reject initial random placements that overlap a fixed molecule
+    /// (Packmol ``avoid_overlap``). Default ``True`` and you should leave it
+    /// that way — it is only useful to *disable* avoidance. Critical for dense
+    /// solvation of a large fixed solute; harmless when nothing is fixed.
+    fn with_avoid_overlap(&self, enabled: bool) -> Self {
+        let mut cloned = self.clone_fields();
+        cloned.avoid_overlap = Some(enabled);
+        cloned
+    }
+
     fn with_seed(&self, seed: u64) -> Self {
         let mut cloned = self.clone_fields();
         cloned.seed = Some(seed);
         cloned
     }
 
-    fn with_parallel_eval(&self, enabled: bool) -> Self {
+    /// Run the pair-kernel reductions on rayon worker threads.
+    ///
+    /// Fail-fast: enabling parallel evaluation in a wheel that was **not**
+    /// built with the `rayon` feature raises ``RuntimeError`` rather than
+    /// silently running serially — a silent no-op here is what makes
+    /// thread-count scaling studies show a flat curve. Build with
+    /// ``maturin develop --release`` (the wheel ships `rayon` by default).
+    ///
+    /// Parallelism also only applies to global evaluations (`!move_flag`);
+    /// per-molecule GENCAN move evaluations stay serial by design.
+    fn with_parallel_eval(&self, enabled: bool) -> PyResult<Self> {
+        if enabled && !rayon_compiled() {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "parallel evaluation requested but this molpack wheel was built \
+                 without the `rayon` feature; rebuild with `maturin develop --release` \
+                 (rayon is enabled by default) or check `molpack.rayon_enabled()`",
+            ));
+        }
         let mut cloned = self.clone_fields();
         cloned.parallel_eval = Some(enabled);
-        cloned
+        Ok(cloned)
     }
 
     fn with_progress(&self, enabled: bool) -> Self {
         let mut cloned = self.clone_fields();
         cloned.progress = enabled;
+        cloned
+    }
+
+    fn with_lammps_output(&self, enabled: bool) -> Self {
+        let mut cloned = self.clone_fields();
+        cloned.log_level = Some(if enabled {
+            MolpackLogLevel::Progress
+        } else {
+            MolpackLogLevel::Quiet
+        });
+        cloned
+    }
+
+    fn with_log_level(&self, level: &str) -> PyResult<Self> {
+        let parsed = match level.to_ascii_lowercase().as_str() {
+            "quiet" | "off" | "none" => MolpackLogLevel::Quiet,
+            "summary" => MolpackLogLevel::Summary,
+            "progress" | "thermo" => MolpackLogLevel::Progress,
+            "verbose" | "debug" => MolpackLogLevel::Verbose,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unknown log level {other:?}; expected quiet, summary, progress, or verbose"
+                )));
+            }
+        };
+        let mut cloned = self.clone_fields();
+        cloned.log_level = Some(parsed);
+        Ok(cloned)
+    }
+
+    fn with_log_frequency(&self, n: usize) -> Self {
+        let mut cloned = self.clone_fields();
+        cloned.log_frequency = Some(n.max(1));
         cloned
     }
 
@@ -281,6 +311,32 @@ impl PyPacker {
         let mut cloned = self.clone_fields();
         cloned.py_handlers.push(handler);
         cloned
+    }
+
+    /// Record the packing trajectory to a multi-frame XYZ file using molpack's
+    /// built-in :rust:`XYZHandler` recorder.
+    ///
+    /// A frame is written on every ``every``-th loop (loop 0 included); each
+    /// frame is extended-XYZ with a ``mol`` column so copies are distinguishable.
+    /// Unlike a Python :meth:`with_handler`, this runs in Rust with direct access
+    /// to the live coordinates, so it can record the geometry trajectory.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     Output ``.xyz`` path (truncated/created).
+    /// every : int, default 1
+    ///     Write cadence in packing loops (must be >= 1).
+    #[pyo3(signature = (path, every = 1))]
+    fn with_xyz_output(&self, path: &str, every: usize) -> PyResult<Self> {
+        if every < 1 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "every must be >= 1",
+            ));
+        }
+        let mut cloned = self.clone_fields();
+        cloned.xyz_output = Some((path.to_owned(), every));
+        Ok(cloned)
     }
 
     /// Append a global restraint — applied to every atom of every target
@@ -293,12 +349,45 @@ impl PyPacker {
     }
 
     #[pyo3(signature = (targets, max_loops=200))]
-    fn pack(
+    fn pack<'py>(
+        &self,
+        py: Python<'py>,
+        targets: Vec<PyTarget>,
+        max_loops: usize,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let result = self.pack_report_inner(py, targets, max_loops)?;
+        crate::interop::frame_to_py(py, &result.inner.frame, self.periodic_box)
+    }
+
+    #[pyo3(signature = (targets, max_loops=200))]
+    fn pack_with_report(
         &self,
         py: Python<'_>,
         targets: Vec<PyTarget>,
         max_loops: usize,
     ) -> PyResult<PyPackResult> {
+        self.pack_report_inner(py, targets, max_loops)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Molpack(handlers={}, global_restraints={}, seed={:?})",
+            self.py_handlers.len(),
+            self.global_restraints.len(),
+            self.seed,
+        )
+    }
+}
+
+impl PyPacker {
+    fn pack_report_inner(
+        &self,
+        py: Python<'_>,
+        targets: Vec<PyTarget>,
+        max_loops: usize,
+    ) -> PyResult<PyPackResult> {
+        // The Rust core retains each target's frame and assembles the result —
+        // the binding just unwraps to the core `Target`.
         let rust_targets: Vec<_> = targets.into_iter().map(|t| t.inner).collect();
 
         let mut packer = Molpack::new();
@@ -326,11 +415,23 @@ impl PyPacker {
         if let Some(v) = self.perturb {
             packer = packer.with_perturb(v);
         }
+        if let Some(v) = self.avoid_overlap {
+            packer = packer.with_avoid_overlap(v);
+        }
         if let Some(v) = self.seed {
             packer = packer.with_seed(v);
         }
         if let Some(v) = self.parallel_eval {
             packer = packer.with_parallel_eval(v);
+        }
+        let level = self.log_level.unwrap_or(if self.progress {
+            MolpackLogLevel::Progress
+        } else {
+            MolpackLogLevel::Quiet
+        });
+        packer = packer.with_log_level(level);
+        if let Some(every) = self.log_frequency {
+            packer = packer.with_log_frequency(every);
         }
         if let Some((min, max)) = self.periodic_box {
             packer = packer.with_periodic_box(min, max);
@@ -341,10 +442,6 @@ impl PyPacker {
             packer = packer.with_global_restraint(shared);
         }
 
-        if self.progress {
-            packer = packer.with_handler(ProgressHandler::new());
-        }
-
         // Any handler stashing an error or returning `True` from `on_step`
         // flips this shared flag, which terminates the loop at the next check.
         let stop_flag = Arc::new(AtomicBool::new(false));
@@ -353,7 +450,12 @@ impl PyPacker {
             packer = packer.with_handler(wrapper);
         }
 
-        let result = packer.pack(&rust_targets, max_loops);
+        // Built-in XYZ trajectory recorder (runs in Rust with live coordinates).
+        if let Some((ref path, every)) = self.xyz_output {
+            packer = packer.with_handler(molpack::XYZHandler::new(path.clone(), every));
+        }
+
+        let result = packer.pack_with_report(&rust_targets, max_loops);
 
         // Python exceptions take priority: any PackError from this run is
         // a downstream symptom of the callback that raised.
@@ -362,20 +464,14 @@ impl PyPacker {
         }
 
         let result = result.map_err(pack_error_to_pyerr)?;
-        Ok(PyPackResult { inner: result })
+        Ok(PyPackResult {
+            inner: result,
+            // The declared periodic box (if any) is stamped onto the result
+            // frame's `box` so callers don't re-create it.
+            box_bounds: self.periodic_box,
+        })
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Molpack(handlers={}, global_restraints={}, seed={:?})",
-            self.py_handlers.len(),
-            self.global_restraints.len(),
-            self.seed,
-        )
-    }
-}
-
-impl PyPacker {
     fn clone_fields(&self) -> PyPacker {
         // `Py<PyAny>::clone_ref` needs a GIL token; the builder is
         // called from Python so `Python::attach` is a cheap no-op here.
@@ -388,9 +484,12 @@ impl PyPacker {
             perturb_fraction: self.perturb_fraction,
             random_perturb: self.random_perturb,
             perturb: self.perturb,
+            avoid_overlap: self.avoid_overlap,
             seed: self.seed,
             parallel_eval: self.parallel_eval,
             progress: self.progress,
+            log_level: self.log_level,
+            log_frequency: self.log_frequency,
             periodic_box: self.periodic_box,
             py_handlers: self.py_handlers.iter().map(|h| h.clone_ref(py)).collect(),
             global_restraints: self
@@ -398,6 +497,7 @@ impl PyPacker {
                 .iter()
                 .map(|r| r.clone_ref(py))
                 .collect(),
+            xyz_output: self.xyz_output.clone(),
         })
     }
 }

@@ -1,6 +1,6 @@
-"""Packmol solvprotein example: fixed protein + water + ions in a 50 Å sphere.
+"""Packmol solvprotein example: one fixed solute + water + ions in a 50 Å sphere.
 
-Reproduces Packmol's ``solvprotein.inp``. The protein is centred at
+Reproduces Packmol's ``solvprotein.inp``. The solute is centred at
 the origin and pinned; water and monoatomic ions are packed into a
 spherical shell around it.
 """
@@ -50,15 +50,9 @@ def main() -> None:
     )
 
     show_progress = os.environ.get("MOLPACK_EXAMPLE_PROGRESS", "1") != "0"
-    packer = (
-        molpack.Molpack()
-        .with_tolerance(2.0)
-        .with_precision(0.01)
-        .with_progress(show_progress)
-        .with_seed(1_234_567)
-    )
+    packer = molpack.Molpack().with_progress(show_progress)
 
-    result = packer.pack(
+    result = packer.pack_with_report(
         [protein, water, sodium, chloride],
         max_loops=800,
     )

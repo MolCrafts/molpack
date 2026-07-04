@@ -1,3 +1,4 @@
+import molrs
 import numpy as np
 import pytest
 
@@ -8,31 +9,39 @@ from molpack import Angle, Axis, CenteringMode
 def _make_frame(
     n: int = 1,
     elements: list[str] | None = None,
-) -> dict:
-    """Minimal frame dict with n atoms at the origin."""
+) -> molrs.Frame:
+    """Minimal frame with n atoms at the origin."""
     if elements is None:
         elements = ["X"] * n
     positions = np.zeros((n, 3), dtype=np.float64)
-    return {
-        "atoms": {
-            "x": positions[:, 0].copy(),
-            "y": positions[:, 1].copy(),
-            "z": positions[:, 2].copy(),
-            "element": elements,
+    return molrs.Frame.from_dict(
+        {
+            "blocks": {
+                "atoms": {
+                    "x": positions[:, 0].copy(),
+                    "y": positions[:, 1].copy(),
+                    "z": positions[:, 2].copy(),
+                    "element": elements,
+                }
+            }
         }
-    }
+    )
 
 
-def _make_two_atom_frame() -> dict:
+def _make_two_atom_frame() -> molrs.Frame:
     positions = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)
-    return {
-        "atoms": {
-            "x": positions[:, 0].copy(),
-            "y": positions[:, 1].copy(),
-            "z": positions[:, 2].copy(),
-            "element": ["O", "H"],
+    return molrs.Frame.from_dict(
+        {
+            "blocks": {
+                "atoms": {
+                    "x": positions[:, 0].copy(),
+                    "y": positions[:, 1].copy(),
+                    "z": positions[:, 2].copy(),
+                    "element": ["O", "H"],
+                }
+            }
         }
-    }
+    )
 
 
 class TestTargetConstructor:
@@ -56,43 +65,40 @@ class TestTargetConstructor:
 
     def test_missing_atoms_block_raises(self):
         with pytest.raises((ValueError, KeyError)):
-            molpack.Target({}, 1)
+            molpack.Target(molrs.Frame.from_dict({"blocks": {}}), 1)
 
     def test_missing_x_column_raises(self):
-        frame = {
-            "atoms": {
-                "y": np.array([0.0]),
-                "z": np.array([0.0]),
-                "element": ["X"],
+        frame = molrs.Frame.from_dict(
+            {
+                "blocks": {
+                    "atoms": {
+                        "y": np.array([0.0]),
+                        "z": np.array([0.0]),
+                        "element": ["X"],
+                    }
+                }
             }
-        }
+        )
         with pytest.raises(ValueError, match='"x"'):
             molpack.Target(frame, 1)
 
     def test_mismatched_lengths_raises(self):
-        frame = {
-            "atoms": {
-                "x": np.array([0.0, 1.0], dtype=np.float64),
-                "y": np.array([0.0], dtype=np.float64),
-                "z": np.array([0.0, 0.0], dtype=np.float64),
-                "element": ["X", "X"],
-            }
-        }
+        # ``molrs.Frame.from_dict`` enforces uniform column lengths at
+        # construction, so the ValueError now fires at frame build (before
+        # ``Target``) — same exception type the test has always asserted.
         with pytest.raises(ValueError):
-            molpack.Target(frame, 1)
-
-    def test_accepts_plain_dict_frame(self):
-        frame = {
-            "atoms": {
-                "x": [0.0, 1.0],
-                "y": [0.0, 0.0],
-                "z": [0.0, 0.0],
-                "element": ["C", "H"],
-            }
-        }
-        t = molpack.Target(frame, 3)
-        assert t.natoms == 2
-        assert t.elements == ["C", "H"]
+            molrs.Frame.from_dict(
+                {
+                    "blocks": {
+                        "atoms": {
+                            "x": np.array([0.0, 1.0], dtype=np.float64),
+                            "y": np.array([0.0], dtype=np.float64),
+                            "z": np.array([0.0, 0.0], dtype=np.float64),
+                            "element": ["X", "X"],
+                        }
+                    }
+                }
+            )
 
 
 class TestTargetBuilder:
@@ -215,7 +221,8 @@ class TestMolpack:
         p10 = p1.with_progress(False)
         p11 = p1.with_seed(42)
         p12 = p1.with_parallel_eval(True)
-        for later in (p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12):
+        p13 = p1.with_avoid_overlap(False)
+        for later in (p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13):
             assert later is not p1
 
 
@@ -229,29 +236,64 @@ class TestMolpackPack:
         return molpack.Molpack().with_tolerance(2.0).with_progress(False)
 
     def test_minimal_packing(self):
-        result = self._packer().with_seed(42).pack([self._make_target()], max_loops=50)
+        result = (
+            self._packer()
+            .with_seed(42)
+            .pack_with_report([self._make_target()], max_loops=50)
+        )
 
         assert result.positions.shape == (3, 3)
         assert result.fdist >= 0.0
         assert result.frest >= 0.0
         assert isinstance(result.converged, bool)
 
+    def test_pack_returns_frame(self):
+        frame = self._packer().with_seed(42).pack([self._make_target()], max_loops=50)
+
+        assert frame["atoms"].nrows == 3
+
+    def test_with_avoid_overlap_honored(self):
+        # A fixed solute plus free solvent packs whether avoidance is on (the
+        # default) or explicitly disabled — the flag must flow through to the
+        # core without error and still yield a valid packing.
+        fixed = molpack.Target(_make_frame(), 1).fixed_at([10.0, 10.0, 10.0])
+        free = self._make_target(count=5)
+
+        default_on = self._packer().pack_with_report([free, fixed], max_loops=60)
+        explicit_off = (
+            self._packer()
+            .with_avoid_overlap(False)
+            .pack_with_report([free, fixed], max_loops=60)
+        )
+
+        for result in (default_on, explicit_off):
+            assert result.natoms == 6  # 5 free + 1 fixed
+            assert isinstance(result.converged, bool)
+
     def test_result_elements_match_positions(self):
-        result = self._packer().with_seed(42).pack([self._make_target()], max_loops=50)
+        result = (
+            self._packer()
+            .with_seed(42)
+            .pack_with_report([self._make_target()], max_loops=50)
+        )
 
         assert len(result.elements) == result.positions.shape[0]
         assert result.natoms == result.positions.shape[0]
         assert all(e == "X" for e in result.elements)
 
     def test_result_elements_from_frame(self):
-        frame = {
-            "atoms": {
-                "x": np.array([0.0, 0.96, -0.24], dtype=np.float64),
-                "y": np.array([0.0, 0.0, 0.93], dtype=np.float64),
-                "z": np.zeros(3, dtype=np.float64),
-                "element": ["O", "H", "H"],
+        frame = molrs.Frame.from_dict(
+            {
+                "blocks": {
+                    "atoms": {
+                        "x": np.array([0.0, 0.96, -0.24], dtype=np.float64),
+                        "y": np.array([0.0, 0.0, 0.93], dtype=np.float64),
+                        "z": np.zeros(3, dtype=np.float64),
+                        "element": ["O", "H", "H"],
+                    }
+                }
             }
-        }
+        )
         target = (
             molpack.Target(frame, count=2)
             .with_name("water")
@@ -260,7 +302,7 @@ class TestMolpackPack:
             )
         )
 
-        result = self._packer().with_seed(42).pack([target], max_loops=50)
+        result = self._packer().with_seed(42).pack_with_report([target], max_loops=50)
 
         assert len(result.elements) == 6
         assert result.positions.shape[0] == 6
@@ -272,32 +314,36 @@ class TestMolpackPack:
         t1 = molpack.Target(_make_frame(1), 2).with_restraint(box_c)
         t2 = molpack.Target(_make_frame(2, ["C", "H"]), 3).with_restraint(box_c)
 
-        result = self._packer().with_seed(42).pack([t1, t2], max_loops=50)
+        result = self._packer().with_seed(42).pack_with_report([t1, t2], max_loops=50)
 
         assert len(result.elements) == 8
         assert result.positions.shape[0] == 8
 
     def test_with_seed_reproducible(self):
         packer = self._packer().with_seed(123)
-        r1 = packer.pack([self._make_target()], max_loops=30)
-        r2 = packer.pack([self._make_target()], max_loops=30)
+        r1 = packer.pack_with_report([self._make_target()], max_loops=30)
+        r2 = packer.pack_with_report([self._make_target()], max_loops=30)
         np.testing.assert_array_equal(r1.positions, r2.positions)
 
     def test_no_targets_raises_typed_error(self):
         packer = molpack.Molpack().with_progress(False)
         with pytest.raises(molpack.NoTargetsError):
-            packer.pack([], max_loops=10)
+            packer.pack_with_report([], max_loops=10)
 
     def test_multiple_targets(self):
         box = molpack.InsideBoxRestraint([0.0, 0.0, 0.0], [20.0, 20.0, 20.0])
         t1 = molpack.Target(_make_frame(), 2).with_restraint(box)
         t2 = molpack.Target(_make_frame(), 3).with_restraint(box)
 
-        result = self._packer().with_seed(42).pack([t1, t2], max_loops=50)
+        result = self._packer().with_seed(42).pack_with_report([t1, t2], max_loops=50)
         assert result.positions.shape[0] == 5
 
     def test_pack_result_repr(self):
-        result = self._packer().with_seed(1).pack([self._make_target(2)], max_loops=30)
+        result = (
+            self._packer()
+            .with_seed(1)
+            .pack_with_report([self._make_target(2)], max_loops=30)
+        )
         r = repr(result)
         assert "PackResult" in r
         assert "converged" in r
@@ -317,9 +363,30 @@ class TestMolpackGlobalRestraint:
             )
             .with_seed(42)
         )
-        result = packer.pack([t1, t2], max_loops=50)
+        result = packer.pack_with_report([t1, t2], max_loops=50)
         assert result.natoms == 4
         # All atoms must land inside the global box.
         for pos in result.positions:
             for k in range(3):
                 assert -0.1 <= pos[k] <= 30.1
+
+
+class TestParallelEval:
+    def test_rayon_enabled_in_wheel(self):
+        # The wheel is built with the `rayon` feature by default; if this
+        # fails the parallel evaluator was compiled out and scaling studies
+        # will silently flatline.
+        assert molpack.rayon_enabled() is True
+
+    def test_num_threads_positive(self):
+        assert molpack.num_threads() >= 1
+
+    def test_with_parallel_eval_does_not_raise_when_compiled(self):
+        # Fail-fast only triggers in a wheel built without rayon; here it must
+        # return a configured builder.
+        p = molpack.Molpack().with_parallel_eval(True)
+        assert p is not None
+
+    def test_init_thread_pool_rejects_zero(self):
+        with pytest.raises(ValueError):
+            molpack.init_thread_pool(0)

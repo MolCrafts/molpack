@@ -1,4 +1,4 @@
-//! Packmol solvprotein example: fixed protein + water + ions in a sphere.
+//! Packmol solvprotein example: one fixed solute + water + ions in a sphere.
 //!
 //! Equivalent to Packmol's `solvprotein.inp`:
 //! ```text
@@ -31,7 +31,7 @@ use std::fs::create_dir_all;
 use std::path::PathBuf;
 
 use molpack::{CenteringMode, InsideSphereRestraint, Molpack, ProgressHandler, Target, XYZHandler};
-use molrs_io::pdb::read_pdb_frame;
+use molrs::io::data::pdb::read_pdb_frame;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = env_logger::try_init();
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_centering(CenteringMode::Center)
         .fixed_at([0.0, 0.0, 0.0]);
 
-    let water_target = Target::new(water, 1000)
+    let water_target = Target::new(water, 16500)
         .with_restraint(sphere)
         .with_name("water");
 
@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_restraint(sphere)
         .with_name("chloride");
 
-    let mut packer = Molpack::new().with_seed(1_234_567);
+    let mut packer = Molpack::new();
     if std::env::var_os("MOLRS_PACK_EXAMPLE_PROGRESS").is_some() {
         packer = packer.with_handler(ProgressHandler::new());
     }

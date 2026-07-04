@@ -21,33 +21,40 @@ Modules:
 
 | Path | Owns |
 |---|---|
-| `src/script/` | `.inp` parsing + lowering to Targets (`parser.rs`, `build.rs`, `io.rs`, `error.rs`) |
-| `src/target.rs` | `Target` type + builder (`from_coords`, `with_*`) |
-| `src/restraint.rs` | `Restraint` trait + concrete restraints (analytic `f` + matching `fg`) |
-| `src/constraints/` | constraints container layer (`container.rs`) |
-| `src/objective.rs` | objective + gradient construction over targets |
-| `src/packer.rs` | outer loop driver / `Molpack` + `PackResult` (move / relax / evaluate) |
-| `src/gencan/` | bound-constrained optimizer (cg, spg) |
-| `src/context/` | per-pack mutable state + work buffers (`pack_context.rs`, `state.rs`, `model.rs`, `work_buffers.rs`) |
-| `src/region.rs`, `src/cell.rs` | neighbor lookup |
-| `src/initial.rs`, `src/relaxer.rs`, `src/movebad.rs` | initialization, relaxation, escape moves |
-| `src/api/`, `src/handler.rs` | high-level entry points / packing handler |
-| `src/frame.rs`, `src/euler.rs`, `src/numerics.rs`, `src/random.rs` | frame I/O glue, rotations, math helpers, RNG |
-| `src/cases.rs`, `src/error.rs`, `src/validation.rs` | example-case harness, error types, input validation |
-| `src/bin/molpack/` | CLI front-end (cli feature) |
-| `python/src/` | PyO3 wheel |
+| `src/script/` | `.inp` parsing (`parser.rs`) + lowering to Targets/plans (`build.rs`) + format readers/writers (`io.rs`, `io` feature) + errors (`error.rs`) |
+| `src/target.rs` | `Target` builder (coords/radii + restraints + relaxer + centering/orientation); `Axis` / `Angle` / `Placement` / `CenteringMode` |
+| `src/restraint/` | `AtomRestraint` trait + per-atom geometric restraints (`geometric/`) and collective distribution-matching restraints (`collective/`) |
+| `src/region.rs` | `Region` predicate trait + `And`/`Or`/`Not` combinators + `RegionRestraint` lift + `Aabb` |
+| `src/objective.rs` | objective value + gradient over targets (pair terms, PBC, rayon paths); `Objective` impl |
+| `src/constraints/` | `Constraints` container + `EvalMode` / `EvalOutput` evaluation entrypoint |
+| `src/packer.rs` | `Molpack` builder + `pack()` orchestration + inner-loop driver (move / relax / evaluate); `PackResult` |
+| `src/gencan/` | bound-constrained optimizer: GENCAN/SPG driver (`mod.rs`), CG (`cg.rs`), SPG (`spg.rs`) |
+| `src/cell.rs` | linked-cell neighbor lookup + PBC wrap |
+| `src/context/` | packing runtime `PackContext` + model/state views + reusable work buffers |
+| `src/initial.rs`, `src/movebad.rs` | initial placement; `movebad` escape moves |
+| `src/relaxer/` | in-loop per-molecule relaxers: `Relaxer` / `TorsionMcRelaxer` (`mod.rs`), `LBFGSRelaxer` (`lbfgs.rs`, `ff` feature) |
+| `src/handler.rs` | `Handler` trait + built-in progress / log / XYZ / early-stop handlers |
+| `src/assemble.rs`, `src/frame.rs` | build topology-complete `molrs::Frame` from packed coords; frame ↔ coords conversion |
+| `src/validation.rs` | post-pack validation (`ViolationMetrics`, `validate_from_targets`) |
+| `src/euler.rs`, `src/numerics.rs` | Euler-angle ↔ matrix; precision / numeric-control helpers |
+| `src/cases.rs` | example / regression harness (`ExampleCase`, `build_targets`, `io` feature) |
+| `src/bin/molpack/` | CLI front-end (`cli` feature) |
+| `python/src/` | PyO3 wheel (built **without** `io`) |
 
 ## Cargo features
 
 | Feature | Pulls in |
 |---|---|
 | `default` | nothing |
-| `io` | `molrs_io` (PDB / XYZ / SDF / LAMMPS readers) |
+| `io` | `molrs/io` (PDB / XYZ / SDF / LAMMPS readers) |
 | `cli` | `clap` + `io` (binary + integration tests) |
 | `rayon` | `rayon` + `molrs/rayon` (parallel evaluation) |
+| `ff` | `molrs/ff` (MMFF + L-BFGS) — enables `LBFGSRelaxer` |
 
 The Python wheel is built **without** `io` — the wheel relies on the user's `molrs` Python package
-for frame loading, then calls `Target::from_coords` and lowers the parsed script via `Script::lower`.
+for frame loading, then builds targets from the loaded frame (the PyO3
+`target_from_frame` helper) and lowers scripts with `Script::lower` +
+`StructurePlan::apply`.
 
 ## Hard rules (load-bearing)
 
@@ -59,7 +66,7 @@ for frame loading, then calls `Target::from_coords` and lowers the parsed script
 
 ## Coding style
 
-- Rust 1.85+, edition 2024
+- Rust 1.91+, edition 2024
 - Immutability — return new values, never mutate in place
 - Files: 200–400 lines typical, 800 max — split when modules grow beyond one concern
 - New public types implement `Debug` and (where appropriate) `Clone`
@@ -72,18 +79,18 @@ for frame loading, then calls `Target::from_coords` and lowers the parsed script
 - `cargo test -p molcrafts-molpack --release --test examples_batch -- --ignored` — Packmol regression.
   Requires test data: `bash ../molrs/scripts/fetch-test-data.sh` (one time).
 - `cd python && maturin develop --release && pytest` — Python wheel.
-- `cargo bench --bench pack_end_to_end -- mixture` — perf baseline.
+- `cargo bench --benches` — criterion regression benches (pair kernel, objective dispatch, one `run_iteration` step, restraint eval, tiny end-to-end pack). Each is small/fast and synthesizes its own geometry, so **no** `io` feature is needed; run one with `cargo bench --bench pack_end_to_end`. Perf history is tracked on canonical pushes by `.github/workflows/bench.yml`.
 
 ## Repo layout
 
 | Path | Purpose |
 |---|---|
 | `src/` | library + CLI binary |
-| `python/` | PyO3 wheel + tests + docs |
+| `python/` | PyO3 wheel + tests |
 | `tests/` | Rust integration tests (incl. `examples_batch.rs` regression suite) |
-| `benches/` | criterion benchmarks |
+| `benches/` | small criterion regression benches (self-synthesized geometry, no `io`) |
 | `examples/` | runnable example programs (need `--features io`) |
-| `docs/` | concepts / architecture / extending — published via Zensical |
+| `docs/` | full docs site (Rust guide + `python/` binding docs) — published via Zensical with the shared `molcrafts` theme |
 | `.claude/specs/` | feature specs, indexed in `INDEX.md` |
 | `.claude/NOTES.md` | evolving decisions; promoted to CLAUDE.md when stable |
 | `.claude/skills/` | user-invocable workflows (`/mpk-*`) |
@@ -97,4 +104,6 @@ workspace/
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses path deps on `../molrs/molrs-core` and `../molrs/molrs-io`.
+The root `Cargo.toml` uses a single path dep on `../molrs/molrs` (the unified
+`molcrafts-molrs` crate); `core` is always-on, while `io` and `ff` are pulled in
+through the matching molpack features above.

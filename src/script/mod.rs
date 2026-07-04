@@ -15,15 +15,15 @@
 //!   let script = script::parse(&src)?;
 //!   let built = script.build(Path::new("."))?;
 //!
-//!   let result = built.packer.pack(&built.targets, built.nloop)?;
-//!   script::write_frame(&built.output, &result.frame)?;
+//!   let frame = built.packer.pack(&built.targets, built.nloop)?;
+//!   script::write_frame(&built.output, &frame)?;
 //!   # Ok::<(), Box<dyn std::error::Error>>(())
 //!   ```
 //!
 //! - **Embedding hosts (any feature set)** — [`Script::lower`] returns
 //!   a [`ScriptPlan`] with file paths resolved but unread. The caller
 //!   loads each [`StructurePlan::filepath`] with its own frame loader,
-//!   builds a [`Target`], and stamps restraints via
+//!   builds a [`Target`](crate::Target), and stamps restraints via
 //!   [`StructurePlan::apply`]. This is what the PyO3 wheel uses, so it
 //!   does not have to statically link molrs-io.
 //!
@@ -37,7 +37,6 @@ mod error;
 #[cfg(feature = "io")]
 mod io;
 mod parser;
-mod restraint_parse;
 
 #[cfg(feature = "io")]
 pub use build::BuildResult;

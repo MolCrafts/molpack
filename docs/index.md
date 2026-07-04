@@ -1,98 +1,114 @@
-# molpack
+---
+title: molpack
+description: Packmol-grade molecular packing in pure Rust, with Python bindings.
+hide:
+  - navigation
+  - toc
+hero:
+  kicker: molpack Manual
+  title: molpack
+  description: Build non-overlapping initial configurations for molecular dynamics. Give molpack molecular templates, per-type counts, and geometric restraints, and it returns coordinates that satisfy every constraint — a faithful port of Packmol's GENCAN engine in pure Rust.
+  install:
+    label: Install
+    command: pip install molcrafts-molpack molcrafts-molrs
+  badges:
+    - img: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml/badge.svg
+      href: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml
+      alt: CI status
+    - img: https://img.shields.io/github/stars/MolCrafts/molpack?style=flat&color=c2410c
+      href: https://github.com/MolCrafts/molpack
+      alt: GitHub stars
+    - img: https://img.shields.io/badge/license-BSD--3--Clause-blue.svg
+      href: https://github.com/MolCrafts/molpack/blob/master/LICENSE
+      alt: License BSD-3-Clause
+  actions:
+    - label: Get started
+      href: getting_started/
+      style: primary
+    - label: Guide
+      href: concepts/
+    - label: Architecture
+      href: architecture/
+---
 
-Molecular packing in pure Rust, with Python bindings. Part of the
-[molrs](https://github.com/MolCrafts/molrs) toolkit.
+<h1 class="molcrafts-sr-only">molpack</h1>
 
-molpack builds initial configurations for molecular dynamics: give it a set
-of molecular templates, per-type counts, and geometric restraints (boxes,
-spheres, half-spaces, fixed placements), and it produces non-overlapping
-coordinates that satisfy all constraints.
+<div class="molcrafts-manual-home" markdown>
 
-## Install
+<section class="molcrafts-manual-section molcrafts-manual-section--compact" markdown>
 
-=== "CLI"
+<div class="molcrafts-manual-section__header" markdown>
 
-    ```bash
-    cargo install molcrafts-molpack --features cli
-    ```
+<span class="molcrafts-manual-eyebrow">At a glance</span>
 
-=== "Rust library"
+## Templates and counts in, packed coordinates out
 
-    ```bash
-    cargo add molcrafts-molpack
-    ```
+molpack takes a set of molecular templates, a copy count for each, and the geometric restraints each type must satisfy. It then places every copy so that nothing overlaps and every constraint holds:
 
-=== "Python"
+</div>
 
-    ```bash
-    pip install molcrafts-molpack molcrafts-molrs
-    ```
+```python
+import molrs
+from molpack import InsideBoxRestraint, Molpack, Target
 
-## Quick start
+frame = molrs.read_pdb("water.pdb")             # one molecule template
 
-=== "CLI"
+water = (
+    Target(frame, count=1000)                   # 1000 copies
+    .with_name("water")
+    .with_restraint(InsideBoxRestraint([0, 0, 0], [40, 40, 40]))
+)
 
-    The `molpack` binary accepts Packmol's `.inp` script format, so it works
-    as a drop-in replacement on the command line. Beyond PDB/XYZ it also
-    reads SDF/MOL, LAMMPS dump, and LAMMPS data.
+packed = Molpack().with_seed(42).pack([water], max_loops=200)
+```
 
-    ```bash
-    molpack mixture.inp         # file argument
-    molpack < mixture.inp       # stdin
-    cat mixture.inp | molpack   # pipe
-    ```
+The same engine drives a Packmol-compatible CLI and a native Rust API, so a mixture defined once can be packed from a shell script, a Rust program, or Python. The [Getting Started](getting_started.md) chapter walks through a full mixture end to end; the [Examples](examples.md) collect the five canonical workloads.
 
-=== "Rust"
+</section>
 
-    ```rust
-    use molpack::{InsideBoxRestraint, Molpack, Target};
+<section class="molcrafts-manual-section molcrafts-manual-section--compact" markdown>
 
-    let positions = [[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
-    let radii = [1.52, 1.20, 1.20];
+<div class="molcrafts-manual-section__header" markdown>
 
-    let target = Target::from_coords(&positions, &radii, 100)
-        .with_name("water")
-        .with_restraint(InsideBoxRestraint::new([0.0; 3], [40.0; 3], [false; 3]));
+<span class="molcrafts-manual-eyebrow">Find your page</span>
 
-    let result = Molpack::new()
-        .with_tolerance(2.0)
-        .with_seed(42)
-        .pack(&[target], 200)?;
-    ```
+## The manual in six chapters
 
-=== "Python"
+</div>
 
-    ```python
-    import molrs
-    from molpack import InsideBox, Molpack, Target
+<nav class="molcrafts-manual-index" aria-label="Manual chapters">
+  <a href="install/">
+    <span>01</span>
+    <strong>Install</strong>
+    <em>The CLI binary, the Rust crate, and the Python wheel — with prerequisites and building from source.</em>
+  </a>
+  <a href="getting_started/">
+    <span>02</span>
+    <strong>Getting Started</strong>
+    <em>Your first pack end to end: templates, counts, restraints, and written coordinates.</em>
+  </a>
+  <a href="concepts/">
+    <span>03</span>
+    <strong>Concepts</strong>
+    <em>Targets, restraints, regions, handlers, and relaxers — the pieces every pack is built from.</em>
+  </a>
+  <a href="python/">
+    <span>04</span>
+    <strong>Python</strong>
+    <em>The molrs-backed binding: installation, guide, examples, and the full API reference.</em>
+  </a>
+  <a href="architecture/">
+    <span>05</span>
+    <strong>Architecture</strong>
+    <em>The module map, data flow, the packing loop, and the hot path that keeps it fast.</em>
+  </a>
+  <a href="extending/">
+    <span>06</span>
+    <strong>Extending</strong>
+    <em>Write your own restraint, region, handler, or relaxer against the engine's traits.</em>
+  </a>
+</nav>
 
-    frame = molrs.read_pdb("water.pdb")
+</section>
 
-    water = (
-        Target("water", frame, count=100)
-        .with_restraint(InsideBox([0, 0, 0], [40, 40, 40]))
-    )
-    result = Molpack(tolerance=2.0).pack([water], max_loops=200, seed=42)
-    ```
-
-## Documentation map
-
-**Get Started**
-
-- **[Install](install.md)** — CLI, Rust crate, Python binding.
-- **[Getting Started](getting_started.md)** — first pack, end to end.
-
-**Guide**
-
-- **[Concepts](concepts.md)** — targets, restraints, regions, handlers, relaxers.
-- **[Examples](examples.md)** — five canonical workloads.
-- **[Packmol parity](packmol_parity.md)** — what is matched, how it is verified.
-
-**Internals**
-
-- **[Architecture](architecture.md)** — module map, data flow, loops, hot path.
-- **[Extending](extending.md)** — write your own `Restraint` / `Region` / `Handler` / `Relaxer`.
-
-## License
-
-BSD-3-Clause. See [LICENSE](https://github.com/MolCrafts/molpack/blob/master/LICENSE).
+</div>

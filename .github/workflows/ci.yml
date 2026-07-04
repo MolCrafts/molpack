@@ -7,70 +7,14 @@ on:
   workflow_call:
   workflow_dispatch:
 
+# CI is a tests-only gate. Formatting and linting (cargo fmt + clippy,
+# ruff-format + ruff, ty) are enforced by the pre-commit hooks in
+# `.pre-commit-config.yaml`, which use first-party registry-hosted tooling.
+# Keeping CI focused on the test suites avoids duplicating those checks here.
+
 jobs:
-  # ── fast gates (run in parallel) ──────────────────────────────────────────
-
-  fmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --check
-
-  python-lint:
-    name: python lint + types
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          path: molpack
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install typecheck dep group
-        run: pip install --group typecheck
-        working-directory: molpack/python
-      - name: ruff format
-        run: ruff format --check .
-        working-directory: molpack/python
-      - name: ruff lint
-        run: ruff check .
-        working-directory: molpack/python
-      - name: ty check
-        run: ty check python tests examples
-        working-directory: molpack/python
-
-  # ── rust lint gate ─────────────────────────────────────────────────────────
-
-  clippy:
-    name: clippy
-    needs: fmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          repository: MolCrafts/molrs
-          path: molrs
-      - uses: actions/checkout@v6
-        with:
-          path: molpack
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: molpack
-      - run: cargo clippy --all-targets --features cli -- -D warnings
-        working-directory: molpack
-
-  # ── full checks (blocked on both lint gates) ───────────────────────────────
-
   test:
-    name: test
-    needs: clippy
+    name: rust tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -92,19 +36,54 @@ jobs:
       - name: Fetch test data
         run: bash scripts/fetch-test-data.sh
         working-directory: molrs
-      - name: Test (library + examples)
-        run: cargo test --lib --tests --examples
+      - name: Test (library + integration + examples)
+        # `io` is on so the example programs and the io-gated integration tests
+        # (incl. the `examples_batch` regression harness, which only *runs* under
+        # `--ignored`) are compiled here — without it they are silently skipped.
+        run: cargo test --features io --lib --tests --examples
         working-directory: molpack
       - name: Test CLI (cli feature)
         run: cargo test --test cli --features cli
         working-directory: molpack
-      - name: Benches build
-        run: cargo bench --no-run --all-features
+      - name: Feature-gate checks (no-default-features / rayon / ff)
+        run: |
+          cargo check --no-default-features
+          cargo check --features rayon
+          cargo check --features ff
+        working-directory: molpack
+      # Compile-check the criterion regression benches on every PR (the full
+      # timed run happens on canonical pushes in bench.yml). The benches
+      # synthesize their own geometry, so no `io` feature is needed.
+      - name: Build benches (rot guard)
+        run: cargo build --benches
+        working-directory: molpack
+
+  # Packmol regression suite — expensive (runs all five example workloads to
+  # convergence, up to ~1h for the spherical case), so it is skipped on pull
+  # requests and runs on master pushes, the release gate (workflow_call), and
+  # manual dispatch. CONTRIBUTING requires it green for restraint/objective work.
+  regression:
+    name: packmol regression
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: MolCrafts/molrs
+          path: molrs
+      - uses: actions/checkout@v6
+        with:
+          path: molpack
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: molpack
+      - name: Run examples_batch (--ignored)
+        run: cargo test --release --features io --test examples_batch -- --ignored
         working-directory: molpack
 
   python:
-    name: python bindings
-    needs: [clippy, python-lint]
+    name: python tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -121,7 +100,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v6
       - name: Build + test Python bindings
         run: |
           uv venv

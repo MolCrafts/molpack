@@ -1,10 +1,9 @@
 //! Exact port of `polartocart.f90` from Packmol.
 //!
-//! Euler angle convention (eulerrmat). Packmol spells these `beta`/`gama`/
-//! `teta`; renamed here for clarity (`gama`/`teta` were Fortran misspellings):
-//!   euler_beta  = rotation about y-axis  (Packmol: `beta`)
-//!   euler_gamma = rotation about z-axis  (Packmol: `gama`)
-//!   euler_theta = rotation about x-axis  (Packmol: `teta`)
+//! Euler angle convention (eulerrmat):
+//!   beta  = rotation about y-axis
+//!   gama  = rotation about z-axis
+//!   teta  = rotation about x-axis
 
 use molrs::types::F;
 /// Compute rotation matrix columns from Euler angles.
@@ -12,13 +11,13 @@ use molrs::types::F;
 ///
 /// Returns (v1, v2, v3) — the three columns of the rotation matrix.
 #[inline(always)]
-pub fn eulerrmat(euler_beta: F, euler_gamma: F, euler_theta: F) -> ([F; 3], [F; 3], [F; 3]) {
-    let cb = euler_beta.cos();
-    let sb = euler_beta.sin();
-    let cg = euler_gamma.cos();
-    let sg = euler_gamma.sin();
-    let ct = euler_theta.cos();
-    let st = euler_theta.sin();
+pub fn eulerrmat(beta: F, gama: F, teta: F) -> ([F; 3], [F; 3], [F; 3]) {
+    let cb = beta.cos();
+    let sb = beta.sin();
+    let cg = gama.cos();
+    let sg = gama.sin();
+    let ct = teta.cos();
+    let st = teta.sin();
 
     let v1 = [-sb * sg * ct + cb * cg, -sb * cg * ct - cb * sg, sb * st];
     let v2 = [cb * sg * ct + sb * cg, cb * cg * ct - sb * sg, -cb * st];
@@ -42,17 +41,17 @@ pub fn compcart(xcm: &[F; 3], xref: &[F; 3], v1: &[F; 3], v2: &[F; 3], v3: &[F; 
 /// Port of Fortran `eulerfixed`.
 ///
 /// In this convention:
-///   euler_beta  = counterclockwise rotation around x-axis
-///   euler_gamma  = counterclockwise rotation around y-axis
-///   euler_theta  = counterclockwise rotation around z-axis
+///   beta  = counterclockwise rotation around x-axis
+///   gama  = counterclockwise rotation around y-axis
+///   teta  = counterclockwise rotation around z-axis
 #[inline(always)]
-pub fn eulerfixed(euler_beta: F, euler_gamma: F, euler_theta: F) -> ([F; 3], [F; 3], [F; 3]) {
-    let c1 = euler_beta.cos();
-    let s1 = euler_beta.sin();
-    let c2 = euler_gamma.cos();
-    let s2 = euler_gamma.sin();
-    let c3 = euler_theta.cos();
-    let s3 = euler_theta.sin();
+pub fn eulerfixed(beta: F, gama: F, teta: F) -> ([F; 3], [F; 3], [F; 3]) {
+    let c1 = beta.cos();
+    let s1 = beta.sin();
+    let c2 = gama.cos();
+    let s2 = gama.sin();
+    let c3 = teta.cos();
+    let s3 = teta.sin();
 
     let v1 = [c2 * c3, c1 * s3 + c3 * s1 * s2, s1 * s3 - c1 * c3 * s2];
     let v2 = [-c2 * s3, c1 * c3 - s1 * s2 * s3, c1 * s2 * s3 + c3 * s1];
@@ -61,15 +60,15 @@ pub fn eulerfixed(euler_beta: F, euler_gamma: F, euler_theta: F) -> ([F; 3], [F;
     (v1, v2, v3)
 }
 
-/// All 9 partial derivatives of rotation matrix columns w.r.t. euler_beta/euler_gamma/euler_theta.
+/// All 9 partial derivatives of rotation matrix columns w.r.t. beta/gama/teta.
 /// Exact port of `computeg.f90` lines 169-204.
 ///
 /// Returns (dv1beta, dv1gama, dv1teta, dv2beta, dv2gama, dv2teta, dv3beta, dv3gama, dv3teta)
 #[allow(clippy::type_complexity)]
 pub fn eulerrmat_derivatives(
-    euler_beta: F,
-    euler_gamma: F,
-    euler_theta: F,
+    beta: F,
+    gama: F,
+    teta: F,
 ) -> (
     [F; 3],
     [F; 3],
@@ -81,12 +80,12 @@ pub fn eulerrmat_derivatives(
     [F; 3],
     [F; 3],
 ) {
-    let cb = euler_beta.cos();
-    let sb = euler_beta.sin();
-    let cg = euler_gamma.cos();
-    let sg = euler_gamma.sin();
-    let ct = euler_theta.cos();
-    let st = euler_theta.sin();
+    let cb = beta.cos();
+    let sb = beta.sin();
+    let cg = gama.cos();
+    let sg = gama.sin();
+    let ct = teta.cos();
+    let st = teta.sin();
 
     let dv1beta = [-cb * sg * ct - sb * cg, -cb * cg * ct + sb * sg, cb * st];
     let dv2beta = [-sb * sg * ct + cb * cg, -sb * cg * ct - cb * sg, sb * st];

@@ -25,11 +25,11 @@ impl<'a> ModelData<'a> {
 
     #[inline]
     pub fn nmols(&self) -> &[usize] {
-        &self.ctx.topology.nmols
+        &self.ctx.nmols
     }
 
     #[inline]
     pub fn natoms(&self) -> &[usize] {
-        &self.ctx.topology.natoms
+        &self.ctx.natoms
     }
 }

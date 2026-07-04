@@ -14,11 +14,10 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    AboveGaussianRestraint, AbovePlaneRestraint, Angle, BelowGaussianRestraint,
-    BelowPlaneRestraint, CenteringMode, InsideBoxRestraint, InsideCubeRestraint,
-    InsideCylinderRestraint, InsideEllipsoidRestraint, InsideSphereRestraint, Molpack,
-    OutsideBoxRestraint, OutsideCubeRestraint, OutsideCylinderRestraint, OutsideEllipsoidRestraint,
-    OutsideSphereRestraint, Restraint, Target,
+    AbovePlaneRestraint, Angle, AtomRestraint, BelowPlaneRestraint, CenteringMode,
+    InsideBoxRestraint, InsideCubeRestraint, InsideCylinderRestraint, InsideEllipsoidRestraint,
+    InsideSphereRestraint, Molpack, OutsideBoxRestraint, OutsideCubeRestraint,
+    OutsideCylinderRestraint, OutsideEllipsoidRestraint, OutsideSphereRestraint, Target,
 };
 
 use super::error::ScriptError;
@@ -38,7 +37,7 @@ pub struct ScriptPlan {
     pub structures: Vec<StructurePlan>,
     /// Resolved output file path.
     pub output: PathBuf,
-    /// Outer-loop iteration cap (`nloop` keyword; default 400).
+    /// Outer-loop iteration cap (`nloop` keyword; default `200 * ntype`).
     pub nloop: usize,
     /// Global `filetype` override (script-level), if any. Frame loaders
     /// should fall back to extension-based detection when this is `None`.
@@ -77,7 +76,9 @@ impl Script {
             return Err(ScriptError::NoStructures);
         }
 
-        let mut packer = Molpack::new().with_tolerance(self.tolerance);
+        let mut packer = Molpack::new()
+            .with_tolerance(self.tolerance)
+            .with_avoid_overlap(self.avoid_overlap);
         if let Some(seed) = self.seed {
             packer = packer.with_seed(seed);
         }
@@ -148,44 +149,45 @@ fn resolve(base: &Path, path: &Path) -> PathBuf {
     }
 }
 
-/// Single source of truth mapping a parsed [`RestraintSpec`] to its concrete
-/// Rust [`Restraint`] constructor. Both the molecule-level and atom-subset
-/// application paths go through here, so a new restraint kind is wired up in
-/// exactly one place (mirroring the parser's single keyword→spec table).
-fn spec_to_restraint(r: &RestraintSpec) -> Box<dyn Restraint> {
+/// Lower one parsed [`RestraintSpec`] to its concrete [`AtomRestraint`].
+///
+/// Single source of truth for the spec → restraint mapping, shared by the
+/// whole-molecule and per-atom-group application paths. Adding a new restraint
+/// kind is one arm here plus one parser arm and one [`RestraintSpec`] variant.
+fn restraint_from_spec(r: &RestraintSpec) -> Box<dyn AtomRestraint> {
     match *r {
         RestraintSpec::InsideBox { min, max } => {
             Box::new(InsideBoxRestraint::new(min, max, [false; 3]))
         }
+        RestraintSpec::OutsideBox { min, max } => Box::new(OutsideBoxRestraint::new(min, max)),
         RestraintSpec::InsideCube { origin, side } => {
             Box::new(InsideCubeRestraint::new(origin, side))
         }
+        RestraintSpec::OutsideCube { origin, side } => {
+            Box::new(OutsideCubeRestraint::new(origin, side))
+        }
         RestraintSpec::InsideSphere { center, radius } => {
             Box::new(InsideSphereRestraint::new(center, radius))
+        }
+        RestraintSpec::OutsideSphere { center, radius } => {
+            Box::new(OutsideSphereRestraint::new(center, radius))
         }
         RestraintSpec::InsideEllipsoid {
             center,
             axes,
             exponent,
         } => Box::new(InsideEllipsoidRestraint::new(center, axes, exponent)),
+        RestraintSpec::OutsideEllipsoid {
+            center,
+            axes,
+            exponent,
+        } => Box::new(OutsideEllipsoidRestraint::new(center, axes, exponent)),
         RestraintSpec::InsideCylinder {
             center,
             axis,
             radius,
             length,
         } => Box::new(InsideCylinderRestraint::new(center, axis, radius, length)),
-        RestraintSpec::OutsideBox { min, max } => Box::new(OutsideBoxRestraint::new(min, max)),
-        RestraintSpec::OutsideCube { origin, side } => {
-            Box::new(OutsideCubeRestraint::new(origin, side))
-        }
-        RestraintSpec::OutsideSphere { center, radius } => {
-            Box::new(OutsideSphereRestraint::new(center, radius))
-        }
-        RestraintSpec::OutsideEllipsoid {
-            center,
-            axes,
-            exponent,
-        } => Box::new(OutsideEllipsoidRestraint::new(center, axes, exponent)),
         RestraintSpec::OutsideCylinder {
             center,
             axis,
@@ -198,33 +200,15 @@ fn spec_to_restraint(r: &RestraintSpec) -> Box<dyn Restraint> {
         RestraintSpec::BelowPlane { normal, distance } => {
             Box::new(BelowPlaneRestraint::new(normal, distance))
         }
-        RestraintSpec::AboveGaussian {
-            cx,
-            cy,
-            sx,
-            sy,
-            z0,
-            height,
-        } => Box::new(AboveGaussianRestraint::new(cx, cy, sx, sy, z0, height)),
-        RestraintSpec::BelowGaussian {
-            cx,
-            cy,
-            sx,
-            sy,
-            z0,
-            height,
-        } => Box::new(BelowGaussianRestraint::new(cx, cy, sx, sy, z0, height)),
     }
 }
 
 fn apply_mol_restraint(target: Target, r: &RestraintSpec) -> Target {
-    target.with_restraint(spec_to_restraint(r))
+    target.with_restraint(restraint_from_spec(r))
 }
 
 fn apply_atom_group(mut target: Target, group: &AtomGroup) -> Target {
     // Script indices are 1-based; Target::with_atom_restraint expects 0-based.
-    // The parser already rejects indices < 1 (see `parse` atom-block handling),
-    // so `- 1` cannot underflow here; `saturating_sub` is belt-and-braces.
     let zero_indexed: Vec<usize> = group
         .atom_indices
         .iter()
@@ -232,7 +216,7 @@ fn apply_atom_group(mut target: Target, group: &AtomGroup) -> Target {
         .collect();
     let indices = zero_indexed.as_slice();
     for r in &group.restraints {
-        target = target.with_atom_restraint(indices, spec_to_restraint(r));
+        target = target.with_atom_restraint(indices, restraint_from_spec(r));
     }
     target
 }

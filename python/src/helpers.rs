@@ -66,7 +66,6 @@ pub fn pack_error_to_pyerr(e: molpack::PackError) -> PyErr {
         molpack::PackError::ConflictingPeriodicBoxes { .. } => {
             ConflictingPeriodicBoxesError::new_err(msg)
         }
-        molpack::PackError::HandlerIo(_) => pyo3::exceptions::PyIOError::new_err(msg),
     }
 }
 

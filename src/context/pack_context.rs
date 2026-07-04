@@ -3,12 +3,11 @@
 use std::sync::Arc;
 
 use crate::cell::{cell_ind, icell_to_cell, index_cell};
-use crate::objective::{compute_f, compute_fg, compute_g};
-use crate::restraint::Restraint;
+use crate::constraints::{Constraints, EvalMode, EvalOutput};
+use crate::restraint::{AtomRestraint, Restraint};
 use molrs::Element;
 use molrs::types::F;
 
-use super::eval::{EvalMode, EvalOutput};
 use super::model::ModelData;
 use super::state::{RuntimeState, RuntimeStateMut};
 use super::work_buffers::WorkBuffers;
@@ -33,7 +32,7 @@ pub const NONE_IDX: u32 = u32::MAX;
 
 /// Compact AoS view of every atom's **hot** pair-kernel inputs.
 ///
-/// The pair kernel in `objective::pair_f_atom` / `pair_g_atom` / `pair_fg_atom` reads the
+/// The pair kernel in `objective::fparc` / `gparc` / `fgparc` reads the
 /// molecule identity, radii, `fscale`, and a flag byte every time it
 /// looks at another atom. Scattering those across seven separate `Vec<_>`s
 /// turns each visit into seven independent cache-line fetches. Packing
@@ -43,7 +42,7 @@ pub const NONE_IDX: u32 = u32::MAX;
 ///
 /// Layout (40 bytes, natural 8-byte alignment — two atoms fit 80 bytes,
 /// i.e. ~1.25 cache lines so most pair visits hit a single line):
-/// - `atom_mol_idx, atom_type_idx` — 2 × u32 (8 bytes) — same-molecule skip.
+/// - `ibmol, ibtype` — 2 × u32 (8 bytes) — same-molecule skip.
 /// - `fscale, radius, radius_ini` — 3 × F (24 bytes) — distance kernel.
 /// - `flags` — u32 (4 bytes) — `ATOM_FLAG_FIXED`, `ATOM_FLAG_SHORT`.
 /// - private padding — u32 (4 bytes) to keep the struct multiple of 8.
@@ -54,10 +53,8 @@ pub const NONE_IDX: u32 = u32::MAX;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AtomProps {
-    /// Packmol: `ibmol`.
-    pub atom_mol_idx: u32,
-    /// Packmol: `ibtype`.
-    pub atom_type_idx: u32,
+    pub ibmol: u32,
+    pub ibtype: u32,
     pub fscale: F,
     pub radius: F,
     pub radius_ini: F,
@@ -111,95 +108,29 @@ const NEIGHBOR_OFFSETS_G: [(isize, isize, isize); 13] = [
     (1, -1, -1),
 ];
 
-/// Per-evaluation mutable state: Cartesian positions, current/initial radii,
-/// fscale, and the objective accumulators. Grouped out of [`PackContext`] as
-/// the state rewritten on every `evaluate()` — the natural `&mut` borrow unit.
-pub struct EvalState {
+/// Full runtime context for one packing execution.
+/// All arrays are 0-based; Fortran 1-based arrays are shifted by -1.
+pub struct PackContext {
+    // ---- Constraints facade ----
+    pub constraints: Constraints,
+
+    // ---- Atom Cartesian coordinates (updated every function evaluation) ----
     /// Current Cartesian positions: `xcart[icart]` = `[x, y, z]`. Size: ntotat.
     pub xcart: Vec<[F; 3]>,
+    /// Element per atom: `elements[icart]`. Size: ntotat. `None` means unknown/"X".
+    pub elements: Vec<Option<Element>>,
+
+    // ---- Reference (centered) coordinates ----
+    /// Reference coordinates `coor[idatom]` = `[x, y, z]`. Size: total atoms across all types.
+    pub coor: Vec<[F; 3]>,
+
+    // ---- Radii ----
     /// Current radii (may be scaled): `radius[icart]`. Size: ntotat.
     pub radius: Vec<F>,
     /// Original (unscaled) radii: `radius_ini[icart]`. Size: ntotat.
     pub radius_ini: Vec<F>,
     /// Function scaling per atom: `fscale[icart]`. Size: ntotat.
     pub fscale: Vec<F>,
-    /// Maximum inter-molecular distance violation (fdist in Fortran).
-    pub fdist: F,
-    /// Maximum constraint violation (frest in Fortran).
-    pub frest: F,
-    /// Per-atom distance violation (for movebad).
-    pub fdist_atom: Vec<F>,
-    /// Per-atom constraint violation (for movebad).
-    pub frest_atom: Vec<F>,
-}
-
-/// Per-type molecule topology: counts, atom-layout offsets, reference
-/// coordinates, and max internal distances. Grouped out of [`PackContext`]
-/// as the (mostly) static description of *what* is being packed.
-pub struct Topology {
-    /// Number of molecules per type: `nmols[itype]`. 0-based type index.
-    pub nmols: Vec<usize>,
-    /// Number of atoms per type: `natoms[itype]`. 0-based type index.
-    pub natoms: Vec<usize>,
-    /// First datum atom index (0-based) for each type: `idfirst[itype]`.
-    pub idfirst: Vec<usize>,
-    /// Reference coordinates `coor[idatom]` = `[x, y, z]`. Size: total atoms.
-    pub coor: Vec<[F; 3]>,
-    /// Maximum internal distance per type: `dmax[itype]`.
-    pub dmax: Vec<F>,
-}
-
-/// Linked-cell grid: geometry plus the per-cell/per-atom linked lists used
-/// for neighbor lookup. Grouped out of [`PackContext`] so the cell rebuild
-/// and neighbor traversal can be reasoned about (and borrowed) as a unit.
-pub struct CellGrid {
-    pub ncells: [usize; 3],
-    pub cell_length: [F; 3],
-    /// `latomfirst[icell]` = first atom index in cell, `NONE_IDX` if empty.
-    pub latomfirst: Vec<u32>,
-    /// `latomnext[icart]` = next atom in the same cell (`NONE_IDX` = end).
-    pub latomnext: Vec<u32>,
-    /// Fixed atom list per cell (permanent), `NONE_IDX` if cell has no fixed atoms.
-    pub latomfix: Vec<u32>,
-    /// Occupied cell linked list: first cell (`NONE_IDX` if none occupied).
-    pub lcellfirst: u32,
-    /// `lcellnext[icell]` = next occupied cell (`NONE_IDX` = end).
-    pub lcellnext: Vec<u32>,
-    /// Is cell empty?
-    pub empty_cell: Vec<bool>,
-    /// Cells that contain fixed atoms and must be restored on every reset.
-    pub fixed_cells: Vec<usize>,
-    /// Cells touched during the previous objective/gradient evaluation.
-    pub active_cells: Vec<usize>,
-    /// Precomputed 13 forward-neighbor cell indices per cell for `compute_f`.
-    pub neighbor_cells_f: Vec<[usize; 13]>,
-    /// Precomputed 13 forward-neighbor cell indices per cell for `compute_g`.
-    pub neighbor_cells_g: Vec<[usize; 13]>,
-}
-
-/// Periodic-boundary parameters, grouped out of [`PackContext`] so the
-/// pair-kernel can borrow `&ctx.pbc` independently of the mutable eval state.
-#[derive(Clone, Debug, Default)]
-pub struct PbcParams {
-    /// Box edge lengths per axis (the minimum-image period).
-    pub length: [F; 3],
-    /// Box origin (minimum corner) per axis.
-    pub min: [F; 3],
-    /// Per-axis periodicity flags. `periodic[k] == true` means axis `k`
-    /// wraps in the pair-kernel minimum image and the cell list; `false`
-    /// means the cell list clamps and no wrap is applied.
-    pub periodic: [bool; 3],
-}
-
-/// Full runtime context for one packing execution.
-/// All arrays are 0-based; Fortran 1-based arrays are shifted by -1.
-pub struct PackContext {
-    // ---- Per-evaluation mutable state ----
-    /// Cartesian positions, radii, fscale, and objective accumulators that
-    /// are rewritten on every function/gradient evaluation.
-    pub eval: EvalState,
-    /// Element per atom: `elements[icart]`. Size: ntotat. `None` means unknown/"X".
-    pub elements: Vec<Option<Element>>,
 
     // ---- Short radius (optional secondary penalty) ----
     pub use_short_radius: Vec<bool>,
@@ -225,16 +156,30 @@ pub struct PackContext {
     /// AoS mirror of the frequently-read per-atom fields. Kept in sync
     /// with the individual `Vec<_>`s by [`Self::sync_atom_props`] plus the
     /// per-field setters (`set_radius`, `set_fscale`, `set_fixed_atom`,
-    /// `set_use_short_radius`, `set_atom_mol_idx`, `set_atom_type_idx`). The objective
+    /// `set_use_short_radius`, `set_ibmol`, `set_ibtype`). The objective
     /// hot kernels read exclusively from here; callers mutating the
     /// underlying `Vec<_>`s directly must call [`Self::sync_atom_props`]
     /// before the next `evaluate()`, or the debug-build invariant in
     /// [`Self::debug_assert_atom_props_sync`] will catch the drift.
     pub atom_props: Vec<AtomProps>,
 
+    // ---- Objective function accumulators ----
+    /// Maximum inter-molecular distance violation (fdist in Fortran).
+    pub fdist: F,
+    /// Maximum constraint violation (frest in Fortran).
+    pub frest: F,
+    /// Per-atom distance violation (for movebad).
+    pub fdist_atom: Vec<F>,
+    /// Per-atom constraint violation (for movebad).
+    pub frest_atom: Vec<F>,
+
     // ---- Molecule topology ----
-    /// Per-type counts/offsets + reference coords + max internal distances.
-    pub topology: Topology,
+    /// Number of molecules per type: `nmols[itype]`. 0-based type index.
+    pub nmols: Vec<usize>,
+    /// Number of atoms per type: `natoms[itype]`. 0-based type index.
+    pub natoms: Vec<usize>,
+    /// First datum atom index (0-based) for each type: `idfirst[itype]`.
+    pub idfirst: Vec<usize>,
     /// Total number of types (free).
     pub ntype: usize,
     /// Total number of types including fixed types.
@@ -248,7 +193,7 @@ pub struct PackContext {
 
     // ---- Rotation constraints (Packmol constrain_rotation) ----
     /// Rotation constraint flags per free type in Euler variable order
-    /// [euler_beta(y), euler_gamma(z), euler_theta(x)].
+    /// [beta(y), gama(z), teta(x)].
     pub constrain_rot: Vec<[bool; 3]>,
     /// Rotation bounds per free type and Euler variable:
     /// [center_rad, half_width_rad].
@@ -256,34 +201,70 @@ pub struct PackContext {
 
     // ---- Restraints ----
     /// All restraints pool: `restraints[irest]`.
-    pub restraints: Vec<Arc<dyn Restraint>>,
+    pub restraints: Vec<Arc<dyn AtomRestraint>>,
     /// CSR offsets for per-atom restraint indices:
     /// restraints of atom `icart` are in `iratom_data[iratom_offsets[icart]..iratom_offsets[icart+1]]`.
     pub iratom_offsets: Vec<usize>,
     /// Flattened per-atom restraint indices.
     pub iratom_data: Vec<RestraintRef>,
+    /// Group-level restraints, paired with the (0-based) type they act on:
+    /// `(itype, restraint)`. Evaluated once per group in the objective with the
+    /// coordinates of all copies of `itype`; the coupled gradient is scattered
+    /// back into `work.gxcar`. Empty in the common (no collective restraint) case.
+    pub collective: Vec<(usize, Arc<dyn Restraint>)>,
 
     // ---- Cell list bookkeeping ----
-    /// Type index per atom (0-based). Packmol: `ibtype`.
-    pub atom_type_idx: Vec<usize>,
-    /// Molecule index within its type (0-based). Packmol: `ibmol`.
-    pub atom_mol_idx: Vec<usize>,
+    /// Type index per atom: `ibtype[icart]` (0-based type index).
+    pub ibtype: Vec<usize>,
+    /// Molecule index within its type: `ibmol[icart]` (0-based).
+    pub ibmol: Vec<usize>,
     /// Is this a fixed atom?
     pub fixedatom: Vec<bool>,
-    /// Is this type being computed in the current iteration? Packmol: `comptype`.
-    pub is_type_active: Vec<bool>,
+    /// Is this type being computed in the current iteration?
+    pub comptype: Vec<bool>,
 
-    // ---- Cell grid (geometry + linked lists) ----
-    pub cells: CellGrid,
-    /// Periodic-boundary parameters (length / min / per-axis flags). Set
-    /// from restraints that override `Restraint::periodic_box()`.
-    pub pbc: PbcParams,
+    // ---- Cell geometry ----
+    pub ncells: [usize; 3],
+    pub cell_length: [F; 3],
+    pub pbc_length: [F; 3],
+    pub pbc_min: [F; 3],
+    /// Per-axis periodicity flags. `pbc_periodic[k] == true` means axis
+    /// `k` wraps in the pair-kernel minimum image and the cell list;
+    /// `false` means the cell list clamps and no wrap is applied. Set
+    /// from restraints that override `AtomRestraint::periodic_box()`.
+    pub pbc_periodic: [bool; 3],
+
+    // ---- Linked cell lists ----
+    /// `latomfirst[icell]` = first atom index in cell, `NONE_IDX` if empty.
+    /// Stored as flat Vec indexed by `index_cell`.
+    pub latomfirst: Vec<u32>,
+    /// `latomnext[icart]` = next atom in the same cell (`NONE_IDX` = end).
+    pub latomnext: Vec<u32>,
+    /// Fixed atom list per cell (permanent), `NONE_IDX` if cell has no fixed atoms.
+    pub latomfix: Vec<u32>,
+    /// Occupied cell linked list: first cell (`NONE_IDX` if none occupied).
+    pub lcellfirst: u32,
+    /// `lcellnext[icell]` = next occupied cell (`NONE_IDX` = end).
+    pub lcellnext: Vec<u32>,
+    /// Is cell empty?
+    pub empty_cell: Vec<bool>,
+    /// Cells that contain fixed atoms and must be restored on every reset.
+    pub fixed_cells: Vec<usize>,
+    /// Cells touched during the previous objective/gradient evaluation.
+    pub active_cells: Vec<usize>,
+    /// Precomputed 13 forward-neighbor cell indices per cell for `compute_f`.
+    pub neighbor_cells_f: Vec<[usize; 13]>,
+    /// Precomputed 13 forward-neighbor cell indices per cell for `compute_g`.
+    /// The parallel gradient path ([`crate::objective`]) walks this same
+    /// half-stencil — each pair once — accumulating into per-worker scratch
+    /// buffers, so no full 26-neighbor list is needed.
+    pub neighbor_cells_g: Vec<[usize; 13]>,
 
     // ---- State flags ----
     /// If true, skip pair-distance computations (constraints only during init).
     pub init1: bool,
-    /// If true, accumulate per-atom fdist/frest (movebad mode). Packmol: `move`.
-    pub selective_repack_mode: bool,
+    /// If true, accumulate per-atom fdist/frest (movebad mode).
+    pub move_flag: bool,
     /// Run the pair-kernel reductions (`accumulate_pair_f`,
     /// `accumulate_pair_fg`) on rayon. Off by default — parallelism is
     /// an explicit opt-in via [`Molpack::with_parallel_eval`](crate::Molpack::with_parallel_eval) because the
@@ -301,6 +282,9 @@ pub struct PackContext {
     // ---- Bounding box ----
     pub sizemin: [F; 3],
     pub sizemax: [F; 3],
+
+    // ---- Maximum internal distances per type ----
+    pub dmax: Vec<F>,
 
     // ---- Work buffers ----
     pub work: WorkBuffers,
@@ -325,17 +309,13 @@ impl PackContext {
             "ntotat={ntotat} must fit in u32 (< NONE_IDX)"
         );
         Self {
-            eval: EvalState {
-                xcart: vec![[0.0; 3]; ntotat],
-                radius: vec![0.0; ntotat],
-                radius_ini: vec![0.0; ntotat],
-                fscale: vec![1.0; ntotat],
-                fdist: 0.0,
-                frest: 0.0,
-                fdist_atom: vec![0.0; ntotat],
-                frest_atom: vec![0.0; ntotat],
-            },
+            constraints: Constraints,
+            xcart: vec![[0.0; 3]; ntotat],
             elements: vec![None; ntotat],
+            coor: Vec::new(),
+            radius: vec![0.0; ntotat],
+            radius_ini: vec![0.0; ntotat],
+            fscale: vec![1.0; ntotat],
             use_short_radius: vec![false; ntotat],
             short_radius: vec![0.0; ntotat],
             short_radius_scale: vec![0.0; ntotat],
@@ -344,13 +324,13 @@ impl PackContext {
             n_fixed_atoms: 0,
             n_short_radius: 0,
             atom_props: vec![AtomProps::default(); ntotat],
-            topology: Topology {
-                nmols: Vec::new(),
-                natoms: Vec::new(),
-                idfirst: Vec::new(),
-                coor: Vec::new(),
-                dmax: vec![0.0; ntype],
-            },
+            fdist: 0.0,
+            frest: 0.0,
+            fdist_atom: vec![0.0; ntotat],
+            frest_atom: vec![0.0; ntotat],
+            nmols: Vec::new(),
+            natoms: Vec::new(),
+            idfirst: Vec::new(),
             ntype,
             ntype_with_fixed: ntype,
             ntotmol,
@@ -361,36 +341,34 @@ impl PackContext {
             restraints: Vec::new(),
             iratom_offsets: vec![0; ntotat + 1],
             iratom_data: Vec::new(),
-            atom_type_idx: vec![0; ntotat],
-            atom_mol_idx: vec![0; ntotat],
+            collective: Vec::new(),
+            ibtype: vec![0; ntotat],
+            ibmol: vec![0; ntotat],
             fixedatom: vec![false; ntotat],
-            is_type_active: vec![true; ntype],
-            cells: CellGrid {
-                ncells,
-                cell_length: [1.0; 3],
-                latomfirst: vec![NONE_IDX; ncell_total],
-                latomnext: vec![NONE_IDX; ntotat],
-                latomfix: vec![NONE_IDX; ncell_total],
-                lcellfirst: NONE_IDX,
-                lcellnext: vec![NONE_IDX; ncell_total],
-                empty_cell: vec![true; ncell_total],
-                fixed_cells: Vec::new(),
-                active_cells: Vec::new(),
-                neighbor_cells_f: vec![[0; 13]; ncell_total],
-                neighbor_cells_g: vec![[0; 13]; ncell_total],
-            },
-            pbc: PbcParams {
-                length: [1.0; 3],
-                min: [0.0; 3],
-                periodic: [false; 3],
-            },
+            comptype: vec![true; ntype],
+            ncells,
+            cell_length: [1.0; 3],
+            pbc_length: [1.0; 3],
+            pbc_min: [0.0; 3],
+            pbc_periodic: [false; 3],
+            latomfirst: vec![NONE_IDX; ncell_total],
+            latomnext: vec![NONE_IDX; ntotat],
+            latomfix: vec![NONE_IDX; ncell_total],
+            lcellfirst: NONE_IDX,
+            lcellnext: vec![NONE_IDX; ncell_total],
+            empty_cell: vec![true; ncell_total],
+            fixed_cells: Vec::new(),
+            active_cells: Vec::new(),
+            neighbor_cells_f: vec![[0; 13]; ncell_total],
+            neighbor_cells_g: vec![[0; 13]; ncell_total],
             init1: false,
-            selective_repack_mode: false,
+            move_flag: false,
             parallel_pair_eval: false,
             scale: 1.0,
-            scale2: 0.01,
+            scale2: crate::numerics::DEFAULT_SCALE2,
             sizemin: [0.0; 3],
             sizemax: [0.0; 3],
+            dmax: vec![0.0; ntype],
             work: WorkBuffers::new(ntotat),
             frame: molrs::Frame::new(),
             ncf: 0,
@@ -419,73 +397,50 @@ impl PackContext {
     /// Unified constraints evaluation entrypoint.
     #[inline]
     pub fn evaluate(&mut self, x: &[F], mode: EvalMode, gradient: Option<&mut [F]>) -> EvalOutput {
-        let mut f_total = 0.0;
-        match mode {
-            EvalMode::FOnly => {
-                f_total = compute_f(x, self);
-            }
-            EvalMode::GradientOnly => {
-                if let Some(g) = gradient {
-                    compute_g(x, self, g);
-                } else {
-                    debug_assert!(false, "GradientOnly mode requires gradient buffer");
-                }
-            }
-            EvalMode::FAndGradient | EvalMode::RestMol => {
-                if let Some(g) = gradient {
-                    f_total = compute_fg(x, self, g);
-                } else {
-                    debug_assert!(false, "FAndGradient/RestMol mode requires gradient buffer");
-                }
-            }
-        }
-        EvalOutput {
-            f_total,
-            fdist_max: self.eval.fdist,
-            frest_max: self.eval.frest,
-        }
+        let constraints = self.constraints;
+        constraints.evaluate(x, self, mode, gradient)
     }
 
     /// Resize cell list arrays after ncells is set.
     pub fn resize_cell_arrays(&mut self) {
-        let nc = self.cells.ncells[0] * self.cells.ncells[1] * self.cells.ncells[2];
+        let nc = self.ncells[0] * self.ncells[1] * self.ncells[2];
         debug_assert!(
             nc < NONE_IDX as usize,
             "ncell_total={nc} must fit in u32 (< NONE_IDX)"
         );
-        self.cells.latomfirst = vec![NONE_IDX; nc];
-        self.cells.latomfix = vec![NONE_IDX; nc];
-        self.cells.lcellnext = vec![NONE_IDX; nc];
-        self.cells.empty_cell = vec![true; nc];
-        self.cells.fixed_cells.clear();
-        self.cells.active_cells.clear();
-        self.cells.neighbor_cells_f = vec![[0; 13]; nc];
-        self.cells.neighbor_cells_g = vec![[0; 13]; nc];
+        self.latomfirst = vec![NONE_IDX; nc];
+        self.latomfix = vec![NONE_IDX; nc];
+        self.lcellnext = vec![NONE_IDX; nc];
+        self.empty_cell = vec![true; nc];
+        self.fixed_cells.clear();
+        self.active_cells.clear();
+        self.neighbor_cells_f = vec![[0; 13]; nc];
+        self.neighbor_cells_g = vec![[0; 13]; nc];
         self.rebuild_neighbor_cells();
     }
 
     /// Reset cell lists (called at start of each compute_f/compute_g).
     /// Port of `resetcells.f90`.
     pub fn resetcells(&mut self) {
-        self.cells.lcellfirst = NONE_IDX;
-        for &icell in &self.cells.active_cells {
-            self.cells.latomfirst[icell] = NONE_IDX;
-            self.cells.lcellnext[icell] = NONE_IDX;
-            self.cells.empty_cell[icell] = true;
+        self.lcellfirst = NONE_IDX;
+        for &icell in &self.active_cells {
+            self.latomfirst[icell] = NONE_IDX;
+            self.lcellnext[icell] = NONE_IDX;
+            self.empty_cell[icell] = true;
         }
-        self.cells.active_cells.clear();
+        self.active_cells.clear();
 
-        for &icell in &self.cells.fixed_cells {
-            self.cells.latomfirst[icell] = self.cells.latomfix[icell];
-            self.cells.empty_cell[icell] = false;
-            self.cells.lcellnext[icell] = self.cells.lcellfirst;
-            self.cells.lcellfirst = icell as u32;
-            self.cells.active_cells.push(icell);
+        for &icell in &self.fixed_cells {
+            self.latomfirst[icell] = self.latomfix[icell];
+            self.empty_cell[icell] = false;
+            self.lcellnext[icell] = self.lcellfirst;
+            self.lcellfirst = icell as u32;
+            self.active_cells.push(icell);
         }
 
         // Reset latomnext for free atoms only
         let free_atoms = self.ntotat - self.nfixedat;
-        self.cells.latomnext[..free_atoms].fill(NONE_IDX);
+        self.latomnext[..free_atoms].fill(NONE_IDX);
     }
 
     #[inline]
@@ -525,13 +480,13 @@ impl PackContext {
                 flags |= ATOM_FLAG_SHORT;
             }
             self.atom_props[i] = AtomProps {
-                atom_mol_idx: self.atom_mol_idx[i] as u32,
-                atom_type_idx: self.atom_type_idx[i] as u32,
+                ibmol: self.ibmol[i] as u32,
+                ibtype: self.ibtype[i] as u32,
                 flags,
                 _padding: 0,
-                fscale: self.eval.fscale[i],
-                radius: self.eval.radius[i],
-                radius_ini: self.eval.radius_ini[i],
+                fscale: self.fscale[i],
+                radius: self.radius[i],
+                radius_ini: self.radius_ini[i],
             };
         }
         self.n_fixed_atoms = n_fixed;
@@ -541,12 +496,12 @@ impl PackContext {
     }
 
     /// Update atom `i`'s live radius on both the `Vec<F>` and the AoS
-    /// mirror.  Preferred over writing `sys.eval.radius[i]` directly: the
+    /// mirror.  Preferred over writing `sys.radius[i]` directly: the
     /// hot-loop kernel reads `atom_props[i].radius`, so a raw write
     /// would silently desynchronize.
     #[inline]
     pub fn set_radius(&mut self, i: usize, value: F) {
-        self.eval.radius[i] = value;
+        self.radius[i] = value;
         if i < self.atom_props.len() {
             self.atom_props[i].radius = value;
         }
@@ -556,7 +511,7 @@ impl PackContext {
     /// scaling-phase paths that modulate per-atom weight.
     #[inline]
     pub fn set_fscale(&mut self, i: usize, value: F) {
-        self.eval.fscale[i] = value;
+        self.fscale[i] = value;
         if i < self.atom_props.len() {
             self.atom_props[i].fscale = value;
         }
@@ -613,21 +568,21 @@ impl PackContext {
         self.any_short_radius = self.n_short_radius > 0;
     }
 
-    /// Update `atom_mol_idx[i]` and the matching mirror field.
+    /// Update `ibmol[i]` and the matching mirror field.
     #[inline]
-    pub fn set_atom_mol_idx(&mut self, i: usize, value: usize) {
-        self.atom_mol_idx[i] = value;
+    pub fn set_ibmol(&mut self, i: usize, value: usize) {
+        self.ibmol[i] = value;
         if i < self.atom_props.len() {
-            self.atom_props[i].atom_mol_idx = value as u32;
+            self.atom_props[i].ibmol = value as u32;
         }
     }
 
-    /// Update `atom_type_idx[i]` and the matching mirror field.
+    /// Update `ibtype[i]` and the matching mirror field.
     #[inline]
-    pub fn set_atom_type_idx(&mut self, i: usize, value: usize) {
-        self.atom_type_idx[i] = value;
+    pub fn set_ibtype(&mut self, i: usize, value: usize) {
+        self.ibtype[i] = value;
         if i < self.atom_props.len() {
-            self.atom_props[i].atom_type_idx = value as u32;
+            self.atom_props[i].ibtype = value as u32;
         }
     }
 
@@ -669,24 +624,24 @@ impl PackContext {
                 n_short += 1;
             }
             assert_eq!(
-                ap.atom_mol_idx, self.atom_mol_idx[i] as u32,
-                "atom_props[{i}].atom_mol_idx drift: mirror={} vec={}",
-                ap.atom_mol_idx, self.atom_mol_idx[i]
+                ap.ibmol, self.ibmol[i] as u32,
+                "atom_props[{i}].ibmol drift: mirror={} vec={}",
+                ap.ibmol, self.ibmol[i]
             );
             assert_eq!(
-                ap.atom_type_idx, self.atom_type_idx[i] as u32,
-                "atom_props[{i}].atom_type_idx drift"
+                ap.ibtype, self.ibtype[i] as u32,
+                "atom_props[{i}].ibtype drift"
             );
             assert_eq!(
-                ap.fscale, self.eval.fscale[i],
-                "atom_props[{i}].fscale drift — did you write sys.eval.fscale[{i}] directly?"
+                ap.fscale, self.fscale[i],
+                "atom_props[{i}].fscale drift — did you write sys.fscale[{i}] directly?"
             );
             assert_eq!(
-                ap.radius, self.eval.radius[i],
+                ap.radius, self.radius[i],
                 "atom_props[{i}].radius drift — use set_radius()"
             );
             assert_eq!(
-                ap.radius_ini, self.eval.radius_ini[i],
+                ap.radius_ini, self.radius_ini[i],
                 "atom_props[{i}].radius_ini drift"
             );
             assert_eq!(
@@ -729,14 +684,10 @@ impl PackContext {
     }
 
     fn rebuild_neighbor_cells(&mut self) {
-        let (nx, ny, nz) = (
-            self.cells.ncells[0],
-            self.cells.ncells[1],
-            self.cells.ncells[2],
-        );
+        let (nx, ny, nz) = (self.ncells[0], self.ncells[1], self.ncells[2]);
         let nc = nx * ny * nz;
         for icell in 0..nc {
-            let cell = icell_to_cell(icell, &self.cells.ncells);
+            let cell = icell_to_cell(icell, &self.ncells);
             let (ci, cj, ck) = (cell[0], cell[1], cell[2]);
 
             let mut nbs_f = [0usize; 13];
@@ -746,9 +697,9 @@ impl PackContext {
                     cell_ind(cj as isize + dj, ny),
                     cell_ind(ck as isize + dk, nz),
                 ];
-                nbs_f[idx] = index_cell(&ncell, &self.cells.ncells);
+                nbs_f[idx] = index_cell(&ncell, &self.ncells);
             }
-            self.cells.neighbor_cells_f[icell] = nbs_f;
+            self.neighbor_cells_f[icell] = nbs_f;
 
             let mut nbs_g = [0usize; 13];
             for (idx, &(di, dj, dk)) in NEIGHBOR_OFFSETS_G.iter().enumerate() {
@@ -757,9 +708,9 @@ impl PackContext {
                     cell_ind(cj as isize + dj, ny),
                     cell_ind(ck as isize + dk, nz),
                 ];
-                nbs_g[idx] = index_cell(&ncell, &self.cells.ncells);
+                nbs_g[idx] = index_cell(&ncell, &self.ncells);
             }
-            self.cells.neighbor_cells_g[icell] = nbs_g;
+            self.neighbor_cells_g[icell] = nbs_g;
         }
     }
 }
@@ -771,11 +722,11 @@ mod atom_props_tests {
     fn tiny_ctx(ntotat: usize) -> PackContext {
         let mut sys = PackContext::new(ntotat, ntotat, 1);
         for i in 0..ntotat {
-            sys.atom_mol_idx[i] = i;
-            sys.atom_type_idx[i] = 0;
-            sys.eval.radius[i] = 1.0;
-            sys.eval.radius_ini[i] = 1.0;
-            sys.eval.fscale[i] = 1.0;
+            sys.ibmol[i] = i;
+            sys.ibtype[i] = 0;
+            sys.radius[i] = 1.0;
+            sys.radius_ini[i] = 1.0;
+            sys.fscale[i] = 1.0;
         }
         sys.sync_atom_props();
         sys
@@ -793,21 +744,21 @@ mod atom_props_tests {
     #[test]
     fn sync_atom_props_populates_mirror_and_flags() {
         let mut sys = PackContext::new(3, 3, 1);
-        sys.atom_mol_idx = vec![10, 20, 30];
-        sys.atom_type_idx = vec![1, 2, 3];
-        sys.eval.fscale = vec![0.5, 0.25, 0.125];
-        sys.eval.radius = vec![1.1, 2.2, 3.3];
-        sys.eval.radius_ini = vec![1.0, 2.0, 3.0];
+        sys.ibmol = vec![10, 20, 30];
+        sys.ibtype = vec![1, 2, 3];
+        sys.fscale = vec![0.5, 0.25, 0.125];
+        sys.radius = vec![1.1, 2.2, 3.3];
+        sys.radius_ini = vec![1.0, 2.0, 3.0];
         sys.fixedatom = vec![false, true, false];
         sys.use_short_radius = vec![false, false, true];
         sys.sync_atom_props();
 
         for i in 0..3 {
-            assert_eq!(sys.atom_props[i].atom_mol_idx, sys.atom_mol_idx[i] as u32);
-            assert_eq!(sys.atom_props[i].atom_type_idx, sys.atom_type_idx[i] as u32);
-            assert_eq!(sys.atom_props[i].fscale, sys.eval.fscale[i]);
-            assert_eq!(sys.atom_props[i].radius, sys.eval.radius[i]);
-            assert_eq!(sys.atom_props[i].radius_ini, sys.eval.radius_ini[i]);
+            assert_eq!(sys.atom_props[i].ibmol, sys.ibmol[i] as u32);
+            assert_eq!(sys.atom_props[i].ibtype, sys.ibtype[i] as u32);
+            assert_eq!(sys.atom_props[i].fscale, sys.fscale[i]);
+            assert_eq!(sys.atom_props[i].radius, sys.radius[i]);
+            assert_eq!(sys.atom_props[i].radius_ini, sys.radius_ini[i]);
         }
         assert_eq!(sys.atom_props[0].flags, 0);
         assert_eq!(sys.atom_props[1].flags, ATOM_FLAG_FIXED);
@@ -821,7 +772,7 @@ mod atom_props_tests {
     fn set_radius_keeps_mirror_in_sync() {
         let mut sys = tiny_ctx(4);
         sys.set_radius(2, 7.25);
-        assert_eq!(sys.eval.radius[2], 7.25);
+        assert_eq!(sys.radius[2], 7.25);
         assert_eq!(sys.atom_props[2].radius, 7.25);
         // Other atoms unchanged.
         assert_eq!(sys.atom_props[0].radius, 1.0);
@@ -833,7 +784,7 @@ mod atom_props_tests {
     fn set_fscale_keeps_mirror_in_sync() {
         let mut sys = tiny_ctx(4);
         sys.set_fscale(1, 0.125);
-        assert_eq!(sys.eval.fscale[1], 0.125);
+        assert_eq!(sys.fscale[1], 0.125);
         assert_eq!(sys.atom_props[1].fscale, 0.125);
         sys.debug_assert_atom_props_sync();
     }
@@ -902,14 +853,14 @@ mod atom_props_tests {
     }
 
     #[test]
-    fn set_atom_mol_idx_and_set_atom_type_idx_keep_mirror_in_sync() {
+    fn set_ibmol_and_set_ibtype_keep_mirror_in_sync() {
         let mut sys = tiny_ctx(3);
-        sys.set_atom_mol_idx(1, 42);
-        assert_eq!(sys.atom_mol_idx[1], 42);
-        assert_eq!(sys.atom_props[1].atom_mol_idx, 42);
-        sys.set_atom_type_idx(2, 7);
-        assert_eq!(sys.atom_type_idx[2], 7);
-        assert_eq!(sys.atom_props[2].atom_type_idx, 7);
+        sys.set_ibmol(1, 42);
+        assert_eq!(sys.ibmol[1], 42);
+        assert_eq!(sys.atom_props[1].ibmol, 42);
+        sys.set_ibtype(2, 7);
+        assert_eq!(sys.ibtype[2], 7);
+        assert_eq!(sys.atom_props[2].ibtype, 7);
         sys.debug_assert_atom_props_sync();
     }
 
@@ -936,7 +887,7 @@ mod atom_props_tests {
     #[should_panic(expected = "atom_props")]
     fn debug_invariant_catches_direct_fscale_write() {
         let mut sys = tiny_ctx(2);
-        sys.eval.fscale[1] = 99.0;
+        sys.fscale[1] = 99.0;
         sys.debug_assert_atom_props_sync();
     }
 

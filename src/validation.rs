@@ -5,7 +5,7 @@ use std::env;
 use std::sync::Arc;
 
 use crate::numerics::numeric_controls;
-use crate::restraint::Restraint;
+use crate::restraint::AtomRestraint;
 use crate::target::Target;
 
 /// Quantified violation metrics for one packed configuration.
@@ -55,7 +55,7 @@ struct ExpandedMol<'a> {
 
 #[derive(Clone, Default)]
 struct AtomRestraints {
-    restraints: Vec<Arc<dyn Restraint>>,
+    restraints: Vec<Arc<dyn AtomRestraint>>,
 }
 
 /// Validate packed coordinates against target specification.
@@ -98,14 +98,17 @@ pub fn validate_from_targets(
 }
 
 fn expand_targets(targets: &[Target]) -> Vec<ExpandedMol<'_>> {
-    let free: Vec<&Target> = targets.iter().filter(|t| t.fixed_at.is_none()).collect();
-    let fixed: Vec<&Target> = targets.iter().filter(|t| t.fixed_at.is_some()).collect();
-
+    // Molecule order MUST match the assembled-frame coordinate layout that
+    // `PackResult::positions()` returns — which is **declared target order**
+    // (a fixed target keeps its declared slot; e.g. a `fixed` protein declared
+    // first stays first). Slicing the coordinates in a free-first order instead
+    // would map a declared-first fixed solute's atoms onto the wrong molecules
+    // and flag its own internal bonds (~1.5 Å) as inter-molecule overlaps.
     let mut expanded = Vec::new();
     let mut cursor = 0usize;
     let mut mol_id = 0usize;
 
-    for target in free.into_iter().chain(fixed) {
+    for target in targets.iter() {
         let nmols = if target.fixed_at.is_some() {
             1
         } else {
@@ -161,7 +164,7 @@ fn constraint_metrics(
             let pos = coordinates[atom_i];
             let mut atom_penalty = 0.0 as F;
             for r in &per_atom[local_i].restraints {
-                atom_penalty += r.f(&pos, 1.0, 0.01);
+                atom_penalty += r.f(&pos, 1.0, crate::numerics::DEFAULT_SCALE2);
             }
             if atom_penalty > max_penalty {
                 max_penalty = atom_penalty;
@@ -208,7 +211,7 @@ fn distance_metrics(
     let mut violating_pairs = 0usize;
     let mut violating_atoms = vec![false; coordinates.len()];
     let eps = precision.max(numeric_controls().epsrel);
-    let debug = env::var("molrs-pack_DEBUG_VALIDATION").is_ok();
+    let debug = env::var("MOLPACK_DEBUG_VALIDATION").is_ok();
     let mut debug_left = 5usize;
 
     for (i, p) in coordinates.iter().enumerate() {
@@ -271,4 +274,52 @@ fn union_count(n: usize, a: &[bool], b: &[bool]) -> usize {
         return 0;
     }
     (0..n).filter(|&i| a[i] || b[i]).count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fixed solute declared **first** keeps its declared coordinate slot in
+    /// `PackResult::positions()`. Validation must map those leading coordinates
+    /// to the single fixed molecule — whose internal sub-tolerance bonds are
+    /// skipped — not to the first *free* molecules. A free-first molecule map
+    /// (the prior bug) slices the solute into the wrong molecules and flags its
+    /// own ~1.5 Å bonds as inter-molecule overlaps (2501 false pairs on
+    /// solvprotein). This guards the declared-order mapping in `expand_targets`.
+    #[test]
+    fn fixed_target_declared_first_skips_its_internal_contacts() {
+        // A: fixed, 4 atoms in a tight cluster (several pairs < 2.0 Å apart).
+        let a = Target::from_coords(
+            &[
+                [0.0, 0.0, 0.0],
+                [1.5, 0.0, 0.0],
+                [0.0, 1.5, 0.0],
+                [0.0, 0.0, 1.5],
+            ],
+            &[1.0; 4],
+            1,
+        )
+        .fixed_at([0.0, 0.0, 0.0]);
+        // B: free, 2 atoms/molecule, 2 copies, placed far apart.
+        let b = Target::from_coords(&[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], &[1.0; 2], 2);
+
+        // Coordinates in DECLARED order: A's tight cluster first, then B far away.
+        let coords = vec![
+            [0.0, 0.0, 0.0],
+            [1.5, 0.0, 0.0],
+            [0.0, 1.5, 0.0],
+            [0.0, 0.0, 1.5],
+            [50.0, 50.0, 50.0],
+            [51.0, 50.0, 50.0],
+            [60.0, 60.0, 60.0],
+            [61.0, 60.0, 60.0],
+        ];
+        let report = validate_from_targets(&[a, b], &coords, 2.0, 1e-2);
+        assert!(
+            report.is_valid(),
+            "fixed solute's internal contacts must not count as overlaps: {report:?}"
+        );
+        assert_eq!(report.metrics.violating_pairs, 0);
+    }
 }

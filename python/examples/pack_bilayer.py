@@ -1,7 +1,7 @@
-"""Packmol bilayer example: lipid double layer with water above and below.
+"""Packmol bilayer example: a double layer with water above and below.
 
 Based on Packmol's ``bilayer.inp`` — atom-subset restraints pin the
-polar heads and the aliphatic tails of each lipid into their
+head atoms and the tail atoms of each molecule into their
 respective slabs.
 """
 
@@ -65,15 +65,9 @@ def main() -> None:
     )
 
     show_progress = os.environ.get("MOLPACK_EXAMPLE_PROGRESS", "1") != "0"
-    packer = (
-        molpack.Molpack()
-        .with_tolerance(2.0)
-        .with_precision(0.01)
-        .with_progress(show_progress)
-        .with_seed(1_234_567)
-    )
+    packer = molpack.Molpack().with_progress(show_progress)
 
-    result = packer.pack(
+    result = packer.pack_with_report(
         [water_low, water_high, lipid_low, lipid_high],
         max_loops=800,
     )

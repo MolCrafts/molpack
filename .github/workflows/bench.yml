@@ -1,0 +1,69 @@
+name: Bench
+
+# Runs the small criterion regression benchmarks (pair kernel, objective
+# dispatch, one run_iteration step, restraint evaluation, a tiny end-to-end
+# pack) and tracks them over time. Criterion's `--output-format bencher` emits
+# the libtest `bench: N ns/iter` lines that github-action-benchmark's `cargo`
+# tool parses.
+#
+# These benches are deliberately tiny (one small workload each, sample_size 10,
+# ~500 ms measurement) so the whole run is cheap. Every PR already gets a
+# `cargo build --benches` compile check in ci.yml; this workflow tracks perf on
+# canonical pushes + on demand.
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write      # push results to the gh-pages dashboard
+  deployments: write   # github-action-benchmark uses deployment status
+
+jobs:
+  bench:
+    name: criterion regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # molpack path-depends on ../molrs/molrs, so both repos are checked out
+      # side by side (matching ci.yml).
+      - uses: actions/checkout@v6
+        with:
+          repository: MolCrafts/molrs
+          path: molrs
+      - uses: actions/checkout@v6
+        with:
+          path: molpack
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: molpack
+
+      # The benches synthesize their own geometry in-process, so no test-data
+      # fetch and no `io` feature are needed.
+      - name: Run regression benchmarks (bencher output)
+        run: |
+          cargo bench --benches -- --output-format bencher | tee output.txt
+        working-directory: molpack
+
+      - name: Upload raw bench output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: molpack-bench-${{ github.run_id }}
+          path: molpack/output.txt
+          if-no-files-found: error
+
+      - name: Publish benchmark history
+        if: github.repository == 'MolCrafts/molpack' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: molpack/output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Criterion on shared runners is noisy — alert loudly, do not fail.
+          alert-threshold: '150%'
+          comment-on-alert: true
+          fail-on-alert: false

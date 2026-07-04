@@ -1,37 +1,40 @@
 """molpack — Packmol-grade molecular packing with Python bindings."""
 
+from . import relaxer
 from ._protocols import Handler, Restraint
 from .molpack import (
-    AboveGaussianRestraint,
     AbovePlaneRestraint,
     Angle,
     Axis,
-    BelowGaussianRestraint,
     BelowPlaneRestraint,
     CenteringMode,
     ConflictingPeriodicBoxesError,
     ConstraintsFailedError,
     EmptyMoleculeError,
+    ExponentialPlane,
+    ExponentialPoint,
+    GaussianPlane,
+    GaussianPoint,
     InsideBoxRestraint,
-    InsideCubeRestraint,
-    InsideCylinderRestraint,
-    InsideEllipsoidRestraint,
     InsideSphereRestraint,
     InvalidPBCBoxError,
+    LBFGSRelaxer,
     MaxIterationsError,
     Molpack,
     NoTargetsError,
-    OutsideBoxRestraint,
-    OutsideCubeRestraint,
-    OutsideCylinderRestraint,
-    OutsideEllipsoidRestraint,
     OutsideSphereRestraint,
     PackError,
     PackResult,
     ScriptJob,
     StepInfo,
+    TabulatedPlane,
+    TabulatedPoint,
     Target,
+    TorsionMcRelaxer,
+    init_thread_pool,
     load_script,
+    num_threads,
+    rayon_enabled,
 )
 
 __all__ = [
@@ -39,32 +42,39 @@ __all__ = [
     "Angle",
     "Axis",
     "CenteringMode",
-    # Restraints (14 Packmol kinds)
+    # Restraints
     "InsideBoxRestraint",
-    "InsideCubeRestraint",
     "InsideSphereRestraint",
-    "InsideEllipsoidRestraint",
-    "InsideCylinderRestraint",
-    "OutsideBoxRestraint",
-    "OutsideCubeRestraint",
     "OutsideSphereRestraint",
-    "OutsideEllipsoidRestraint",
-    "OutsideCylinderRestraint",
     "AbovePlaneRestraint",
     "BelowPlaneRestraint",
-    "AboveGaussianRestraint",
-    "BelowGaussianRestraint",
+    # Group-level distribution-matching restraints
+    "GaussianPlane",
+    "GaussianPoint",
+    "ExponentialPlane",
+    "ExponentialPoint",
+    "TabulatedPlane",
+    "TabulatedPoint",
     # Core
     "Target",
     "Molpack",
     "PackResult",
     "StepInfo",
+    # Relaxation-assisted packing (in-loop, per-molecule relaxers)
+    "TorsionMcRelaxer",
+    "LBFGSRelaxer",
     # Script loader (`.inp` input)
     "ScriptJob",
     "load_script",
+    # Parallel evaluation (rayon)
+    "rayon_enabled",
+    "num_threads",
+    "init_thread_pool",
     # Duck-type protocols
     "Handler",
     "Restraint",
+    # Post-pack whole-system relaxation (LAMMPS via molpy)
+    "relaxer",
     # Errors
     "PackError",
     "ConstraintsFailedError",

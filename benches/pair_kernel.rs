@@ -1,27 +1,34 @@
-//! Hot-loop microbench for the pair-evaluation kernel.
+//! Regression microbench for the fused pair/objective kernel.
 //!
-//! Measures `objective::compute_f` and `objective::compute_fg` on synthetic
-//! mid-pack snapshots of varying size. Each iteration calls `compute_f` /
-//! `compute_fg` on a prebuilt [`PackContext`] whose cells are already sized
-//! and xcart positions already jittered — i.e. the same state the outer
-//! GENCAN loop hands to the objective on every evaluate.
+//! Times `objective::compute_f` (function only) and `objective::compute_fg`
+//! (the fused function+gradient pass GENCAN drives on every inner iteration)
+//! on one small, self-synthesized water-box snapshot — the same state the
+//! outer GENCAN loop hands the objective on every evaluate.
 //!
-//! Unlike `objective_dispatch` / `run_iteration` (which use `ntotat=4` to
-//! measure function-call edge costs), this bench uses system sizes where
-//! the per-pair kernel actually dominates (≥ 3000 atoms) so that AoS
-//! packing, PBC short-circuit, and branch-elimination wins show up.
+//! This is a **regression alarm**, not a throughput measurement: it uses one
+//! small workload (30 water-like molecules = 90 atoms) so it runs in well
+//! under a second and catches a kernel regression, not peak scaling. The
+//! larger, size-swept scaling study lives in `examples/mt_scaling`.
+//!
+//! Geometry is synthesized in-process (no external test data) so the bench
+//! needs no `io` feature.
 
-use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use std::time::Duration;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 use molpack::objective::{compute_f, compute_fg};
 use molpack::{F, PackContext};
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
-/// Build a synthetic PackContext representative of the pair-kernel hot path:
-/// `n_mols` water-like molecules (atoms_per_mol=3) jittered inside a cubic
-/// box of side `box_side` Å, no PBC wrap, no short radius, no fixed atoms.
-/// Returns the context plus an `x` vector (3N COM + 3N Euler) that is the
-/// packer's canonical input format.
+/// Small representative size: keeps the whole bench << 1 s.
+const N_MOLS: usize = 30;
+
+/// Build a synthetic `PackContext` of `n_mols` water-like molecules
+/// (atoms_per_mol = 3) jittered inside a cubic box, no PBC wrap, no short
+/// radius, no fixed atoms. Returns the context plus a packer-format `x`
+/// vector (`[COM₀..COMₙ, euler₀..eulerₙ]`). Mirrors the synthesis in
+/// `examples/mt_scaling/main.rs`.
 fn build_water_box(n_mols: usize, box_side: F, seed: u64) -> (PackContext, Vec<F>) {
     let atoms_per_mol = 3usize;
     let ntotat = n_mols * atoms_per_mol;
@@ -29,27 +36,27 @@ fn build_water_box(n_mols: usize, box_side: F, seed: u64) -> (PackContext, Vec<F
     let mut sys = PackContext::new(ntotat, n_mols, ntype);
     sys.ntype_with_fixed = ntype;
 
-    sys.topology.nmols = vec![n_mols];
-    sys.topology.natoms = vec![atoms_per_mol];
-    sys.topology.idfirst = vec![0];
-    sys.is_type_active = vec![true; ntype];
+    sys.nmols = vec![n_mols];
+    sys.natoms = vec![atoms_per_mol];
+    sys.idfirst = vec![0];
+    sys.comptype = vec![true; ntype];
     sys.constrain_rot = vec![[false; 3]; ntype];
     sys.rot_bound = vec![[[0.0; 2]; 3]; ntype];
 
     // Reference coords: water-like O + 2H layout.
-    sys.topology.coor = vec![[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
+    sys.coor = vec![[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]];
 
-    // Radii: Packmol tolerance/2 = 1.0 Å for tolerance=2.0.
-    sys.eval.radius.fill(1.0);
-    sys.eval.radius_ini.fill(1.0);
-    sys.eval.fscale.fill(1.0);
+    // Radii: tolerance/2 = 1.0 Å for tolerance = 2.0.
+    sys.radius.fill(1.0);
+    sys.radius_ini.fill(1.0);
+    sys.fscale.fill(1.0);
 
     // Per-atom molecule/type tags (same layout as `Molpack::pack` writes).
     for imol in 0..n_mols {
         for iatom in 0..atoms_per_mol {
             let icart = imol * atoms_per_mol + iatom;
-            sys.atom_type_idx[icart] = 0;
-            sys.atom_mol_idx[icart] = imol;
+            sys.ibtype[icart] = 0;
+            sys.ibmol[icart] = imol;
         }
     }
 
@@ -57,23 +64,22 @@ fn build_water_box(n_mols: usize, box_side: F, seed: u64) -> (PackContext, Vec<F
     sys.iratom_offsets = vec![0; ntotat + 1];
     sys.iratom_data.clear();
 
-    // Cell geometry.  We use a padded box so `setcell` does no wrapping and
-    // the PBC branch short-circuits (matches `Molpack::pack` without `.pbc()`).
+    // Cell geometry over a padded box so `setcell` never wraps (non-PBC path).
     let pad: F = 3.0;
-    sys.pbc.min = [-pad, -pad, -pad];
-    sys.pbc.length = [box_side + 2.0 * pad; 3];
+    sys.pbc_min = [-pad, -pad, -pad];
+    sys.pbc_length = [box_side + 2.0 * pad; 3];
     let cell_side: F = 2.0; // ≈ 1.01 * 2*radius_ini
     for k in 0..3 {
-        sys.cells.ncells[k] = ((sys.pbc.length[k] / cell_side).floor() as usize).max(1);
-        sys.cells.cell_length[k] = sys.pbc.length[k] / sys.cells.ncells[k] as F;
+        sys.ncells[k] = ((sys.pbc_length[k] / cell_side).floor() as usize).max(1);
+        sys.cell_length[k] = sys.pbc_length[k] / sys.ncells[k] as F;
     }
     sys.resize_cell_arrays();
 
-    sys.sizemin = sys.pbc.min;
+    sys.sizemin = sys.pbc_min;
     sys.sizemax = [
-        sys.pbc.min[0] + sys.pbc.length[0],
-        sys.pbc.min[1] + sys.pbc.length[1],
-        sys.pbc.min[2] + sys.pbc.length[2],
+        sys.pbc_min[0] + sys.pbc_length[0],
+        sys.pbc_min[1] + sys.pbc_length[1],
+        sys.pbc_min[2] + sys.pbc_length[2],
     ];
 
     sys.sync_atom_props();
@@ -98,86 +104,36 @@ fn build_water_box(n_mols: usize, box_side: F, seed: u64) -> (PackContext, Vec<F
     (sys, x)
 }
 
-fn bench_compute_f(c: &mut Criterion) {
-    let mut group = c.benchmark_group("pair_kernel/compute_f");
-    group.sample_size(30);
-    for &n in &[200usize, 1000, 3000] {
-        let label = format!("n={}_atoms={}", n, n * 3);
-        let (sys_template, x) = build_water_box(n, 30.0 + (n as F).cbrt() * 2.5, 0x5eed);
-        group.bench_function(&label, |b| {
-            b.iter_batched_ref(
-                || (sys_template_clone(&sys_template), x.clone()),
-                |(sys, x)| {
-                    std::hint::black_box(compute_f(x, sys));
-                },
-                BatchSize::SmallInput,
-            );
+fn bench_pair_kernel(c: &mut Criterion) {
+    let mut group = c.benchmark_group("pair_kernel");
+    group.sample_size(10);
+    group.measurement_time(Duration::from_millis(500));
+
+    let box_side = 30.0 + (N_MOLS as F).cbrt() * 2.5;
+
+    // compute_f: constant `x`, so every call repeats the same work.
+    {
+        let (mut sys, x) = build_water_box(N_MOLS, box_side, 0x5eed);
+        group.bench_function(format!("compute_f/atoms={}", N_MOLS * 3), |b| {
+            b.iter(|| {
+                std::hint::black_box(compute_f(&x, &mut sys));
+            });
         });
     }
+
+    // compute_fg: fused function + gradient (the GENCAN inner-loop kernel).
+    {
+        let (mut sys, x) = build_water_box(N_MOLS, box_side, 0x5eed);
+        let mut g = vec![0.0; x.len()];
+        group.bench_function(format!("compute_fg/atoms={}", N_MOLS * 3), |b| {
+            b.iter(|| {
+                std::hint::black_box(compute_fg(&x, &mut sys, &mut g));
+            });
+        });
+    }
+
     group.finish();
 }
 
-fn bench_compute_fg(c: &mut Criterion) {
-    let mut group = c.benchmark_group("pair_kernel/compute_fg");
-    group.sample_size(30);
-    for &n in &[200usize, 1000, 3000] {
-        let label = format!("n={}_atoms={}", n, n * 3);
-        let (sys_template, x) = build_water_box(n, 30.0 + (n as F).cbrt() * 2.5, 0x5eed);
-        let g_len = 6 * n;
-        group.bench_function(&label, |b| {
-            b.iter_batched_ref(
-                || {
-                    (
-                        sys_template_clone(&sys_template),
-                        x.clone(),
-                        vec![0.0; g_len],
-                    )
-                },
-                |(sys, x, g)| {
-                    std::hint::black_box(compute_fg(x, sys, g));
-                },
-                BatchSize::SmallInput,
-            );
-        });
-    }
-    group.finish();
-}
-
-/// Custom clone for PackContext — only the fields the pair-kernel bench
-/// reads or mutates.  Full `Clone` isn't derived because a handful of
-/// internal types (e.g. `Frame`, `Constraints`) are intentionally
-/// non-`Clone`; we fake it by rebuilding just the subset we need.
-fn sys_template_clone(src: &PackContext) -> PackContext {
-    let ntotat = src.ntotat;
-    let ntotmol = src.ntotmol;
-    let ntype = src.ntype;
-    let mut dst = PackContext::new(ntotat, ntotmol, ntype);
-    dst.ntype_with_fixed = src.ntype_with_fixed;
-    dst.topology.nmols = src.topology.nmols.clone();
-    dst.topology.natoms = src.topology.natoms.clone();
-    dst.topology.idfirst = src.topology.idfirst.clone();
-    dst.is_type_active = src.is_type_active.clone();
-    dst.constrain_rot = src.constrain_rot.clone();
-    dst.rot_bound = src.rot_bound.clone();
-    dst.topology.coor = src.topology.coor.clone();
-    dst.eval.radius = src.eval.radius.clone();
-    dst.eval.radius_ini = src.eval.radius_ini.clone();
-    dst.eval.fscale = src.eval.fscale.clone();
-    dst.atom_type_idx = src.atom_type_idx.clone();
-    dst.atom_mol_idx = src.atom_mol_idx.clone();
-    dst.fixedatom = src.fixedatom.clone();
-    dst.iratom_offsets = src.iratom_offsets.clone();
-    dst.iratom_data = src.iratom_data.clone();
-    dst.pbc.min = src.pbc.min;
-    dst.pbc.length = src.pbc.length;
-    dst.cells.ncells = src.cells.ncells;
-    dst.cells.cell_length = src.cells.cell_length;
-    dst.sizemin = src.sizemin;
-    dst.sizemax = src.sizemax;
-    dst.resize_cell_arrays();
-    dst.sync_atom_props();
-    dst
-}
-
-criterion_group!(benches, bench_compute_f, bench_compute_fg);
+criterion_group!(benches, bench_pair_kernel);
 criterion_main!(benches);
