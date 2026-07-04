@@ -46,14 +46,6 @@ pub struct Aabb {
     pub max: [F; 3],
 }
 
-/// Deprecated legacy name for [`Aabb`]. Will be removed in the next
-/// release.
-#[deprecated(
-    since = "0.1.0",
-    note = "Renamed to `Aabb` — the standard abbreviation for axis-aligned bounding box."
-)]
-pub type BBox = Aabb;
-
 /// Geometric predicate with signed-distance function.
 pub trait Region: Send + Sync + std::fmt::Debug {
     /// Membership test. Must be consistent with `signed_distance(x) <= 0`.
@@ -218,14 +210,6 @@ impl<R: Region + Sized> RegionExt for R {}
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct RegionRestraint<R: Region>(pub R);
-
-/// Deprecated legacy name for [`RegionRestraint`]. Will be removed in
-/// the next release.
-#[deprecated(
-    since = "0.1.0",
-    note = "Renamed to `RegionRestraint` — `From` was meaningless as a type name."
-)]
-pub type FromRegion<R> = RegionRestraint<R>;
 
 impl<R: Region + 'static> AtomRestraint for RegionRestraint<R> {
     fn f(&self, x: &[F; 3], _scale: F, scale2: F) -> F {
@@ -513,7 +497,7 @@ mod tests {
         }
     }
 
-    // ── FromRegion lifts to AtomRestraint ────────────────────────────────────────
+    // ── RegionRestraint lifts to AtomRestraint ───────────────────────────────────
 
     #[test]
     fn from_region_penalty_zero_inside() {

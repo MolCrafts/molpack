@@ -18,6 +18,8 @@ __pycache__/
 dist/
 *.egg-info/
 python/uv.lock
+# pytest-benchmark cache (regenerated on each run)
+.benchmarks/
 
 # Example outputs (generated at runtime)
 examples/**/out/

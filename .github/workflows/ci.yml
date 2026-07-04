@@ -45,13 +45,17 @@ jobs:
       - name: Test CLI (cli feature)
         run: cargo test --test cli --features cli
         working-directory: molpack
-      - name: Feature-gate checks (no-default-features / rayon)
+      - name: Feature-gate checks (no-default-features / rayon / ff)
         run: |
           cargo check --no-default-features
           cargo check --features rayon
+          cargo check --features ff
         working-directory: molpack
+      # Compile-check the criterion regression benches on every PR (the full
+      # timed run happens on canonical pushes in bench.yml). The benches
+      # synthesize their own geometry, so no `io` feature is needed.
       - name: Build benches (rot guard)
-        run: cargo build --benches --features io
+        run: cargo build --benches
         working-directory: molpack
 
   # Packmol regression suite — expensive (runs all five example workloads to

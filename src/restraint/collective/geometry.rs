@@ -20,6 +20,13 @@ use molrs::types::F;
 
 use super::engine::{wasserstein_grad, wasserstein_value};
 
+/// Validate / normalise a non-zero direction; panics on a zero vector.
+pub(super) fn unit(normal: [F; 3]) -> [F; 3] {
+    let norm = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
+    assert!(norm > 0.0, "normal must be non-zero");
+    [normal[0] / norm, normal[1] / norm, normal[2] / norm]
+}
+
 // --------------------------------------------------------------------- plane
 
 /// ξᵢ = xᵢ·n̂ − offset for a plane with **unit** normal `normal`.

@@ -137,7 +137,7 @@ Then write a packing job in code.
 
 ### First pack: one molecule type in a box
 
-```rust,no_run
+```no_run
 use molpack::{InsideBoxRestraint, Molpack, Target};
 
 let water_positions = [
@@ -178,11 +178,11 @@ can call [`pack_with_report`](crate::Molpack::pack_with_report), whose
 ## Restraint scopes
 
 Restraints can be attached at three granularities. All of them use the
-same [`Restraint`](crate::Restraint) trait underneath.
+same [`AtomRestraint`](crate::AtomRestraint) trait underneath.
 
 **Per-target, all atoms** — the most common case:
 
-```rust,no_run
+```no_run
 # use molpack::{InsideBoxRestraint, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 let target = Target::from_coords(pos, rad, 100)
@@ -193,7 +193,7 @@ let target = Target::from_coords(pos, rad, 100)
 molecule copy (0-based, Rust convention — if you are porting from a
 Packmol `.inp` file, subtract 1):
 
-```rust,no_run
+```no_run
 # use molpack::{BelowPlaneRestraint, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 let target = Target::from_coords(pos, rad, 100)
@@ -203,7 +203,7 @@ let target = Target::from_coords(pos, rad, 100)
 **Global, all targets** — broadcast. Semantically equivalent to
 calling `with_restraint` on every target:
 
-```rust,no_run
+```no_run
 # use molpack::{InsideSphereRestraint, Molpack, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 # let t_a = Target::from_coords(pos, rad, 100);
@@ -222,7 +222,7 @@ There is no separate "global-restraint" storage path.
 
 Use the builder to enable LAMMPS-style screen output:
 
-```rust,no_run
+```no_run
 # use molpack::{InsideBoxRestraint, Molpack, MolpackLogLevel, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 # let target = Target::from_coords(pos, rad, 100).with_restraint(InsideBoxRestraint::new([0.0; 3], [40.0; 3], [false; 3]));
@@ -235,7 +235,7 @@ let mut packer = Molpack::new()
 Attach [`Handler`](crate::Handler) implementations for trajectory output,
 custom observation, or early-stop logic. Built-ins:
 
-```rust,no_run
+```no_run
 # use molpack::{EarlyStopHandler, InsideBoxRestraint, Molpack, Target, XYZHandler};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 # let target = Target::from_coords(pos, rad, 100).with_restraint(InsideBoxRestraint::new([0.0; 3], [40.0; 3], [false; 3]));
@@ -252,7 +252,7 @@ Write your own — see the [`extending`](crate::extending) module.
 Flexible molecules benefit from torsion-MC relaxation between outer
 optimizer calls. Attach a [`Relaxer`](crate::Relaxer) to a target:
 
-```rust,no_run
+```no_run
 # use molrs::system::atomistic::Atomistic;
 # use molpack::{InsideSphereRestraint, Target, TorsionMcRelaxer};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
@@ -273,7 +273,7 @@ Free boundary is the default. There are two ways to declare PBC:
 **On the packer** (fully periodic box, equivalent to the script's
 `pbc` keyword):
 
-```rust,no_run
+```no_run
 # use molpack::Molpack;
 let packer = Molpack::new().with_periodic_box([0.0; 3], [30.0; 3]);
 ```
@@ -281,7 +281,7 @@ let packer = Molpack::new().with_periodic_box([0.0; 3], [30.0; 3]);
 **On an `InsideBoxRestraint`** (per-axis control, e.g. for slab
 geometries):
 
-```rust,no_run
+```no_run
 # use molpack::{InsideBoxRestraint, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 // Fully-periodic (Packmol-style 3D PBC) via a restraint:
@@ -293,7 +293,7 @@ let target = Target::from_coords(pos, rad, 100).with_restraint(
 Slab geometries with only some axes wrapping (e.g. X/Y periodic
 slab, Z confined):
 
-```rust,no_run
+```no_run
 # use molpack::{InsideBoxRestraint, Target};
 # let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
 let target = Target::from_coords(pos, rad, 100).with_restraint(
@@ -352,12 +352,13 @@ Frame-compatible loader) to read templates, and write the returned Frame
 back out with the same library. Use `pack_with_report()` if you need
 `converged`, `fdist`, or `frest` as Python properties.
 
-The standalone Python documentation site lives under
-[`python/docs/`](https://github.com/MolCrafts/molpack/tree/master/python/docs);
+The Python binding documentation is the **Python** section of this site, with
+sources under
+[`docs/python/`](https://github.com/MolCrafts/molpack/tree/master/docs/python);
 runnable examples are in
 [`python/examples/`](https://github.com/MolCrafts/molpack/tree/master/python/examples).
 
-## Where to go next
+## Next steps
 
 - [Concepts](concepts.md) — the abstractions in one place.
 - [Architecture](architecture.md) — system design, data flow, loops, hot path.

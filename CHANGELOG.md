@@ -5,29 +5,7 @@ All notable changes to `molcrafts-molpack` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-- `ForceFieldRelaxer` (feature `ff`): a `Relaxer` that relaxes a flexible
-  molecule's internal geometry during packing by energy-minimizing it under a
-  caller-supplied molrs force-field `Potential` (via molrs's L-BFGS optimizer),
-  accepting the relaxed conformer only when it does not worsen the packer
-  objective. The `ff` feature enables `molrs/ff` and re-exports the `Potential`
-  trait at the crate root.
-
-### Changed
-- Migrated the molrs dependency from the separate `molcrafts-molrs-core` +
-  `molcrafts-molrs-io` crates to the unified `molcrafts-molrs` crate (v0.1.1):
-  `core` is always-on (re-exported at the crate root), while `io` and `ff` are
-  feature-gated modules. The molpack `io` feature now forwards to `molrs/io`, and
-  `molrs_io::` import paths become `molrs::io::`. Behavior-preserving — the
-  Packmol regression suite is unchanged.
-
-### Removed
-- The `validate_packed` example harness (external-file accuracy scorer for the
-  molpack-jcc figures); dropped from `examples/` and `Cargo.toml`.
-
-## [0.1.0] - 2026-06-13
+## [0.1.0] - 2026-07-04
 
 Inaugural release of `molcrafts-molpack`.
 
@@ -38,6 +16,12 @@ Inaugural release of `molcrafts-molpack`.
 - `Region` trait with `And` / `Or` / `Not` combinators and `RegionRestraint` lift
 - `Handler` trait with built-ins: `NullHandler`, `ProgressHandler`, `EarlyStopHandler`, `XYZHandler`
 - `Relaxer` trait with `TorsionMcRelaxer` built-in
+- `ForceFieldRelaxer` (feature `ff`): a `Relaxer` that relaxes a flexible
+  molecule's internal geometry during packing by energy-minimizing it under a
+  caller-supplied molrs force-field `Potential` (via molrs's L-BFGS optimizer),
+  accepting the relaxed conformer only when it does not worsen the packer
+  objective. The `ff` feature enables `molrs/ff` and re-exports the `Potential`
+  trait at the crate root.
 - Per-axis periodic boundary conditions via `InsideBoxRestraint::new(min, max, [bool; 3])`
 - `pbc` keyword in `.inp` scripts and `Molpack::with_periodic_box`
 - `.inp` parser now covers 12 restraint forms — `inside`/`outside` for `box`, `cube`, `sphere`, `ellipsoid`, and `cylinder`, plus `over`/`below plane` and `over`/`below xygauss` (with positive-axis / non-zero-axis input validation)
@@ -57,8 +41,15 @@ Inaugural release of `molcrafts-molpack`.
   restraints are serialized automatically); see
   `python/examples/pack_profile_monolayer.py` and the
   `profile_monolayer_extensibility.md` write-up.
-- Five canonical Packmol workloads as runnable examples (mixture, bilayer, spherical, interface, solvprotein), plus two measurement harnesses: `mt_scaling` (parallel speed-up-vs-size sweep) and `validate_packed` (scores an external packed file against its `.inp` through molpack's validator)
-- Criterion end-to-end benchmark (`cargo bench --bench pack_end_to_end --features io`): drives all five canonical workloads through `Molpack::pack` as a catastrophic-regression alarm
+- Five canonical Packmol workloads as runnable examples (mixture, bilayer, spherical, interface, solvprotein), plus the `mt_scaling` measurement harness (parallel speed-up-vs-size sweep)
+- Criterion regression benchmark suite (`cargo bench --benches`, no `io` feature
+  required — each synthesizes its own geometry in-process): the fused
+  pair/objective kernel (`compute_f` / `compute_fg`), objective dispatch
+  (`via_inherent` vs `via_dyn`), one `run_iteration` step, restraint evaluation
+  (`InsideBox` / `InsideSphere` `f`/`fg`), and a tiny end-to-end `Molpack::pack`
+  mixture. Each uses `sample_size(10)` + ~500 ms measurement so the whole run is
+  cheap; `.github/workflows/bench.yml` tracks their history on canonical pushes
+  via `benchmark-action/github-action-benchmark`.
 - Rustdoc chapters: `getting_started`, `concepts`, `architecture`, `extending`
 
 ### Fixed
@@ -71,12 +62,11 @@ Inaugural release of `molcrafts-molpack`.
 - `initial` cell-grid sizing clamps total cell count (atom-count aware, hard ceiling) so a degenerate fallback box can no longer trigger an out-of-memory allocation.
 
 ### Changed
-- Parallel objective gradient now uses a half-stencil scheme with parallel projection (under the `rayon` feature), halving redundant pair evaluations on the hot path.
+- Parallel objective gradient uses a half-stencil scheme with parallel projection (under the `rayon` feature), halving redundant pair evaluations on the hot path.
 - Restraint code split from a single `src/restraint.rs` into the `src/restraint/` module (`geometric/`, `profile/`) as the type count grew.
 - Relaxer Monte-Carlo loop reuses a single trial buffer (`mem::swap` on accept) instead of cloning per step.
 - `self_avoidance_penalty` evaluates the cheap distance gate before the exclusion-set hash probe.
 - CI runs the test suites plus the Packmol regression (on non-PR events); formatting and lint (`fmt`, `clippy`, `ruff`, `ty`) are enforced by pre-commit hooks.
-- `molrs-core` / `molrs-io` pinned to `0.1.0`.
+- Depends on the unified `molcrafts-molrs` 0.6.0 crate: `core` is always-on and re-exported at the crate root, while `io` and `ff` are feature-gated modules that forward to `molrs/io` and `molrs/ff`.
 
-[Unreleased]: https://github.com/MolCrafts/molpack/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/MolCrafts/molpack/releases/tag/v0.1.0

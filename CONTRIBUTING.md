@@ -6,7 +6,7 @@ development environment, run tests, and get a PR merged.
 ## Development environment
 
 **Prerequisites:**
-- Rust 1.85+ (`rustup update stable`)
+- Rust 1.91+ (`rustup update stable`)
 - Python 3.12+ with `maturin` and `pytest` for the Python bindings (the wheel's `requires-python` is `>=3.12`)
 - The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling:
 

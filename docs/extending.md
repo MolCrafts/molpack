@@ -1,6 +1,6 @@
 # Extending the Crate
 
-Tutorials for writing your own `Restraint` / `Region` / `Handler` /
+Tutorials for writing your own `AtomRestraint` / `Region` / `Handler` /
 `Relaxer` types. Every extension trait in this crate follows the same
 shape (direction-3 rule — see [`concepts`](crate::concepts)):
 
@@ -8,17 +8,7 @@ shape (direction-3 rule — see [`concepts`](crate::concepts)):
 > User types `impl X` identically. No built-in/plugin type-level
 > distinction.
 
-## Table of contents
-
-1. [Custom `Restraint`](#custom-restraint)
-2. [Custom `Region`](#custom-region)
-3. [Custom `Handler`](#custom-handler)
-4. [Custom `Relaxer`](#custom-relaxer)
-5. [Testing discipline](#testing-discipline)
-6. [Common pitfalls](#common-pitfalls)
-7. [Contributing flow](#contributing-flow)
-
-## Custom `Restraint`
+## Custom `AtomRestraint`
 
 Goal: pull atoms toward a target plane with a quadratic attractive
 well.
@@ -27,7 +17,7 @@ well.
 
 ```rust
 use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PlaneTether {
@@ -35,7 +25,7 @@ pub struct PlaneTether {
     pub offset: F,
     pub k: F,
 }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -43,18 +33,18 @@ pub struct PlaneTether {
 
 - `pub` fields — users construct with `PlaneTether { normal, offset,
   k }`, no builder.
-- `Debug` required because [`Restraint`](crate::Restraint) has a
+- `Debug` required because [`AtomRestraint`](crate::AtomRestraint) has a
   `Debug` supertrait bound (so `Target`'s derived `Debug` keeps
   working).
 
-### Step 2 — implement `Restraint`
+### Step 2 — implement `AtomRestraint`
 
 ```rust
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug)]
 # pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-impl Restraint for PlaneTether {
+impl AtomRestraint for PlaneTether {
     fn f(&self, pos: &[F; 3], _scale: F, _scale2: F) -> F {
         let d = self.normal[0] * pos[0]
               + self.normal[1] * pos[1]
@@ -88,11 +78,11 @@ Three contracts that all restraints must obey:
 
 ### Step 3 — write a gradient test
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -120,11 +110,11 @@ kinks).
 
 ### Step 4 — use it
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
-# use molpack::Restraint;
+# use molpack::AtomRestraint;
 # #[derive(Debug, Clone, Copy)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
-# impl Restraint for PlaneTether {
+# impl AtomRestraint for PlaneTether {
 #     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
 #     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
 # }
@@ -227,7 +217,7 @@ impl Region for ConeRegion {
 
 ### Compose with built-ins
 
-```rust,no_run
+```no_run
 # use molrs::types::F;
 # use molpack::Region;
 # #[derive(Debug, Clone, Copy)]
@@ -287,7 +277,7 @@ fn signed_distance_grad(&self, x: &[F; 3]) -> [F; 3] {
 # }
 ```
 
-Then finite-difference check it — same pattern as the `Restraint`
+Then finite-difference check it — same pattern as the `AtomRestraint`
 test.
 
 ## Custom `Handler`
@@ -295,7 +285,7 @@ test.
 Goal: a handler that writes a CSV row per step so you can plot the
 objective evolution.
 
-```rust,no_run
+```no_run
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use molpack::{F, Handler, PackContext, StepInfo};
@@ -343,7 +333,8 @@ Handler notes:
 Goal: a relaxer that tries random rigid-body translations and accepts
 if the objective decreases.
 
-```rust,no_run
+```no_run
+use molrs::Frame;
 use molrs::types::F;
 use molpack::{Relaxer, RelaxerRunner};
 use rand::{Rng, RngCore};
@@ -355,7 +346,7 @@ pub struct JiggleRelaxer {
 }
 
 impl Relaxer for JiggleRelaxer {
-    fn spawn(&self, _ref_coords: &[[F; 3]]) -> Box<dyn RelaxerRunner> {
+    fn spawn(&self, _frame: Option<&Frame>, _ref_coords: &[[F; 3]]) -> Box<dyn RelaxerRunner> {
         Box::new(JiggleRunner {
             steps: self.steps,
             max_delta: self.max_delta,
@@ -411,7 +402,7 @@ Relaxer notes:
 
 - **Two-part design.** [`Relaxer`](crate::Relaxer) is the immutable
   builder; [`RelaxerRunner`](crate::RelaxerRunner) holds per-pack
-  state. `build()` is called once per target type at `pack()` entry.
+  state. `spawn()` is called once per target type at `pack()` entry.
 - **`evaluate` closure tests trial coords against the full objective**
   without mutating the reference — use it as often as you like.
 - **Return `Some(new_coords)` only if something changed.** The packer
@@ -438,13 +429,13 @@ cargo test --release --test examples_batch -- --ignored
 
 Rules:
 
-- Every new `Restraint` gets an FD gradient test.
+- Every new `AtomRestraint` gets an FD gradient test.
 - Every new `Region` gets a boolean-algebra + signed-distance sign
   test and (for hot-path use) an analytic-gradient FD test.
 
 ## Common pitfalls
 
-- **Gradient sign.** Every `Restraint` accumulates `∂penalty/∂x`.
+- **Gradient sign.** Every `AtomRestraint` accumulates `∂penalty/∂x`.
   Optimizer negates for descent. If your molecules fly out of the
   region, the gradient has the wrong sign — penalty should point
   toward the violation boundary.

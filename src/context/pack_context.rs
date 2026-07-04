@@ -365,7 +365,7 @@ impl PackContext {
             move_flag: false,
             parallel_pair_eval: false,
             scale: 1.0,
-            scale2: 0.01,
+            scale2: crate::numerics::DEFAULT_SCALE2,
             sizemin: [0.0; 3],
             sizemax: [0.0; 3],
             dmax: vec![0.0; ntype],

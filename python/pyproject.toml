@@ -9,7 +9,7 @@ description = "Python bindings for molpack molecular packing (Packmol port)"
 requires-python = ">=3.12"
 readme = "README.md"
 license = "BSD-3-Clause"
-dependencies = ["numpy>=2.0", "typer>=0.12", "molcrafts-molrs", "molcrafts-molpy"]
+dependencies = ["numpy>=2.0", "typer>=0.12", "molcrafts-molrs>=0.6.0", "molcrafts-molpy>=0.6.0"]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
 # deps used by both CI jobs and local pre-commit hooks.
@@ -21,7 +21,7 @@ typecheck = [
   "ty",
   "typer>=0.12",
   "numpy>=2.0",
-  "molcrafts-molrs",
+  "molcrafts-molrs>=0.6.0",
   # `ty check` walks tests/ which imports pytest.
   "pytest",
 ]
@@ -29,12 +29,22 @@ test = [
   "pytest",
   "typer>=0.12",
   "numpy>=2.0",
-  "molcrafts-molrs",
+  "molcrafts-molrs>=0.6.0",
 ]
 dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
+]
+# Documentation build. Zensical is the static-site generator; it reads the
+# single site config at ../zensical.toml (the Python binding docs live under
+# ../docs/python/ as the "Python" nav section). That config sets
+# `theme.name = "molcrafts"` — the shared MolCrafts brand extension, now on
+# PyPI, so the docs build is reproducible from this group alone.
+doc = [
+  "zensical>=0.0.45",
+  # The molcrafts docs theme (zensical.toml sets `theme.name = "molcrafts"`).
+  "molcrafts-zensical-theme>=0.1.0",
 ]
 
 [project.scripts]
@@ -58,6 +68,9 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "integration: end-to-end packing tests, some needing an external engine (LAMMPS via molpy)",
+]
 
 [tool.ruff]
 line-length = 88

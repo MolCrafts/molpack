@@ -69,14 +69,6 @@ pub struct Placement {
     pub orientation: [Angle; 3],
 }
 
-/// Deprecated legacy name for [`Placement`]. Will be removed in the
-/// next release.
-#[deprecated(
-    since = "0.1.0",
-    note = "Renamed to `Placement` — the `Fixed` prefix is redundant now that the constructor name carries the semantic."
-)]
-pub type FixedPlacement = Placement;
-
 /// Describes one type of molecule to be packed.
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -100,7 +92,7 @@ pub struct Target {
     /// 1-based convention at registration time) and the restraint applied to them.
     pub atom_restraints: Vec<(Vec<usize>, Arc<dyn AtomRestraint>)>,
     /// Group-level restraints evaluated over **all copies** of this type at
-    /// once (e.g. distribution matching). Unlike [`molecule_restraints`], these
+    /// once (e.g. distribution matching). Unlike `molecule_restraints`, these
     /// couple the copies through their joint coordinate, so they cannot be
     /// expressed as a per-atom [`AtomRestraint`]. See [`Restraint`].
     pub collective_restraints: Vec<Arc<dyn Restraint>>,

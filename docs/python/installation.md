@@ -37,12 +37,13 @@ water = (
 frame = Molpack().with_seed(42).pack([water], max_loops=200)
 ```
 
-`molpack` also accepts plain Python dicts-of-dicts, so `molcrafts-molrs`
-is not strictly required.
+`Target` takes a `molrs.Frame` (or a `molpy.Frame`), resolved zero-copy
+through its FFI capsule, so one of `molcrafts-molrs` / `molcrafts-molpy`
+is required to build targets from a structure.
 
 ## Building from source
 
-Requires a Rust toolchain (1.85+) and `maturin`:
+Requires a Rust toolchain (1.91+) and `maturin`:
 
 ```bash
 git clone https://github.com/MolCrafts/molpack
@@ -56,14 +57,12 @@ This builds against the local `molpack` Rust crate under `../`.
 ## Verification
 
 ```python
-from molpack import Molpack, Target
+import molrs
+from molpack import Target
 
-frame = {
-    "atoms": {
-        "x": [0.0], "y": [0.0], "z": [0.0],
-        "element": ["O"],
-    }
-}
+frame = molrs.Frame.from_dict({
+    "blocks": {"atoms": {"x": [0.0], "y": [0.0], "z": [0.0], "element": ["O"]}}
+})
 target = Target(frame, count=1).with_name("mol")
 print(target)  # Target(natoms=1, count=1, name=Some("mol"))
 ```

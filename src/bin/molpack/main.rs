@@ -48,11 +48,9 @@ fn main() {
     let args = Args::parse();
 
     let parallel = args.parallel || args.threads.is_some();
-    if parallel {
-        if let Err(e) = configure_parallel(args.threads) {
-            eprintln!("Error: {e}");
-            std::process::exit(1);
-        }
+    if parallel && let Err(e) = configure_parallel(args.threads) {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
     }
 
     let (src, base_dir) = match args.input {

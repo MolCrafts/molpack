@@ -67,10 +67,10 @@
 //! | AtomRestraint trait + 14 concrete structs | [`AtomRestraint`] + `InsideBox` / `InsideCube` / `InsideSphere` / `InsideEllipsoid` / `InsideCylinder` / `Outside*` variants / `AbovePlane` / `BelowPlane` / `AboveGaussian` / `BelowGaussian` — each suffixed `…AtomRestraint` |
 //! | Region trait + combinators + lift | [`Region`], [`RegionExt`], [`And`], [`Or`], [`Not`], [`RegionRestraint`], [`InsideBoxRegion`], [`InsideSphereRegion`], [`OutsideSphereRegion`], [`Aabb`] |
 //! | Handler trait + built-ins | [`Handler`], [`NullHandler`], [`LammpsLogHandler`], [`ProgressHandler`], [`EarlyStopHandler`], [`XYZHandler`], [`StepInfo`], [`PhaseInfo`], [`PhaseReport`] |
-//! | Relaxer trait + built-ins | [`Relaxer`], [`RelaxerRunner`], [`TorsionMcRelaxer`] (aliased to `TorsionMcHook`), `LBFGSRelaxer` (`ff` feature) |
+//! | Relaxer trait + built-ins | [`Relaxer`], [`RelaxerRunner`], [`TorsionMcRelaxer`], `LBFGSRelaxer` (`ff` feature) |
 //! | Errors | [`PackError`] |
 //! | Validation | [`validate_from_targets`], [`ValidationReport`], [`ViolationMetrics`] |
-//! | Examples harness | [`ExampleCase`], [`build_targets`], [`example_dir_from_manifest`], [`render_packmol_input`] |
+//! | Examples harness | [`ExampleCase`], [`build_targets`], [`example_dir_from_manifest`], [`render_inp_script`] |
 //!
 //! ## Feature flags
 //!
@@ -88,7 +88,6 @@
 //!
 //! Precision is fixed at `f64` via `molrs::types::F`.
 
-pub mod api;
 pub mod assemble;
 #[cfg(feature = "io")]
 pub mod cases;
@@ -114,7 +113,7 @@ pub mod target;
 pub mod validation;
 
 #[cfg(feature = "io")]
-pub use cases::{ExampleCase, build_targets, example_dir_from_manifest, render_packmol_input};
+pub use cases::{ExampleCase, build_targets, example_dir_from_manifest, render_inp_script};
 pub use context::PackContext;
 pub use error::PackError;
 pub use frame::{compute_mol_ids, context_to_frame, finalize_frame, frame_to_coords};
@@ -129,8 +128,6 @@ pub use region::{
     Aabb, And, InsideBoxRegion, InsideSphereRegion, Not, Or, OutsideSphereRegion, Region,
     RegionExt, RegionRestraint,
 };
-#[allow(deprecated)]
-pub use region::{BBox, FromRegion};
 pub use relaxer::{Relaxer, RelaxerRunner, TorsionMcRelaxer};
 // Force-field geometry relaxer + the molrs `Potential` trait it relaxes against
 // (named in `LBFGSRelaxer::new`). Gated on the `ff` feature.
@@ -144,8 +141,6 @@ pub use restraint::{
     InsideEllipsoidRestraint, InsideSphereRestraint, OutsideBoxRestraint, OutsideCubeRestraint,
     OutsideCylinderRestraint, OutsideEllipsoidRestraint, OutsideSphereRestraint,
 };
-#[allow(deprecated)]
-pub use target::FixedPlacement;
 pub use target::{Angle, Axis, CenteringMode, Placement, Target};
 pub use validation::{ValidationReport, ViolationMetrics, validate_from_targets};
 

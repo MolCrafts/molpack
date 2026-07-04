@@ -164,7 +164,7 @@ fn constraint_metrics(
             let pos = coordinates[atom_i];
             let mut atom_penalty = 0.0 as F;
             for r in &per_atom[local_i].restraints {
-                atom_penalty += r.f(&pos, 1.0, 0.01);
+                atom_penalty += r.f(&pos, 1.0, crate::numerics::DEFAULT_SCALE2);
             }
             if atom_penalty > max_penalty {
                 max_penalty = atom_penalty;
@@ -211,7 +211,7 @@ fn distance_metrics(
     let mut violating_pairs = 0usize;
     let mut violating_atoms = vec![false; coordinates.len()];
     let eps = precision.max(numeric_controls().epsrel);
-    let debug = env::var("molrs-pack_DEBUG_VALIDATION").is_ok();
+    let debug = env::var("MOLPACK_DEBUG_VALIDATION").is_ok();
     let mut debug_left = 5usize;
 
     for (i, p) in coordinates.iter().enumerate() {

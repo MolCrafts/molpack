@@ -27,7 +27,7 @@ frame = packer.pack([water], max_loops=200)
 print(f"packed {frame['atoms'].nrows} atoms")
 ```
 
-## Where next
+## Next steps
 
 - [Installation](installation.md) — pip install and verification.
 - [Getting Started](getting-started.md) — first pack end-to-end.
@@ -39,7 +39,7 @@ print(f"packed {frame['atoms'].nrows} atoms")
 - [Examples](examples.md) — five Packmol-equivalent workloads.
 - [API Reference](api-reference.md) — class-by-class summary.
 
-## Related
+## See also
 
 - Rust crate: [`molcrafts-molpack`](https://crates.io/crates/molcrafts-molpack)
   — the underlying engine. All algorithmic details are documented there.
@@ -48,5 +48,3 @@ print(f"packed {frame['atoms'].nrows} atoms")
   model. Pass a `molrs.Frame` directly to `Target`; no manual array
   extraction needed. `Molpack.pack()` returns a Frame-compatible
   structure for the writer of your choice.
-
-[targets]: guide/targets.md

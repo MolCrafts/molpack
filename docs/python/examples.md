@@ -6,29 +6,28 @@ equivalent Rust example (same RNG seed → identical final coordinates).
 
 | Script                | Packmol analogue  | What it shows |
 |-----------------------|-------------------|---------------|
-| `pack_water_cube.py`  | —                 | hello-world: 100 waters in a box, no I/O library |
+| `pack_water_cube.py`  | —                 | hello-world: 100 waters in a box, frame via `molrs.Frame.from_dict` |
 | `pack_mixture.py`     | `mixture.inp`     | two species co-packed in one box |
 | `pack_bilayer.py`     | `bilayer.inp`     | atom-subset restraints for layer-molecule orientation |
 | `pack_interface.py`   | `interface.inp`   | fixed reference molecule + two solvents |
 | `pack_spherical.py`   | `spherical.inp`   | nested spheres, double-layer shell |
 | `pack_solvprotein.py` | `solvprotein.inp` | fixed solute solvated by water + ions |
 
-Examples that load PDB files (`pack_mixture.py` and above) require
-`molcrafts-molrs`:
+All examples require `molcrafts-molrs`:
 
 ```bash
 pip install molcrafts-molrs
 ```
 
-`pack_water_cube.py` is fully standalone — it constructs the frame as a
-plain dict.
+`pack_water_cube.py` builds its frame in memory with `molrs.Frame.from_dict`
+(no PDB file); the others load PDB files via `molrs.read_pdb`.
 
 ## Running
 
 ```bash
 cd molpack/python
 pip install -e .
-python examples/pack_water_cube.py       # standalone
+python examples/pack_water_cube.py       # no PDB file
 python examples/pack_mixture.py          # requires molrs
 ```
 
@@ -55,20 +54,23 @@ result = packer.pack_with_report([water, urea], max_loops=400)
 print(f"converged={result.converged}  natoms={result.natoms}")
 ```
 
-## Example: water cube (standalone)
+## Example: water cube
 
 ```python
+import molrs
 import numpy as np
 from molpack import InsideBoxRestraint, Molpack, Target
 
-frame = {
-    "atoms": {
-        "x": np.array([0.00,  0.9572, -0.2400]),
-        "y": np.array([0.00,  0.0000,  0.9266]),
-        "z": np.zeros(3),
-        "element": ["O", "H", "H"],
+frame = molrs.Frame.from_dict({
+    "blocks": {
+        "atoms": {
+            "x": np.array([0.00,  0.9572, -0.2400]),
+            "y": np.array([0.00,  0.0000,  0.9266]),
+            "z": np.zeros(3),
+            "element": ["O", "H", "H"],
+        }
     }
-}
+})
 
 water = Target(frame, count=100).with_name("water").with_restraint(
     InsideBoxRestraint([0, 0, 0], [30, 30, 30])

@@ -2,6 +2,11 @@
 
 use molrs::types::F;
 
+/// Default quadratic-penalty scale (`scale2`) applied when no caller override
+/// is supplied — the packer seeds [`PackContext`](crate::PackContext) with it,
+/// and post-pack validation scores penalties on the same scale.
+pub(crate) const DEFAULT_SCALE2: F = 0.01;
+
 #[derive(Clone, Copy)]
 pub(crate) struct NumericControls {
     pub(crate) steabs: F,

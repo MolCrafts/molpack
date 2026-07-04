@@ -7,8 +7,10 @@ is a different axis — it takes the **finished** packed box and hands the whole
 assembled frame to an external engine (LAMMPS) for an energy minimisation or a
 short MD settle, returning the relaxed frame.
 
-The work is delegated to :class:`molpy.engine.LAMMPSEngine` (``molcrafts-molpy``,
-a hard dependency of molpack).
+The work is delegated to :class:`molpy.engine.LAMMPSEngine` (``molcrafts-molpy``).
+That backend is imported **lazily**, on first engine construction, so merely
+importing ``molpack`` (or using the in-loop relaxers) never requires molpy or its
+transitive stack to be importable.
 
 Example::
 
@@ -24,8 +26,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-from molpy.engine import LAMMPSEngine
 
 if TYPE_CHECKING:
     import molrs
@@ -117,7 +117,20 @@ class LAMMPSRelaxer:
         return getattr(engine, mode)(_frame_of(target), self.ff, **options)
 
     def _engine(self) -> Any:
-        """Construct the backing :class:`molpy.engine.LAMMPSEngine`."""
+        """Construct the backing :class:`molpy.engine.LAMMPSEngine`.
+
+        molpy is imported here rather than at module load so that ``import
+        molpack`` and the in-loop relaxers never hard-require the optional
+        LAMMPS backend (or its transitive dependencies).
+        """
+        try:
+            from molpy.engine import LAMMPSEngine
+        except ImportError as exc:  # pragma: no cover - only without molpy
+            raise ImportError(
+                "molpack.relaxer.LAMMPSRelaxer needs the optional 'molcrafts-molpy' "
+                "package (its LAMMPS engine backend); install it to run post-pack "
+                "relaxation."
+            ) from exc
         return LAMMPSEngine(self.executable, launcher=self.launcher)
 
     def __repr__(self) -> str:

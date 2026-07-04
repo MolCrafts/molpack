@@ -13,19 +13,22 @@ import molrs
 frame = molrs.read_pdb("water.pdb")
 ```
 
-No `molrs`? Build the frame as a plain dict:
+No PDB file? Build a `molrs.Frame` from arrays with `Frame.from_dict`:
 
 ```python
+import molrs
 import numpy as np
 
-frame = {
-    "atoms": {
-        "x": np.array([0.00,  0.96, -0.24]),
-        "y": np.array([0.00,  0.00,  0.93]),
-        "z": np.zeros(3),
-        "element": ["O", "H", "H"],
+frame = molrs.Frame.from_dict({
+    "blocks": {
+        "atoms": {
+            "x": np.array([0.00,  0.96, -0.24]),
+            "y": np.array([0.00,  0.00,  0.93]),
+            "z": np.zeros(3),
+            "element": ["O", "H", "H"],
+        }
     }
-}
+})
 ```
 
 ## 2. Create a Target
@@ -41,8 +44,8 @@ water = Target(frame, count=100).with_name("water")
 
 Arguments:
 
-- `frame` — any object supporting `frame["atoms"]`, with columns
-  `"x"`, `"y"`, `"z"`, and `"element"` (or `"symbol"` for molrs PDB frames).
+- `frame` — a `molrs.Frame` or `molpy.Frame` with columns `"x"`, `"y"`,
+  `"z"`, and `"element"` (or `"symbol"` for molrs PDB frames).
 - `count` — number of copies to produce.
 
 A display label is optional — attach one via `.with_name("...")`.
@@ -62,10 +65,12 @@ water = water.with_restraint(
 )
 ```
 
-Five built-in restraints: `InsideBoxRestraint`, `InsideSphereRestraint`,
-`OutsideSphereRestraint`, `AbovePlaneRestraint`, `BelowPlaneRestraint`.
-Stack multiple restraints with repeated `.with_restraint()` calls —
-see [Restraints](guide/restraints.md).
+Five geometric built-in restraints: `InsideBoxRestraint`,
+`InsideSphereRestraint`, `OutsideSphereRestraint`, `AbovePlaneRestraint`,
+`BelowPlaneRestraint` — plus a family of collective
+distribution-matching restraints. Stack multiple restraints with
+repeated `.with_restraint()` calls — see
+[Restraints](guide/restraints.md).
 
 ## 4. Pack
 

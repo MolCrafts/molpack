@@ -24,7 +24,7 @@ You **maintain** molpack's documentation. You do **NOT** invent API behavior —
 | Getting started | `docs/getting_started.md` | First-time users |
 | Packmol parity | `docs/packmol_parity.md` | Migrators from Packmol |
 | API redesign notes | `docs/api_redesign*.md` | Maintainers (not user-facing) |
-| Python docs | `python/docs/` | Python users |
+| Python docs | `docs/python/` (the site's "Python" nav section) | Python users |
 | CONTRIBUTING | `CONTRIBUTING.md` | Contributors |
 | README | `README.md` (CLI keyword table, format table, quick-start) | Discovery |
 | Changelog | `CHANGELOG.md` | Users tracking releases |
@@ -60,7 +60,7 @@ API docstrings follow the project's native style — Rustdoc summary + `# Exampl
 
 1. Discover what changed (public surface, restraints, keywords, formats, features, fixes).
 2. Cross-check against the sync table; identify all docs that must follow.
-3. Edit each. Run `cargo test --doc` if rustdoc examples were touched. Run `cd python && pytest python/docs/` if Python doctests exist.
+3. Edit each. Run `cargo test --doc` if rustdoc examples were touched. Run `pytest --doctest-glob='*.md' docs/python/` if Python doctests exist.
 4. Report files updated and any rustdoc / doctest failures.
 
 ## Output

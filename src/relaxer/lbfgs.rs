@@ -3,7 +3,7 @@
 //! [`LBFGSRelaxer`] is a [`Relaxer`] that relaxes a flexible molecule's
 //! **internal geometry** during packing by energy-minimizing it under a molrs
 //! force-field [`Potential`] with the limited-memory BFGS optimizer from
-//! `molrs::ff::optimize`. It complements [`TorsionMcRelaxer`] (stochastic
+//! `molrs::optimize`. It complements [`TorsionMcRelaxer`] (stochastic
 //! torsion sampling) with a deterministic gradient-based relaxation.
 //!
 //! Like every relaxer it operates on the **reference geometry** axis (it changes
@@ -23,8 +23,8 @@ use std::sync::Arc;
 
 use molrs::Frame;
 use molrs::ff::ForceField;
-use molrs::ff::optimize::{LBFGS, LbfgsConfig};
 use molrs::ff::potential::{Potential, intramolecular_pairs};
+use molrs::optimize::{LBFGS, LbfgsConfig};
 use molrs::types::F;
 use rand::RngCore;
 

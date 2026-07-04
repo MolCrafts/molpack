@@ -175,8 +175,8 @@ pub fn gencan(
     g.fill(0.0);
     let mut f = obj.evaluate(x, EvalMode::FAndGradient, Some(g)).f_total;
 
-    // Packmol behavior: check packmolprecision before counting this first eval.
-    if packmolprecision(obj, precision) {
+    // Packmol behavior: check convergence before counting this first eval.
+    if converged(obj, precision) {
         return GencanResult {
             f,
             gpsupn: 0.0,
@@ -236,7 +236,7 @@ pub fn gencan(
     // Main loop
     loop {
         // Packmol behavior: recompute precision test with computef at each iteration.
-        if packmolprecision(obj, precision) {
+        if converged(obj, precision) {
             break;
         }
 
@@ -585,7 +585,7 @@ fn projected_gradient_info(
 
 /// Packmol precision check (`packmolprecision` in `pgencan.f90`):
 /// recompute objective-side violations and test `fdist/frest`.
-fn packmolprecision(obj: &dyn Objective, precision: F) -> bool {
+fn converged(obj: &dyn Objective, precision: F) -> bool {
     obj.fdist() < precision && obj.frest() < precision
 }
 

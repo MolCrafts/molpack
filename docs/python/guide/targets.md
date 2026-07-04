@@ -13,15 +13,15 @@ from molpack import Target
 target = Target(frame, count)
 ```
 
-- `frame` — any object with `frame["atoms"]` returning a block.
-  Supported sources:
+- `frame` — a `molrs.Frame` or `molpy.Frame`, resolved zero-copy via its
+  FFI capsule. Supported sources:
 
-  | Source | Element column | Block access |
-  |--------|---------------|--------------|
-  | `molrs.read_pdb(path)` | `"symbol"` | `.view()` |
-  | `molrs.read_xyz(path)` | `"element"` | `.view()` |
-  | `molpy.Frame` | `"element"` | `[]` |
-  | plain dict | `"element"` | `[]` |
+  | Source | Element column |
+  |--------|---------------|
+  | `molrs.read_pdb(path)` | `"symbol"` |
+  | `molrs.read_xyz(path)` | `"element"` |
+  | `molrs.Frame.from_dict({"blocks": {"atoms": {...}}})` | `"element"` |
+  | `molpy.Frame` | `"element"` |
 
 - `count` — number of copies to produce.
 
@@ -31,19 +31,22 @@ A display label is optional:
 target = Target(frame, count).with_name("water")
 ```
 
-Plain dict example (no I/O library needed):
+Build a frame in memory (no PDB file) with `molrs.Frame.from_dict`:
 
 ```python
+import molrs
 import numpy as np
 
-frame = {
-    "atoms": {
-        "x": np.array([0.00,  0.96, -0.24]),
-        "y": np.array([0.00,  0.00,  0.93]),
-        "z": np.zeros(3),
-        "element": ["O", "H", "H"],
+frame = molrs.Frame.from_dict({
+    "blocks": {
+        "atoms": {
+            "x": np.array([0.00,  0.96, -0.24]),
+            "y": np.array([0.00,  0.00,  0.93]),
+            "z": np.zeros(3),
+            "element": ["O", "H", "H"],
+        }
     }
-}
+})
 water = Target(frame, count=100).with_name("water")
 ```
 
@@ -62,7 +65,7 @@ All builder methods are **immutable** — they return a new `Target`.
 
 ## Centering
 
-The default is [`CenteringMode.AUTO`][molpack.CenteringMode] — free
+The default is [`CenteringMode.AUTO`](../api-reference.md#centeringmode) — free
 targets are centered on their geometric center before packing; fixed
 targets are kept in place. Override explicitly:
 
@@ -152,6 +155,26 @@ target = target.with_atom_restraint(
     `with_atom_restraint` uses **0-based** indices, matching Rust
     convention. If you are porting from a Packmol `.inp` file (which
     uses 1-based indices), subtract 1 at the call site.
+
+## Relaxation-assisted packing
+
+Attach an in-loop relaxer to reshape a flexible molecule's reference
+geometry *during* packing — useful for long chains that must fold to
+fit. `with_relaxer` requires `count == 1` (every copy shares the
+reference geometry the relaxer rewrites):
+
+```python
+from molpack import Target, TorsionMcRelaxer
+
+chain = TorsionMcRelaxer(frame).with_steps(20).with_self_avoidance(1.5)
+target = Target(frame, count=1).with_relaxer(chain)
+```
+
+Two relaxers ship built in: `TorsionMcRelaxer` (engine-free Monte-Carlo
+torsion sampling, always available) and `LBFGSRelaxer` (force-field
+L-BFGS, `ff` feature). See
+[In-loop relaxers](../api-reference.md#in-loop-relaxers) for their
+options.
 
 ## Per-target solver budget
 

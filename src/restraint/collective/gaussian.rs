@@ -8,19 +8,12 @@ use molrs::types::F;
 
 use super::Restraint;
 use super::engine::probit;
-use super::geometry::{plane_match_f, plane_match_fg, point_match_f, point_match_fg};
+use super::geometry::{plane_match_f, plane_match_fg, point_match_f, point_match_fg, unit};
 
 /// Gaussian target quantile `q(p) = μ + σ·Φ⁻¹(p)`.
 #[inline]
 fn gaussian_quantile(p: F, mu: F, sigma: F) -> F {
     mu + sigma * probit(p)
-}
-
-/// Validate / normalise a non-zero direction; panics on a zero vector.
-fn unit(normal: [F; 3]) -> [F; 3] {
-    let norm = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
-    assert!(norm > 0.0, "normal must be non-zero");
-    [normal[0] / norm, normal[1] / norm, normal[2] / norm]
 }
 
 // ============================================================================

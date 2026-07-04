@@ -1,10 +1,13 @@
 # Restraints
 
 Restraints are geometric regions (or half-spaces) that every atom of a
-target — or a chosen subset — must lie inside. molpack ships five
-built-in restraints.
+target — or a chosen subset — must lie inside. molpack ships two
+families of built-in restraints: five **geometric** region restraints
+(below), and six **collective** distribution-matching restraints
+([further down](#collective-distribution-matching-restraints)). Both
+attach the same way, via `.with_restraint()`.
 
-## Built-ins
+## Geometric built-ins
 
 | Class                    | Constructor arguments                          | Meaning |
 |--------------------------|------------------------------------------------|---------|
@@ -43,6 +46,25 @@ InsideBoxRestraint([0, 0, 0], [30, 30, 30], periodic=(True, True, True))
 
 See [Periodic boundaries](periodic-boundaries.md) for the full
 semantics and validation rules.
+
+## Collective (distribution-matching) restraints
+
+Where a geometric restraint penalises **each atom** against a region,
+a collective restraint sees **every copy of the target at once** and
+drives the species' spatial *distribution* toward a target profile
+(via a squared 1-D Wasserstein penalty). Six built-ins cover Gaussian,
+exponential, and arbitrary-tabulated priors along either a plane or a
+radius — e.g. a Gaussian slab centred at `z = 20`:
+
+```python
+from molpack import GaussianPlane
+
+slab = GaussianPlane(normal=[0, 0, 1], offset=0.0, strength=1.0, mu=20.0, sigma=3.0)
+target = Target(frame, count=200).with_restraint(slab)
+```
+
+The full list and constructor signatures are in the
+[API reference](../api-reference.md#collective-distribution-matching-restraints).
 
 ## Stacking multiple restraints
 
@@ -137,7 +159,7 @@ user-specified `tolerance`. Convergence is declared when both fall
 below `precision`.
 
 !!! note "Restraints vs hard constraints"
-    The five built-in classes are *soft penalties* — the optimizer may
+    All built-in restraints are *soft penalties* — the optimizer may
     momentarily produce a violating configuration while searching. Hard
     geometric constraints (frozen placement, rotation bounds) are set
     on the `Target` directly via `fixed_at` and `with_rotation_bound`.

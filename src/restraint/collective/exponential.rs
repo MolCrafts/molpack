@@ -11,19 +11,12 @@
 use molrs::types::F;
 
 use super::Restraint;
-use super::geometry::{plane_match_f, plane_match_fg, point_match_f, point_match_fg};
+use super::geometry::{plane_match_f, plane_match_fg, point_match_f, point_match_fg, unit};
 
 /// Exponential target quantile `q(p) = −λ·ln(1 − p)` (`≥ 0` for `p ∈ (0, 1)`).
 #[inline]
 fn exponential_quantile(p: F, lambda: F) -> F {
     -lambda * (1.0 - p).ln()
-}
-
-/// Validate / normalise a non-zero direction; panics on a zero vector.
-fn unit(normal: [F; 3]) -> [F; 3] {
-    let norm = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
-    assert!(norm > 0.0, "normal must be non-zero");
-    [normal[0] / norm, normal[1] / norm, normal[2] / norm]
 }
 
 // ============================================================================

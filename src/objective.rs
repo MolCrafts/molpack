@@ -1154,17 +1154,17 @@ fn gparc(icart: usize, first_jcart: u32, sys: &mut PackContext, pbc: &PbcConstan
     while jcart_id != NONE_IDX {
         let jcart = jcart_id as usize;
         let next = sys.latomnext[jcart];
-        if let Some(c) = pair_term::<true, false>(&hot, xi, jcart, sys, pbc) {
-            if c.overlap {
-                let gi = &mut sys.work.gxcar[icart];
-                gi[0] += c.grad[0];
-                gi[1] += c.grad[1];
-                gi[2] += c.grad[2];
-                let gj = &mut sys.work.gxcar[jcart];
-                gj[0] -= c.grad[0];
-                gj[1] -= c.grad[1];
-                gj[2] -= c.grad[2];
-            }
+        if let Some(c) = pair_term::<true, false>(&hot, xi, jcart, sys, pbc)
+            && c.overlap
+        {
+            let gi = &mut sys.work.gxcar[icart];
+            gi[0] += c.grad[0];
+            gi[1] += c.grad[1];
+            gi[2] += c.grad[2];
+            let gj = &mut sys.work.gxcar[jcart];
+            gj[0] -= c.grad[0];
+            gj[1] -= c.grad[1];
+            gj[2] -= c.grad[2];
         }
         jcart_id = next;
     }

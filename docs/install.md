@@ -69,7 +69,7 @@ maturin develop --release
 The Python package builds against the local Rust crate under `../`, so
 this is the right path for contributor workflows.
 
-## Next
+## Next steps
 
 After verifying the install, run a first pack from
 [Getting Started](getting_started.md).

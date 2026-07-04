@@ -33,6 +33,22 @@ slab = InsideBoxRestraint(
 )
 ```
 
+### Declaring PBC on the packer
+
+For a **fully-periodic** cell you can skip the restraint and declare the
+box directly on the packer (Packmol's `pbc` keyword):
+
+```python
+from molpack import Molpack
+
+packer = Molpack().with_periodic_box([0.0, 0.0, 0.0], [30.0, 30.0, 30.0])
+```
+
+This is equivalent to a single `InsideBoxRestraint(..., periodic=(True,
+True, True))` broadcast over the system. Use the restraint form when you
+need per-axis control or a soft confining region; use `with_periodic_box`
+when the cell is simply fully periodic.
+
 ## Semantics
 
 Under PBC, the pairwise distance evaluator applies minimum-image

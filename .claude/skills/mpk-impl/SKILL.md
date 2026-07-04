@@ -23,7 +23,7 @@ Read CLAUDE.md for molpack conventions.
 7. **Architecture post-check.** Delegate to `mpk-architect` again on the actual diff.
 8. **Bindings mirror.** If public Rust API changed, delegate to `mpk-bindings`.
 9. **Tests verify.** Re-delegate to `mpk-tester` to run the fast suite plus the Packmol regression where applicable; confirm GREEN.
-10. **Docs.** Delegate to `mpk-documenter` to update rustdoc, `docs/`, `python/docs/`, README, CONTRIBUTING per the sync table.
+10. **Docs.** Delegate to `mpk-documenter` to update rustdoc, `docs/` (incl. `docs/python/`), README, CONTRIBUTING per the sync table.
 11. **Mark spec DONE** in `.claude/specs/INDEX.md`.
 
 ## Output

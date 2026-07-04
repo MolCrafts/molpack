@@ -149,7 +149,7 @@ speed-up-vs-size sweep, needs `--features rayon`).
 ```bash
 cargo test                                                  # unit + integration
 cargo test --release --test examples_batch -- --ignored     # Packmol regression (all 5 workloads)
-cargo bench --bench pack_end_to_end --features io           # criterion perf baseline
+cargo bench --benches                                       # criterion regression benches (no io)
 cd python && maturin develop --release && pytest            # Python wheel
 ```
 
@@ -163,7 +163,9 @@ cd python && maturin develop --release && pytest            # Python wheel
   extending) are also embedded in the rustdoc as
   `molpack::getting_started`, `molpack::concepts`,
   `molpack::architecture`, and `molpack::extending`.
-- **Python** — [`python/docs/`](./python/docs/).
+- **Python** — the binding docs under [`docs/python/`](./docs/python/)
+  (installation, guide, examples, and the Python API reference), published as
+  the **Python** section of the same Zensical site.
 
 ## Contributing
 

@@ -42,6 +42,17 @@ Use `.with_lammps_output(False)` or `.with_log_level("quiet")` to run
 silently (the default). `.with_progress()` is kept as a compatibility
 alias for enabling/disabling progress output.
 
+A few more builders cover specific needs:
+
+```python
+packer = (
+    packer
+    .with_periodic_box([0, 0, 0], [30, 30, 30])  # fully-periodic cell (Packmol `pbc`)
+    .with_avoid_overlap(True)                     # reject init placements onto a fixed molecule
+    .with_xyz_output("traj.xyz", every=5)         # record the packing trajectory
+)
+```
+
 ## Global restraints
 
 Attach a single restraint to every target in a pack:
@@ -74,8 +85,10 @@ the `Handler` Protocol in `molpack`.
 
 ## Periodic boundaries
 
-PBC is configured on the `InsideBoxRestraint` itself — not the packer.
-See [Periodic boundaries](periodic-boundaries.md).
+PBC can be declared per-axis on an `InsideBoxRestraint`, or as a
+fully-periodic cell directly on the packer via
+`.with_periodic_box(min, max)`. See
+[Periodic boundaries](periodic-boundaries.md).
 
 ## Running
 
@@ -101,7 +114,7 @@ result = packer.pack_with_report(targets, max_loops=200)
 
 ```python
 result.positions   # (N, 3) float64 ndarray — packed coordinates
-result.frame       # dict compatible with molrs.Frame
+result.frame       # molrs.Frame — topology-complete packed frame
 result.elements    # list[str]  — one entry per atom
 result.natoms      # int
 result.converged   # bool — True iff both fdist and frest < precision

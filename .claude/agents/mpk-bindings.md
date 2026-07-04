@@ -15,7 +15,7 @@ You **validate** the Python bindings under `python/`. You do **NOT** redesign th
 
 **Naming hygiene (load-bearing).** No public Python symbol or module name may contain "packmol" (case-insensitive). Doc-comment prose may; identifiers may not.
 
-- `rg -n "[Pp]ackmol" python/src/ python/tests/ python/docs/` — flag matches inside `#[pyclass]`, `#[pymodule]`, `#[pyfunction]`, or any `name = "..."` attr.
+- `rg -n "[Pp]ackmol" python/src/ python/tests/ docs/python/` — flag matches inside `#[pyclass]`, `#[pymodule]`, `#[pyfunction]`, or any `name = "..."` attr.
 - For each `#[pyclass]` and `#[pymodule]`, verify the explicit `name = "..."` matches the desired Python identifier and contains no "packmol".
 
 **Feature gate.** The wheel must **not** depend on `io`, `cli`, or `molrs_io`. Frame loading is the user's responsibility via the `molrs` Python package.
@@ -38,10 +38,10 @@ You **validate** the Python bindings under `python/`. You do **NOT** redesign th
 
 A new restraint in Rust without a matching Python wrapper is HIGH; a new public method on `Molpack`/`Target`/`Script` without a Python mirror is MEDIUM unless the Rust docstring explicitly says "Rust-only".
 
-**Tests + docs.** Every Python-visible feature needs a `python/tests/test_*.py` case and a mention in `python/docs/`. Cross-check:
+**Tests + docs.** Every Python-visible feature needs a `python/tests/test_*.py` case and a mention in `docs/python/`. Cross-check:
 
 - `rg -n "#\[pyclass\]|#\[pymethods\]|#\[pyfunction\]" python/src/` → verify each is exercised by `python/tests/`.
-- Check `python/docs/` for the new symbol or feature.
+- Check `docs/python/` for the new symbol or feature.
 
 **Type stubs.** If `python/src/molcrafts_molpack.pyi` exists, new pyclasses / pyfunctions must be added there for IDE / `ty` type-checking.
 

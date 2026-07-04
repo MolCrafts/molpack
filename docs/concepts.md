@@ -3,15 +3,15 @@
 This chapter defines each abstraction in the crate in one place.
 Cross-link to the types for full API details.
 
-## Restraint
+## AtomRestraint
 
-A [`Restraint`](crate::Restraint) is a **soft penalty** applied per
+An [`AtomRestraint`](crate::AtomRestraint) is a **soft penalty** applied per
 atom: `f(x, scale, scale2) -> F` and `fg(x, scale, scale2, g) -> F`.
 It contributes to the packing objective and — in all current
 implementations — derives from Packmol's `comprest.f90` / `gwalls.f90`.
 
 ```text
-pub trait Restraint: Send + Sync + std::fmt::Debug {
+pub trait AtomRestraint: Send + Sync + std::fmt::Debug {
     fn f (&self, x: &[F; 3], scale: F, scale2: F) -> F;
     fn fg(&self, x: &[F; 3], scale: F, scale2: F, g: &mut [F; 3]) -> F;
     fn is_parallel_safe(&self) -> bool { true }
@@ -84,7 +84,7 @@ targets.
 
 Two-part design — builder + runner:
 
-- `Relaxer::spawn(&self, ref_coords) -> Box<dyn RelaxerRunner>` is
+- `Relaxer::spawn(&self, frame, ref_coords) -> Box<dyn RelaxerRunner>` is
   called once at `pack()` entry.
 - `RelaxerRunner::on_iter(&mut self, coords, f_current, evaluate, rng)`
   runs between movebad and GENCAN each outer iteration; returns

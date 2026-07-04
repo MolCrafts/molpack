@@ -1,7 +1,7 @@
 """Type stubs for the molpack native extension (compiled from Rust via PyO3)."""
 
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Protocol, Self
 
 import numpy as np
@@ -343,7 +343,11 @@ class ScriptJob:
     def __getitem__(self, idx: int) -> Any: ...
     def __repr__(self) -> str: ...
 
-def load_script(path: str | os.PathLike[str]) -> ScriptJob:
+def load_script(
+    path: str | os.PathLike[str],
+    *,
+    read_frame: Callable[..., Any] | None = None,
+) -> ScriptJob:
     """Parse a molpack ``.inp`` script and lower it to a ready-to-run
     packer and target list.
 

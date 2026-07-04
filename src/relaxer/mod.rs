@@ -91,8 +91,8 @@ pub trait RelaxerRunner: Send {
     /// Returns `Some(new_coords)` if any modification accepted, `None` otherwise.
     /// Accepted `new_coords` must keep the molecule's centroid at the origin:
     /// the packer places each copy by COM + Euler rotation of this reference
-    /// conformer, so a non-centered return would shift every placement. Use
-    /// [`recenter`] before returning.
+    /// conformer, so a non-centered return would shift every placement:
+    /// re-center the returned coordinates at their geometric center first.
     fn on_iter(
         &mut self,
         coords: &[[F; 3]],
