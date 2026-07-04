@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write      # push results to the gh-pages dashboard
+  contents: write      # push results to the gh-pages history
   deployments: write   # github-action-benchmark uses deployment status
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     steps:
       # molpack path-depends on ../molrs/molrs, so both repos are checked out
-      # side by side (matching ci.yml).
+      # side by side (matching ci.yml) — hence molpack lives in a subdir.
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
@@ -47,20 +47,36 @@ jobs:
           cargo bench --benches -- --output-format bencher | tee output.txt
         working-directory: molpack
 
-      - name: Upload raw bench output
-        if: always()
+      - name: Upload bench output
         uses: actions/upload-artifact@v4
         with:
-          name: molpack-bench-${{ github.run_id }}
+          name: bench-output
           path: molpack/output.txt
           if-no-files-found: error
 
+  # Separate job so the benchmark action runs against a molpack checkout at the
+  # workspace ROOT — it does `git fetch gh-pages`, which needs a `.git` in the
+  # working directory. The build job puts molpack in a subdir (for the molrs
+  # path-dep), leaving the root without a repo; this job only needs the repo +
+  # the bench output, not molrs, so it checks molpack out at the root.
+  publish-history:
+    name: publish benchmark history
+    needs: bench
+    if: github.repository == 'MolCrafts/molpack' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: bench-output
       - name: Publish benchmark history
-        if: github.repository == 'MolCrafts/molpack' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'cargo'
-          output-file-path: molpack/output.txt
+          output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           # Criterion on shared runners is noisy — alert loudly, do not fail.

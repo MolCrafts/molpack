@@ -25,12 +25,27 @@ jobs:
         with:
           path: molpack
       - uses: dtolnay/rust-toolchain@stable
+      # Idempotent: skip publishing if this exact version is already on
+      # crates.io (bootstrapped manually, or the tag was re-pushed). Both the
+      # crate and PyPI publish now fire on the same `v*` tag, so this keeps the
+      # crate job green when only the wheel needs (re)publishing.
+      - id: exists
+        name: Check if the crate version is already published
+        working-directory: molpack
+        run: |
+          ver=$(sed -nE 's/^version = "(.*)"/\1/p' Cargo.toml | head -1)
+          code=$(curl -s -o /dev/null -w '%{http_code}' -A 'molpack-release-ci' "https://crates.io/api/v1/crates/molcrafts-molpack/$ver")
+          echo "molcrafts-molpack $ver -> HTTP $code"
+          if [ "$code" = "200" ]; then echo "published=true" >> "$GITHUB_OUTPUT"; else echo "published=false" >> "$GITHUB_OUTPUT"; fi
       - name: cargo publish --dry-run
+        if: steps.exists.outputs.published != 'true'
         run: cargo publish --dry-run
         working-directory: molpack
       - id: auth
+        if: steps.exists.outputs.published != 'true'
         uses: rust-lang/crates-io-auth-action@v1
       - name: cargo publish
+        if: steps.exists.outputs.published != 'true'
         run: cargo publish
         working-directory: molpack
         env:
