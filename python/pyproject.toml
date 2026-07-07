@@ -11,6 +11,17 @@ readme = "README.md"
 license = "BSD-3-Clause"
 dependencies = ["numpy>=2.0", "typer>=0.12", "molcrafts-molrs>=0.6.0", "molcrafts-molpy>=0.6.0"]
 
+# Installable "extra" carrying the docs-build deps. Unlike the [dependency-groups]
+# doc group below (dev/CI-only, installs deps but not the package), an extra ships
+# in the wheel metadata, so a *prebuilt-wheel* install pulls it with no Rust build:
+#   pip install "molcrafts-molpack[doc]"
+# That is the build command a Cloudflare Pages Git-integration build should use.
+[project.optional-dependencies]
+doc = [
+  "zensical>=0.0.45",
+  "molcrafts-zensical-theme>=0.1.1",
+]
+
 # PEP 735 dependency groups — the single source of truth for dev-time
 # deps used by both CI jobs and local pre-commit hooks.
 #
@@ -44,7 +55,7 @@ dev = [
 doc = [
   "zensical>=0.0.45",
   # The molcrafts docs theme (zensical.toml sets `theme.name = "molcrafts"`).
-  "molcrafts-zensical-theme>=0.1.0",
+  "molcrafts-zensical-theme>=0.1.1",
 ]
 
 [project.scripts]
