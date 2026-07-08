@@ -5,6 +5,15 @@ All notable changes to `molcrafts-molpack` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-07-08
+
+### Changed
+- Bumped the `molcrafts-molrs` dependency (Rust crate + `molrs-ffi` FFI layer and
+  the Python runtime pins) from 0.6.0 to 0.7.0, and the Python runtime
+  `molcrafts-molpy` pin from 0.6.0 to 0.7.0. No molpack API change — a
+  dependency-tracking release against the unified molrs/molpy 0.7.0 line.
+- Docs build now pins the shared `molcrafts-zensical-theme` at 0.1.1.
+
 ## [0.1.0] - 2026-07-04
 
 Inaugural release of `molcrafts-molpack`.
@@ -69,4 +78,5 @@ Inaugural release of `molcrafts-molpack`.
 - CI runs the test suites plus the Packmol regression (on non-PR events); formatting and lint (`fmt`, `clippy`, `ruff`, `ty`) are enforced by pre-commit hooks.
 - Depends on the unified `molcrafts-molrs` 0.6.0 crate: `core` is always-on and re-exported at the crate root, while `io` and `ff` are feature-gated modules that forward to `molrs/io` and `molrs/ff`.
 
+[0.1.1]: https://github.com/MolCrafts/molpack/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MolCrafts/molpack/releases/tag/v0.1.0
