@@ -32,7 +32,7 @@
 //!
 //! Reference material (not rustdoc):
 //!
-//! - [Packmol parity](https://github.com/MolCrafts/molpack/blob/master/docs/en/packmol_parity.md)
+//! - [Packmol parity](https://github.com/MolCrafts/molpack/blob/master/docs/packmol_parity.md)
 //!   — kind-number ↔ Rust struct mapping with Fortran pointers.
 //!
 //! ## Quick example
@@ -153,20 +153,20 @@ pub use objective::Objective;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Documentation modules (rustdoc-only; no runtime items).
-// Content lives in `docs/en/*.md`, loaded via `include_str!` so each markdown
+// Content lives in `docs/*.md`, loaded via `include_str!` so each markdown
 // file can be edited independently while rustdoc renders the whole chapter.
 // ────────────────────────────────────────────────────────────────────────────
 
-#[doc = include_str!("../docs/en/getting_started.md")]
+#[doc = include_str!("../docs/getting_started.md")]
 pub mod getting_started {}
 
-#[doc = include_str!("../docs/en/concepts.md")]
+#[doc = include_str!("../docs/concepts.md")]
 pub mod concepts {}
 
-#[doc = include_str!("../docs/en/architecture.md")]
+#[doc = include_str!("../docs/architecture.md")]
 pub mod architecture {}
 
-#[doc = include_str!("../docs/en/extending.md")]
+#[doc = include_str!("../docs/extending.md")]
 pub mod extending {}
 
 // ────────────────────────────────────────────────────────────────────────────

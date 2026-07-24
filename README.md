@@ -130,18 +130,16 @@ cd python && maturin develop --release && pytest            # Python wheel
 
 ## Documentation
 
-- **Guide** — dual-language trees under [`docs/en/`](./docs/en/) and
-  [`docs/zh/`](./docs/zh/), one `zensical.toml` (official `alternate`
-  language selector → `/en/`, `/zh/`). Chapters: install, getting started,
-  concepts, examples, Packmol parity, architecture, and extending.
+- **Guide** — [`docs/`](./docs/), built with `zensical build`. Chapters:
+  install, getting started, concepts, examples, Packmol parity, architecture,
+  and extending.
 - **Rust API** — `cargo doc --open`, or [docs.rs](https://docs.rs/molcrafts-molpack).
   The four long-form chapters (getting started, concepts, architecture,
   extending) are also embedded in the rustdoc as
   `molpack::getting_started`, `molpack::concepts`,
   `molpack::architecture`, and `molpack::extending`.
-- **Python** — binding docs live under `docs/en/python/` (and the parallel
-  `docs/zh/python/` tree), published as the **Python** section of the
-  English / Chinese Zensical sites.
+- **Python** — binding docs live under `docs/python/`, published as the
+  **Python** section of the site.
 
 ## Contributing
 

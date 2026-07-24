@@ -1,101 +1,54 @@
-# Single Zensical project — multi-language per official guide:
-#   https://zensical.org/docs/setup/language/
+# molpack docs — single English site served at the root.
 #
-#   [project.theme] language  → one UI language for the build
-#   [project.extra] alternate → header language selector (absolute /en/, /zh/)
-#
-# Content lives under docs/en and docs/zh; one build emits both URL trees.
-# Build: zensical build
+#   zensical build     # docs → site
 
 [project]
 site_name = "molpack"
 site_description = "Packmol-grade molecular packing in pure Rust, with Python bindings."
-site_url = "https://molcrafts.github.io/molpack/"
+site_url = "https://molpack.molcrafts.org/"
 repo_url = "https://github.com/MolCrafts/molpack"
 repo_name = "MolCrafts/molpack"
 copyright = "Copyright &copy; 2026 MolCrafts"
 docs_dir = "docs"
 site_dir = "site"
 
-# Default nav is the English tree (paths under en/). Chinese pages live at
-# zh/… and are opened via the language selector (alternate → /zh/).
 nav = [
-  { "Home" = "en/index.md" },
+  { "Home" = "index.md" },
   { "Tutorial" = [
-    { "Install" = "en/install.md" },
-    { "Quickstart" = "en/getting_started.md" },
-    { "Concepts" = "en/concepts.md" },
-    { "Examples" = "en/examples.md" },
-    { "Packmol Parity" = "en/packmol_parity.md" },
+    { "Install" = "install.md" },
+    { "Quickstart" = "getting_started.md" },
+    { "Concepts" = "concepts.md" },
+    { "Examples" = "examples.md" },
+    { "Packmol Parity" = "packmol_parity.md" },
   ] },
   { "Packmol Script" = [
-    { "Overview" = "en/cli/index.md" },
-    { "Script Notes" = "en/cli/script-format.md" },
-    { "Formats" = "en/cli/formats.md" },
-    { "Examples" = "en/cli/examples.md" },
+    { "Overview" = "cli/index.md" },
+    { "Script Notes" = "cli/script-format.md" },
+    { "Formats" = "cli/formats.md" },
+    { "Examples" = "cli/examples.md" },
   ] },
   { "Python" = [
-    { "Overview" = "en/python/index.md" },
-    { "Installation" = "en/python/installation.md" },
-    { "Quickstart" = "en/python/getting-started.md" },
-    { "Targets" = "en/python/guide/targets.md" },
-    { "Restraints" = "en/python/guide/restraints.md" },
-    { "Packer" = "en/python/guide/packer.md" },
-    { "Periodic Boundaries" = "en/python/guide/periodic-boundaries.md" },
-    { "Examples" = "en/python/examples.md" },
-    { "API Reference" = "en/python/api-reference.md" },
+    { "Overview" = "python/index.md" },
+    { "Installation" = "python/installation.md" },
+    { "Quickstart" = "python/getting-started.md" },
+    { "Targets" = "python/guide/targets.md" },
+    { "Restraints" = "python/guide/restraints.md" },
+    { "Packer" = "python/guide/packer.md" },
+    { "Periodic Boundaries" = "python/guide/periodic-boundaries.md" },
+    { "Examples" = "python/examples.md" },
+    { "API Reference" = "python/api-reference.md" },
   ] },
   { "Rust" = [
-    { "Overview" = "en/rust/index.md" },
-    { "Quickstart" = "en/rust/getting-started.md" },
-    { "Restraints and PBC" = "en/rust/restraints-and-pbc.md" },
-    { "Handlers and Relaxers" = "en/rust/handlers-relaxers.md" },
-    { "Examples" = "en/rust/examples.md" },
+    { "Overview" = "rust/index.md" },
+    { "Quickstart" = "rust/getting-started.md" },
+    { "Restraints and PBC" = "rust/restraints-and-pbc.md" },
+    { "Handlers and Relaxers" = "rust/handlers-relaxers.md" },
+    { "Examples" = "rust/examples.md" },
   ] },
   { "Development" = [
-    { "Contributing" = "en/development/index.md" },
-    { "Architecture" = "en/architecture.md" },
-    { "Extending" = "en/extending.md" },
-  ] },
-  # Chinese tree — same structure, URLs under /zh/ (language selector).
-  { "中文" = [
-    { "首页" = "zh/index.md" },
-    { "教程" = [
-      { "安装" = "zh/install.md" },
-      { "快速开始" = "zh/getting_started.md" },
-      { "概念" = "zh/concepts.md" },
-      { "示例" = "zh/examples.md" },
-      { "Packmol 对等" = "zh/packmol_parity.md" },
-    ] },
-    { "Packmol 脚本" = [
-      { "概览" = "zh/cli/index.md" },
-      { "脚本说明" = "zh/cli/script-format.md" },
-      { "格式" = "zh/cli/formats.md" },
-      { "示例" = "zh/cli/examples.md" },
-    ] },
-    { "Python" = [
-      { "概览" = "zh/python/index.md" },
-      { "安装" = "zh/python/installation.md" },
-      { "快速开始" = "zh/python/getting-started.md" },
-      { "Targets" = "zh/python/guide/targets.md" },
-      { "Restraints" = "zh/python/guide/restraints.md" },
-      { "Packer" = "zh/python/guide/packer.md" },
-      { "周期边界" = "zh/python/guide/periodic-boundaries.md" },
-      { "示例" = "zh/python/examples.md" },
-      { "API 参考" = "zh/python/api-reference.md" },
-    ] },
-    { "Rust" = [
-      { "概览" = "zh/rust/index.md" },
-      { "快速开始" = "zh/rust/getting-started.md" },
-      { "约束与 PBC" = "zh/rust/restraints-and-pbc.md" },
-      { "Handlers 与 Relaxers" = "zh/rust/handlers-relaxers.md" },
-      { "示例" = "zh/rust/examples.md" },
-    ] },
-    { "开发" = [
-      { "贡献" = "zh/development/index.md" },
-      { "架构" = "zh/architecture.md" },
-      { "扩展" = "zh/extending.md" },
-    ] },
+    { "Contributing" = "development/index.md" },
+    { "Architecture" = "architecture.md" },
+    { "Extending" = "extending.md" },
   ] },
 ]
 
@@ -105,13 +58,6 @@ extra_css = ["assets/stylesheets/extra.css"]
 [project.theme]
 name = "molcrafts"
 language = "en"
-
-# https://zensical.org/docs/setup/language/#site-language-selector
-[project.extra]
-alternate = [
-  { name = "English", link = "/en/", lang = "en" },
-  { name = "简体中文", link = "/zh/", lang = "zh" },
-]
 
 [project.extra.molcrafts]
 product = "molpack"

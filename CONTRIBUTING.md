@@ -76,7 +76,7 @@ venv; **do not** rely on that for the gate — pre-push always uses
 2. Implement `Restraint` (both `f` and `fg`; `fg` must match the gradient of `f`)
 3. Re-export it from `src/restraint/mod.rs`, then from the crate root in `src/lib.rs`
 4. Add a unit test in `tests/restraint.rs`
-5. Document it in `docs/en/concepts.md` under the restraint table
+5. Document it in `docs/concepts.md` under the restraint table
 
 See the `extending` rustdoc chapter (`cargo doc --open`) for detailed tutorials.
 
