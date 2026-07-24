@@ -1,9 +1,8 @@
 # Quickstart
 
-This tutorial packs 100 water molecules into a 40 Angstrom cube. It uses the
-Python package because that is the shortest path from a loaded molecular frame
-to a packed result; the same model can be expressed as a [CLI script](cli/) or
-with the [Rust builder API](rust/).
+Pack **100 water molecules** into a **40 Å** cube. This walkthrough uses the
+Python package — the shortest path from a loaded frame to a packed result. The
+same model is available as a [CLI script](cli/) or the [Rust builder](rust/).
 
 ## 1. Install
 
@@ -11,36 +10,36 @@ with the [Rust builder API](rust/).
 pip install molcrafts-molpack
 ```
 
-`molcrafts-molpack` provides the packing engine and installs the `molrs`
-dependency that provides the frame type plus PDB/XYZ readers and writers.
+This installs the packing engine and pulls in `molcrafts-molrs` for the frame
+type plus PDB/XYZ I/O.
 
-## 2. Load or build a molecule template
+## 2. Load or build a template
 
-If you have a PDB file:
+=== "From a PDB file"
 
-```python
-import molrs
+    ```python
+    import molrs
 
-frame = molrs.read_pdb("water.pdb")
-```
+    frame = molrs.read_pdb("water.pdb")
+    ```
 
-For a minimal in-memory example:
+=== "In-memory (no file)"
 
-```python
-import molrs
-import numpy as np
+    ```python
+    import molrs
+    import numpy as np
 
-frame = molrs.Frame.from_dict({
-    "blocks": {
-        "atoms": {
-            "x": np.array([0.00, 0.96, -0.24]),
-            "y": np.array([0.00, 0.00, 0.93]),
-            "z": np.zeros(3),
-            "element": ["O", "H", "H"],
+    frame = molrs.Frame.from_dict({
+        "blocks": {
+            "atoms": {
+                "x": np.array([0.00, 0.96, -0.24]),
+                "y": np.array([0.00, 0.00, 0.93]),
+                "z": np.zeros(3),
+                "element": ["O", "H", "H"],
+            }
         }
-    }
-})
-```
+    })
+    ```
 
 ## 3. Define the target
 
@@ -56,6 +55,10 @@ water = (
     .with_restraint(InsideBoxRestraint([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 ```
+
+!!! warning "Missing restraints"
+    Without a spatial restraint (or a global PBC box), initial placement has to
+    invent a huge free-space region and the run can become impractical.
 
 ## 4. Pack
 
@@ -73,58 +76,32 @@ print(result.converged, result.natoms, result.fdist, result.frest)
 packed = result.frame
 ```
 
-`fdist` measures pair-distance violations. `frest` measures restraint
-violations. A successful run has both below the packer's precision threshold.
+| Field | Meaning |
+|---|---|
+| `converged` | Both objectives fell below the packer precision threshold |
+| `fdist` | Pair-distance (overlap) violations |
+| `frest` | Restraint violations |
+| `frame` | Topology-complete packed `molrs.Frame` |
+
+For a frame-only return, use `Molpack().pack([water], max_loops=200)`.
 
 ## 5. Save
 
-molpack returns a `molrs.Frame` and delegates file writing to molrs or another
-frame-compatible writer:
-
-```python
-molrs.write_xyz("packed.xyz", packed)
-```
-
-## Full script
-
 ```python
 import molrs
-import numpy as np
-from molpack import InsideBoxRestraint, Molpack, Target
 
-frame = molrs.Frame.from_dict({
-    "blocks": {
-        "atoms": {
-            "x": np.array([0.00, 0.96, -0.24]),
-            "y": np.array([0.00, 0.00, 0.93]),
-            "z": np.zeros(3),
-            "element": ["O", "H", "H"],
-        }
-    }
-})
-
-water = (
-    Target(frame, count=100)
-    .with_name("water")
-    .with_restraint(InsideBoxRestraint([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
-)
-
-result = (
-    Molpack()
-    .with_tolerance(2.0)
-    .with_seed(42)
-    .pack_with_report([water], max_loops=200)
-)
-
-print(f"converged={result.converged} natoms={result.natoms}")
-molrs.write_xyz("packed.xyz", result.frame)
+molrs.write_pdb(packed, "water_box.pdb")
+# or: molrs.write_xyz(packed, "water_box.xyz")
 ```
 
-## Where to go next
+## Where next
 
-- [Concepts](concepts.md) explains targets, restraints, periodic boxes,
-  handlers, relaxers, and the optimizer model.
-- [CLI](cli/) documents Packmol-compatible `.inp` scripts.
-- [Python](python/) expands the binding API used in this tutorial.
-- [Rust](rust/) covers the native builder API.
-- [Examples](examples.md) collects the five canonical workloads.
+<div class="molpack-next-cards" markdown>
+
+- **[Concepts](concepts/)** — targets, restraints, phases of the packer
+- **[CLI](cli/)** — same job as a Packmol-style `.inp`
+- **[Python guide](python/)** — fixed solutes, PBC, collective restraints
+- **[Rust API](rust/)** — embed the engine in a native crate
+- **[Packmol parity](packmol_parity/)** — what matches Packmol, and what does not
+
+</div>

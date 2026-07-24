@@ -1,7 +1,8 @@
 //! Precision-stable random helpers for packing paths.
 
 use molrs::types::F;
-use rand::{Rng, RngCore};
+use rand::Rng;
+use rand::RngExt;
 
 /// Draw a uniform random number in `[0, 1)` from an f64 stream, then cast to `F`.
 ///
@@ -15,7 +16,7 @@ pub fn uniform01(rng: &mut impl Rng) -> F {
 
 /// Same as [`uniform01`], but for trait-object RNGs used by hook runners.
 #[inline]
-pub fn uniform01_core(rng: &mut dyn RngCore) -> F {
+pub fn uniform01_core(rng: &mut dyn Rng) -> F {
     let unit = (rng.next_u64() as f64) / ((u64::MAX as f64) + 1.0);
     unit as F
 }

@@ -103,12 +103,16 @@ pub fn frame_to_py<'py>(
 /// the return path, mirroring molrs-python's `Frame._ffi_frameref_capsule`.
 fn export_frame_capsule<'py>(py: Python<'py>, fref: FrameRef) -> PyResult<Bound<'py, PyCapsule>> {
     let raw = FrameRefPtr(Box::into_raw(Box::new(fref)));
-    let name = std::ffi::CString::new("molrs.FrameRef").expect("static capsule name");
-    PyCapsule::new_with_destructor(py, raw, Some(name), |ptr: FrameRefPtr, _ctx| {
-        // SAFETY: `ptr.0` came from `Box::into_raw` above and is reclaimed
-        // exactly once when the capsule dies.
-        drop(unsafe { Box::from_raw(ptr.0) });
-    })
+    PyCapsule::new_with_value_and_destructor(
+        py,
+        raw,
+        c"molrs.FrameRef",
+        |ptr: FrameRefPtr, _ctx| {
+            // SAFETY: `ptr.0` came from `Box::into_raw` above and is reclaimed
+            // exactly once when the capsule dies.
+            drop(unsafe { Box::from_raw(ptr.0) });
+        },
+    )
 }
 
 /// `Send` wrapper around a `*mut FrameRef` for the capsule payload (mirrors

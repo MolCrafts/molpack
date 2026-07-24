@@ -7,7 +7,7 @@ hide:
 hero:
   kicker: molpack Manual
   title: molpack
-  description: Packmol-compatible molecular packing in pure Rust, exposed as a CLI, a Python package, and a Rust crate.
+  description: Packmol-compatible molecular packing in pure Rust — a CLI for `.inp` scripts, a Python package for notebooks and pipelines, and a native Rust crate.
   install:
     label: Install
     methods:
@@ -18,12 +18,15 @@ hero:
       - label: Python
         command: pip install molcrafts-molpack
   badges:
+    - img: https://img.shields.io/crates/v/molcrafts-molpack?color=c2410c&label=crates.io
+      href: https://crates.io/crates/molcrafts-molpack
+      alt: crates.io version
+    - img: https://img.shields.io/pypi/v/molcrafts-molpack?color=d97706&label=PyPI
+      href: https://pypi.org/project/molcrafts-molpack/
+      alt: PyPI version
     - img: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml/badge.svg
       href: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml
       alt: CI status
-    - img: https://img.shields.io/github/stars/MolCrafts/molpack?style=flat&color=c2410c
-      href: https://github.com/MolCrafts/molpack
-      alt: GitHub stars
     - img: https://img.shields.io/badge/license-BSD--3--Clause-blue.svg
       href: https://github.com/MolCrafts/molpack/blob/master/LICENSE
       alt: License BSD-3-Clause
@@ -49,11 +52,11 @@ hero:
 
 <span class="molcrafts-manual-eyebrow">Core model</span>
 
-## Templates, counts, restraints, then one packing run
+## Templates, counts, restraints — then one packing run
 
 molpack is organized around a fixed packing job at every entry point. Provide
 molecule templates, copy counts, geometric restraints, and optional fixed
-placements or periodic boundaries; the engine returns one packed configuration
+placements or periodic boundaries. The engine returns one packed configuration
 with the requested distances and regions satisfied.
 
 </div>
@@ -61,24 +64,24 @@ with the requested distances and regions satisfied.
 <div class="molpack-system-panel">
 <div class="molpack-system-panel__header">
 <span>One engine · four surfaces</span>
-<strong>Scripts for reproducible jobs, APIs for pipelines, handlers for observation</strong>
+<strong>Scripts for reproducible jobs · APIs for pipelines · handlers for observation</strong>
 </div>
 <div class="molpack-system-flow">
 <div>
 <span>01 · Packmol script</span>
-<a href="cli/"><strong>Run `.inp` files with familiar structure, number, inside, fixed, and pbc keywords</strong></a>
+<a href="cli/"><strong>Run `.inp` files with structure, number, inside, fixed, and pbc</strong></a>
 </div>
 <div>
 <span>02 · Python API</span>
-<a href="python/"><strong>Build targets from frames, pack in notebooks, and keep results in memory</strong></a>
+<a href="python/"><strong>Build targets from frames, pack in notebooks, keep results in memory</strong></a>
 </div>
 <div>
 <span>03 · Rust API</span>
-<a href="rust/"><strong>Use the native Target and Molpack builders inside a crate</strong></a>
+<a href="rust/"><strong>Native Target and Molpack builders inside your crate</strong></a>
 </div>
 <div>
 <span>04 · Custom handlers</span>
-<a href="rust/handlers-relaxers/"><strong>Observe steps, dump trajectories, or stop a run from your own handler</strong></a>
+<a href="rust/handlers-relaxers/"><strong>Observe steps, dump trajectories, or stop early</strong></a>
 </div>
 </div>
 </div>
@@ -90,6 +93,37 @@ application.
 
 </section>
 
+<section class="molcrafts-manual-section molpack-results-section" markdown>
+
+<div class="molcrafts-manual-section__header" markdown>
+
+<span class="molcrafts-manual-eyebrow">Results</span>
+
+## What the engine produces
+
+Canonical Packmol-style workloads — confined solutes, interface distributions,
+and multi-target boxes — pack under the same restraint model through every
+surface.
+
+</div>
+
+<div class="molpack-result-gallery">
+<figure class="molpack-result-figure">
+<img src="assets/images/paper-confinement-sphere.png" alt="Water confined inside a spherical restraint" loading="lazy" />
+<figcaption>Spherical confinement — mobile solvent held inside a geometric restraint around a fixed solute.</figcaption>
+</figure>
+<figure class="molpack-result-figure">
+<img src="assets/images/paper-compatibility-distributions.png" alt="Interface density profiles matched to target distributions" loading="lazy" />
+<figcaption>Compatibility distributions — collective profile restraints match target density curves at an interface.</figcaption>
+</figure>
+<figure class="molpack-result-figure molpack-result-figure--wide">
+<img src="assets/images/paper-mt-scaling.png" alt="Multi-threaded packing wall-time scaling" loading="lazy" />
+<figcaption>Parallel evaluation — wall time vs system size with the rayon feature enabled on the objective path.</figcaption>
+</figure>
+</div>
+
+</section>
+
 <section class="molcrafts-manual-section" markdown>
 
 <div class="molcrafts-manual-section__header" markdown>
@@ -98,8 +132,8 @@ application.
 
 ## The same packing model through four entry points
 
-All entry points lower to the same target/count/restraint model. Pick the one
-that matches how the rest of your workflow is written.
+All entry points lower to the same target / count / restraint model. Pick the
+surface that matches how the rest of your workflow is written.
 
 </div>
 
@@ -189,32 +223,32 @@ impl Handler for WatchFdist {
 
 ## The manual
 
-The manual is organized by entry point. **Tutorial** teaches the common packing
-model. **Packmol script**, **Python API**, and **Rust API** cover the public
-surfaces. **Custom handlers** covers the observation and early-stop hook.
+Organized by entry point. **Tutorial** teaches the common packing model.
+**Packmol script**, **Python**, and **Rust** cover the public surfaces.
+**Handlers** cover observation and early-stop hooks.
 
 </div>
 
 <div class="molcrafts-doc-map molpack-doc-map">
 <section>
-<h3><a href="getting_started/">Tutorial</a></h3>
-<p>Install molpack, run the quickstart, learn targets/restraints, and compare existing Packmol inputs against molpack.</p>
+<h3><a href="install/">Install</a></h3>
+<p>CLI binary, crates.io crate, and PyPI wheel — pick a surface and verify it loads.</p>
+</section>
+<section>
+<h3><a href="getting_started/">Quickstart</a></h3>
+<p>Pack 100 waters in a 40&nbsp;Å cube end-to-end, then read convergence diagnostics.</p>
 </section>
 <section>
 <h3><a href="cli/">Packmol Script</a></h3>
-<p>Packmol-compatible `.inp` scripts, supported file formats, path resolution, and CLI examples.</p>
+<p>`.inp` compatibility, formats, path resolution, and CLI examples.</p>
 </section>
 <section>
 <h3><a href="python/">Python API</a></h3>
-<p>Notebook and pipeline usage: targets, restraints, packer options, examples, and API reference.</p>
+<p>Targets, restraints, packer options, PBC, examples, and API reference.</p>
 </section>
 <section>
 <h3><a href="rust/">Rust API</a></h3>
-<p>Native builder usage, restraint scopes, periodic boxes, handlers, relaxers, and example programs.</p>
-</section>
-<section>
-<h3><a href="rust/handlers-relaxers/">Custom Handlers</a></h3>
-<p>Progress observers, trajectory dumps, custom diagnostics, early stop, and in-loop relaxers.</p>
+<p>Builders, restraint scopes, periodic boxes, handlers, relaxers, examples.</p>
 </section>
 </div>
 

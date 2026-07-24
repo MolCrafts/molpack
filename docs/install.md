@@ -1,7 +1,8 @@
 # Install
 
-`molpack` ships in three forms — the CLI binary, the Rust crate, and the
-Python binding. Pick the surface that matches your workflow.
+`molpack` ships three surfaces — the CLI binary, the Rust crate, and the
+Python binding. Pick the one that matches your workflow; they share the same
+engine and packing model.
 
 ## CLI
 
@@ -12,64 +13,74 @@ cargo install molcrafts-molpack --features cli
 molpack --help
 ```
 
+!!! tip "Path resolution"
+    In file-arg mode (`molpack job.inp`), relative paths inside the script are
+    resolved against the **script directory**. In stdin mode they resolve
+    against the current working directory.
+
 ## Rust crate
 
-For programmatic use from Rust code:
+For programmatic use from Rust:
 
 ```bash
 cargo add molcrafts-molpack
 ```
 
-Add the `cli` feature in your workspace if you also want the binary
-in-tree.
+Optional features (crate defaults to none enabled):
+
+| Feature | Purpose |
+|---|---|
+| `cli` | `molpack` binary + clap (implies `io`) |
+| `io` | PDB / XYZ / SDF / LAMMPS readers via molrs |
+| `rayon` | Parallel objective evaluation |
+| `ff` | Force-field geometry relaxer (MMFF + L-BFGS) |
+
+```toml
+# Cargo.toml — common combinations
+molcrafts-molpack = { version = "0.1", features = ["io", "rayon"] }
+```
 
 ## Python binding
 
-For notebooks and pipelines:
+For notebooks and pipelines (Python 3.12+):
 
 ```bash
 pip install molcrafts-molpack
 ```
 
-`molcrafts-molrs` is installed as a dependency of `molcrafts-molpack`.
-It provides `molrs.Frame` plus PDB / XYZ readers. The Python wheel itself
-is I/O-free and relies on `molrs` for frame loading and writing. Python
-3.12 or newer is required.
+`molcrafts-molrs` is installed as a dependency and provides `molrs.Frame` plus
+PDB / XYZ readers. The wheel itself is I/O-free — pass frames in, get frames
+out.
 
 ```python
 import molpack
 print(molpack.Molpack)
 ```
 
-Pre-built wheels are published for CPython 3.13 on Linux (manylinux
-x86-64) and macOS (a single universal2 wheel covering Apple Silicon and
-Intel). On any other platform or Python version — Windows, Linux
-aarch64, or a different interpreter — `pip` falls back to the published
-source distribution and builds the wheel locally, which needs a Rust
-toolchain.
+!!! note "Pre-built wheels"
+    Wheels are published for CPython **3.12** and **3.13** on Linux
+    (manylinux x86-64) and macOS (universal2). Other platforms fall back to the
+    sdist and need a Rust toolchain to build.
 
 ## Build from source
 
-When you are modifying the crate or Python binding:
+When you are modifying the crate or Python binding, check out **molrs** as a
+sibling (path deps resolve `../molrs/molrs`):
 
 ```bash
+# sibling layout
+# workspace/
+# ├── molrs/
+# └── molpack/
+
 git clone https://github.com/MolCrafts/molpack
 cd molpack
 
-# Rust library + CLI binary
-cargo build
-cargo build --features cli --bin molpack
+# Rust library + CLI
+cargo build --features cli
 
-# Python binding
-cd python
-pip install maturin
-maturin develop --release
+# Python wheel (editable)
+cd python && maturin develop --release
 ```
 
-The Python package builds against the local Rust crate under `../`, so
-this is the right path for contributor workflows.
-
-## Next steps
-
-After verifying the install, run a first pack from the
-[Quickstart](getting_started.md).
+See [Development](development/) for tests, hooks, and contribution workflow.

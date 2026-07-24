@@ -16,7 +16,7 @@ use molrs::perceive::rotatable::{
 };
 use molrs::system::atomistic::Atomistic;
 use molrs::types::F;
-use rand::RngCore;
+use rand::Rng;
 use std::collections::HashSet;
 use std::f64::consts::PI;
 
@@ -98,7 +98,7 @@ pub trait RelaxerRunner: Send {
         coords: &[[F; 3]],
         f_current: F,
         evaluate: &mut dyn FnMut(&[[F; 3]]) -> F,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> Option<Vec<[F; 3]>>;
 
     /// Acceptance statistics (for progress reporting).
@@ -308,7 +308,7 @@ impl RelaxerRunner for TorsionMcRelaxerRunner {
         coords: &[[F; 3]],
         f_current: F,
         evaluate: &mut dyn FnMut(&[[F; 3]]) -> F,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> Option<Vec<[F; 3]>> {
         if self.bonds.is_empty() {
             return None;
@@ -431,7 +431,7 @@ pub(crate) fn recenter(coords: &mut [[F; 3]]) {
 }
 
 /// Metropolis acceptance criterion.
-fn metropolis_accept(f_trial: F, f_current: F, temperature: F, rng: &mut dyn RngCore) -> bool {
+fn metropolis_accept(f_trial: F, f_current: F, temperature: F, rng: &mut dyn Rng) -> bool {
     if f_trial <= f_current {
         return true;
     }
@@ -444,12 +444,12 @@ fn metropolis_accept(f_trial: F, f_current: F, temperature: F, rng: &mut dyn Rng
 }
 
 /// Generate a random F in [0, 1).
-fn rng_f(rng: &mut dyn RngCore) -> F {
+fn rng_f(rng: &mut dyn Rng) -> F {
     uniform01_core(rng)
 }
 
 /// Generate a random usize in [0, max).
-fn rng_usize(rng: &mut dyn RngCore, max: usize) -> usize {
+fn rng_usize(rng: &mut dyn Rng, max: usize) -> usize {
     (rng.next_u32() as usize) % max
 }
 

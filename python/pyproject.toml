@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "molcrafts-molpack"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python bindings for molpack molecular packing (Packmol port)"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -24,8 +24,8 @@ dependencies = [
 # That is the build command a Cloudflare Pages Git-integration build should use.
 [project.optional-dependencies]
 doc = [
-  "zensical>=0.0.45",
-  "molcrafts-zensical-theme>=0.1.1",
+  "zensical>=0.0.51",
+  "molcrafts-zensical-theme>=0.2.3",
 ]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
@@ -64,9 +64,9 @@ dev = [
 # `theme.name = "molcrafts"` — the shared MolCrafts brand extension, now on
 # PyPI, so the docs build is reproducible from this group alone.
 doc = [
-  "zensical>=0.0.45",
+  "zensical>=0.0.51",
   # The molcrafts docs theme (zensical.toml sets `theme.name = "molcrafts"`).
-  "molcrafts-zensical-theme>=0.1.1",
+  "molcrafts-zensical-theme>=0.2.3",
 ]
 
 [project.scripts]

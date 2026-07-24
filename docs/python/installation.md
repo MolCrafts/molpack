@@ -12,8 +12,9 @@ The PyPI package `molcrafts-molpack` installs a Python module named `molpack`:
 import molpack
 ```
 
-Pre-built wheels are published for CPython 3.12–3.13 on Linux (x86_64,
-aarch64), macOS (x86_64, arm64), and Windows (x86_64).
+Pre-built wheels are published for CPython **3.12** and **3.13** on Linux
+(manylinux x86-64) and macOS (universal2). Other platforms fall back to the
+sdist and need a Rust toolchain to build locally.
 
 ## Frame I/O
 

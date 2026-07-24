@@ -12,10 +12,46 @@ on:
 env:
   MOLRS_GIT_REF: v0.9.3
 
-# Lint: prek + .pre-commit-config.yaml (commit stage).
+# Lint: same as prek commit-stage hooks in .pre-commit-config.yaml.
 # Tests: same commands as prek pre-push hooks (no scripts/).
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
+          path: molrs
+      - uses: actions/checkout@v6
+        with:
+          path: molpack
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: molpack
+      - uses: astral-sh/setup-uv@v6
+      - name: Rust fmt + clippy (pre-commit parity)
+        working-directory: molpack
+        run: |
+          set -euo pipefail
+          # Package roots only (avoid path-dep molrs noise from `cargo fmt --all`).
+          cargo fmt -- --check
+          cargo fmt --manifest-path python/Cargo.toml -- --check
+          cargo clippy --all-targets --all-features -- -D warnings
+      - name: Ruff + ty (pre-commit parity)
+        working-directory: molpack
+        run: |
+          set -euo pipefail
+          # Paths relative to python/ (matches local `cd python && ty check …`).
+          uv run --directory python --group typecheck ruff format --check python tests examples
+          uv run --directory python --group typecheck ruff check python tests examples
+          uv run --directory python --group typecheck ty check python tests examples
+
   test:
     name: rust tests
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 [package]
 name = "molpack-python"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.91"
 authors = ["MolCrafts"]
@@ -14,10 +14,10 @@ name = "molpack_python"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28", features = ["extension-module"] }
-numpy = "0.28"
+pyo3 = { version = "0.29", features = ["extension-module"] }
+numpy = "0.29"
 ndarray = "0.17"
-molpack = { path = "..", package = "molcrafts-molpack", version = "0.1.1" }
+molpack = { path = "..", package = "molcrafts-molpack", version = "0.1.2" }
 # Same crate (and version) molpack links, so frame types unify across the wheel.
 # The merged `molcrafts-molrs` crate exposes core at its root with default
 # features off (matching molpack's dependency), so the wheel stays io/ff-free.
@@ -31,7 +31,7 @@ molrs-ffi = { path = "../../molrs/molrs-ffi", package = "molcrafts-molrs-ffi", v
 # Direct rayon dep so the binding can introspect/configure the global pool
 # (`num_threads`, `init_thread_pool`); shares the same process-global pool
 # molpack's parallel evaluator runs on. Gated behind the `rayon` feature.
-rayon = { version = "1.11", optional = true }
+rayon = { version = "1.12", optional = true }
 
 # Standalone package — not a member of any outer workspace.
 [workspace]

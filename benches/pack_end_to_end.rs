@@ -17,8 +17,6 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use molpack::{F, InsideBoxRestraint, Molpack, Target};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 const SEED: u64 = 42;
 const BOX_SIDE: F = 25.0;
@@ -73,3 +71,6 @@ fn bench_pack_end_to_end(c: &mut Criterion) {
 
 criterion_group!(benches, bench_pack_end_to_end);
 criterion_main!(benches);
+use rand::RngExt;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

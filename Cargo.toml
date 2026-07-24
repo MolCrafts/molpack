@@ -1,6 +1,6 @@
 [package]
 name = "molcrafts-molpack"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.91"
 authors = ["MolCrafts"]
@@ -29,7 +29,7 @@ bench = false
 # crates as feature-gated modules: `core` is always on (re-exported at the crate
 # root), while `io` and `ff` are opt-in via the molpack features below.
 molrs = { path = "../molrs/molrs", version = "0.9.3", package = "molcrafts-molrs", default-features = false }
-rand = "0.9"
+rand = "0.10"
 ndarray = "0.17"
 log = "0.4"
 # Provides `erf` for the profile-distribution penalties (the error-function
@@ -38,7 +38,7 @@ log = "0.4"
 libm = "0.2"
 
 # Opt-in parallelism:
-rayon = { version = "1.11", optional = true }
+rayon = { version = "1.12", optional = true }
 
 # CLI-only:
 clap = { version = "4", features = ["derive"], optional = true }
@@ -60,7 +60,7 @@ ff = ["molrs/ff"]
 # Used by the example programs under `examples/`.
 env_logger = "0.11"
 # Criterion harness for the benchmark suite under `benches/`.
-criterion = "0.5"
+criterion = "0.8"
 
 [[bin]]
 name = "molpack"

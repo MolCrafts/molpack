@@ -1,6 +1,8 @@
 [project]
 site_name = "molpack"
 site_description = "Packmol-grade molecular packing in pure Rust, with Python bindings."
+# Site is built by Cloudflare Pages (pip install "molcrafts-molpack[doc]" + zensical).
+# Keep site_url in sync with the Cloudflare custom domain when one is set.
 site_url = "https://molcrafts.github.io/molpack/"
 repo_url = "https://github.com/MolCrafts/molpack"
 repo_name = "MolCrafts/molpack"
@@ -23,14 +25,14 @@ nav = [
     { "Examples" = "examples.md" },
     { "Packmol Parity" = "packmol_parity.md" },
   ] },
-  { "CLI" = [
-    "cli/index.md",
-    { "Packmol Script Notes" = "cli/script-format.md" },
+  { "Packmol Script" = [
+    { "Overview" = "cli/index.md" },
+    { "Script Notes" = "cli/script-format.md" },
     { "Formats" = "cli/formats.md" },
     { "Examples" = "cli/examples.md" },
   ] },
   { "Python" = [
-    "python/index.md",
+    { "Overview" = "python/index.md" },
     { "Installation" = "python/installation.md" },
     { "Quickstart" = "python/getting-started.md" },
     { "Targets" = "python/guide/targets.md" },
@@ -41,14 +43,14 @@ nav = [
     { "API Reference" = "python/api-reference.md" },
   ] },
   { "Rust" = [
-    "rust/index.md",
+    { "Overview" = "rust/index.md" },
     { "Quickstart" = "rust/getting-started.md" },
     { "Restraints and PBC" = "rust/restraints-and-pbc.md" },
     { "Handlers and Relaxers" = "rust/handlers-relaxers.md" },
     { "Examples" = "rust/examples.md" },
   ] },
   { "Development" = [
-    "development/index.md",
+    { "Contributing" = "development/index.md" },
     { "Architecture" = "architecture.md" },
     { "Extending" = "extending.md" },
   ] },
@@ -69,8 +71,8 @@ language = "en"
 # from `extra.alternate` (theme partial partials/alternate.html). The `url`
 # filter passes absolute paths through unchanged, so each `link` carries the
 # site's base path (`/molpack/`, matching site_url) to stay correct from every
-# page and depth on GitHub Pages. The zh pages are placeholders for now — no
-# docs are translated yet.
+# page and depth. The zh pages are placeholders for now — no docs are
+# translated yet.
 [project.extra]
 alternate = [
   { name = "English", link = "/molpack/", lang = "en" },

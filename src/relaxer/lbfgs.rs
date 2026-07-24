@@ -28,7 +28,7 @@ use molrs::ff::ForceField;
 use molrs::ff::potential::{Potential, intramolecular_pairs};
 use molrs::optimize::{LBFGS, LbfgsConfig};
 use molrs::types::F;
-use rand::RngCore;
+use rand::Rng;
 
 use super::{Relaxer, RelaxerRunner, recenter};
 
@@ -183,7 +183,7 @@ impl RelaxerRunner for LBFGSRelaxerRunner {
         coords: &[[F; 3]],
         f_current: F,
         evaluate: &mut dyn FnMut(&[[F; 3]]) -> F,
-        _rng: &mut dyn RngCore,
+        _rng: &mut dyn Rng,
     ) -> Option<Vec<[F; 3]>> {
         // No compiled potential (no frame, or force-field compilation failed) →
         // nothing to relax against; leave the geometry unchanged.

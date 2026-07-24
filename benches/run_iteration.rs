@@ -24,8 +24,6 @@ use molpack::movebad::MoveBadConfig;
 use molpack::packer::{IterOutcome, run_iteration};
 use molpack::relaxer::RelaxerRunner;
 use molpack::{F, PackContext};
-use rand::SeedableRng;
-use rand::rngs::SmallRng;
 
 type Snapshot = (
     PackContext,
@@ -122,3 +120,5 @@ fn bench_run_iteration(c: &mut Criterion) {
 
 criterion_group!(benches, bench_run_iteration);
 criterion_main!(benches);
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

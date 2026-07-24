@@ -1,12 +1,11 @@
-# molpack — Python
+# Python
 
-Packmol-grade molecular packing in Rust, with Python bindings.
+Packmol-grade molecular packing in Rust, with a first-class Python binding.
 
-`molpack` produces a non-overlapping arrangement of $N$ molecule types
-with user-specified copy counts under geometric restraints. The engine
-is a faithful port of Packmol's GENCAN-driven three-phase algorithm
-(Martínez *et al.* 2009); correctness is pinned against Packmol's
-reference output for five canonical workloads.
+`molpack` arranges $N$ molecule types under geometric restraints without
+overlaps. The engine is a faithful port of Packmol's GENCAN-driven algorithm
+(Martínez *et al.* 2009); five canonical workloads stay pinned against Packmol
+reference output.
 
 ## At a glance
 
@@ -29,23 +28,22 @@ print(f"packed {frame['atoms'].nrows} atoms")
 
 ## Next steps
 
-- [Installation](installation.md) — pip install and verification.
-- [Quickstart](getting-started.md) — first pack end-to-end.
-- [Targets](guide/targets.md) — molecule templates, counts, fixed placement,
-  and atom-subset restraints.
-- [Restraints](guide/restraints.md) — geometric and collective restraints.
-- [Packer](guide/packer.md) — builder options, diagnostics, and handlers.
-- [Periodic boundaries](guide/periodic-boundaries.md) — PBC semantics and
-  validation rules.
-- [Examples](examples.md) — five Packmol-equivalent workloads.
-- [API Reference](api-reference.md) — class-by-class summary.
+<div class="molpack-next-cards" markdown>
+
+- **[Installation](installation.md)** — pip install and verification
+- **[Quickstart](getting-started.md)** — first pack end-to-end
+- **[Targets](guide/targets.md)** — templates, counts, fixed placement
+- **[Restraints](guide/restraints.md)** — geometric and collective restraints
+- **[Packer](guide/packer.md)** — builder options, diagnostics, handlers
+- **[Periodic boundaries](guide/periodic-boundaries.md)** — PBC rules
+- **[Examples](examples.md)** — Packmol-equivalent workloads
+- **[API reference](api-reference.md)** — class-by-class summary
+
+</div>
 
 ## See also
 
-- Rust crate: [`molcrafts-molpack`](https://crates.io/crates/molcrafts-molpack)
-  — the underlying engine. All algorithmic details are documented there.
-- [`molcrafts-molrs`](https://pypi.org/project/molcrafts-molrs/) —
-  installed dependency that provides file I/O (PDB, XYZ, …) and the `Frame`
-  data model. Pass a `molrs.Frame` directly to `Target`; no manual array
-  extraction needed. `Molpack.pack()` returns a Frame-compatible structure
-  for the writer of your choice.
+- Rust crate: [`molcrafts-molpack`](https://crates.io/crates/molcrafts-molpack) —
+  the underlying engine
+- [`molcrafts-molrs`](https://pypi.org/project/molcrafts-molrs/) — frame I/O and
+  the `Frame` data model (installed as a dependency)

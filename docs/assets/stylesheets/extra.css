@@ -433,3 +433,103 @@ html[data-molcrafts-product="molpack"] .molcrafts-home-hero__description {
     max-height: none;
   }
 }
+
+/* ── content pages (install, quickstart, guides) ─────────────────────── */
+
+.md-typeset .molpack-next-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0 0.25rem;
+}
+
+.md-typeset .molpack-next-cards > ul {
+  display: contents;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.md-typeset .molpack-next-cards li {
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--molpack-accent) 18%, transparent);
+  border-radius: var(--molcrafts-radius, 0.45rem);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--molpack-accent-soft) 40%, transparent), transparent 70%),
+    color-mix(in srgb, var(--md-default-bg-color) 94%, var(--molpack-accent-soft));
+  box-shadow: 0 0.35rem 1rem color-mix(in srgb, var(--molpack-accent) 8%, transparent);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.md-typeset .molpack-next-cards li:is(:hover, :focus-within) {
+  border-color: color-mix(in srgb, var(--molpack-accent) 48%, transparent);
+  box-shadow: 0 0.5rem 1.35rem color-mix(in srgb, var(--molpack-accent) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.md-typeset .molpack-next-cards li::marker {
+  content: "";
+}
+
+.md-typeset .molpack-next-cards a {
+  color: var(--md-default-fg-color);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.md-typeset .molpack-next-cards strong a,
+.md-typeset .molpack-next-cards a strong {
+  color: var(--molpack-accent-strong, var(--molpack-accent));
+}
+
+.md-typeset table:not([class]) {
+  border-radius: var(--molcrafts-radius, 0.45rem);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--molpack-accent) 12%, transparent);
+}
+
+.md-typeset table:not([class]) th {
+  background: color-mix(in srgb, var(--molpack-accent-soft) 55%, var(--md-default-bg-color));
+  color: var(--md-default-fg-color);
+  font-weight: 700;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: var(--molcrafts-radius, 0.45rem);
+  border-color: color-mix(in srgb, var(--molpack-accent) 28%, transparent);
+}
+
+.md-typeset .admonition.tip,
+.md-typeset details.tip {
+  border-color: color-mix(in srgb, var(--molpack-secondary) 40%, transparent);
+}
+
+.md-typeset .tabbed-set {
+  border-radius: var(--molcrafts-radius, 0.45rem);
+  overflow: hidden;
+}
+
+/* Inline figures in tutorial / parity pages */
+.md-typeset figure.molpack-inline-figure {
+  margin: 1.1rem 0;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--md-primary-fg-color) 12%, transparent);
+  border-radius: var(--molcrafts-radius, 0.45rem);
+  background: color-mix(in srgb, var(--md-default-bg-color) 92%, white);
+}
+
+.md-typeset figure.molpack-inline-figure img {
+  display: block;
+  width: 100%;
+  border-radius: calc(var(--molcrafts-radius, 0.45rem) - 2px);
+}
+
+.md-typeset figure.molpack-inline-figure figcaption {
+  margin-top: 0.5rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  text-align: center;
+}

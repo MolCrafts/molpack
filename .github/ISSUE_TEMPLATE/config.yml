@@ -4,5 +4,5 @@ contact_links:
     url: https://docs.rs/molcrafts-molpack
     about: API reference and rustdoc chapters (getting_started, concepts, architecture, extending)
   - name: Python docs
-    url: https://molcrafts.github.io/molpack/python/
-    about: Python binding guide and examples
+    url: https://docs.rs/molcrafts-molpack
+    about: Python binding docs ship with the repo under docs/python/ (site built via Cloudflare Pages)
