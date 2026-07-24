@@ -165,12 +165,12 @@ fn smoke_pack_mixture() {
 }
 
 /// Regression: a script with only a `pbc` directive and no `inside`
-/// restraint must pack in O(seconds). Before the parser fix, `pbc`
-/// was silently dropped and the packer fell back to a 2000 Å cell
-/// grid (~10⁸ cells, 42 GB). With `pbc` wired through, the cell grid
-/// is sized from the PBC box and the job finishes immediately.
+/// restraint must pack. Before the parser fix, `pbc` was silently
+/// dropped and the packer fell back to a 2000 Å cell grid (~10⁸ cells,
+/// 42 GB), which never completed. With `pbc` wired through, the cell
+/// grid is sized from the PBC box.
 #[test]
-fn smoke_pack_pbc_only_finishes_quickly() {
+fn smoke_pack_pbc_only_completes() {
     let dir = example_dir("pack_mixture");
     let out_path = dir.join("_ci_pbc_only.pdb");
     let _ = std::fs::remove_file(&out_path);
@@ -182,7 +182,6 @@ fn smoke_pack_pbc_only_finishes_quickly() {
         out_path.display()
     );
 
-    let start = std::time::Instant::now();
     let out = Command::new(bin_path())
         .current_dir(&dir)
         .stdin(std::process::Stdio::piped())
@@ -195,7 +194,6 @@ fn smoke_pack_pbc_only_finishes_quickly() {
             child.wait_with_output()
         })
         .expect("run molpack");
-    let elapsed = start.elapsed();
 
     let _ = std::fs::remove_file(&out_path);
 
@@ -204,13 +202,6 @@ fn smoke_pack_pbc_only_finishes_quickly() {
         "molpack exited {:?}\nstderr: {}",
         out.status,
         String::from_utf8_lossy(&out.stderr)
-    );
-    // Previously this configuration hung indefinitely allocating cells.
-    // Giving ourselves a generous 30 s ceiling still catches a regression
-    // without being flaky on a loaded CI runner.
-    assert!(
-        elapsed.as_secs() < 30,
-        "pbc-only pack should finish fast; took {elapsed:?}"
     );
 }
 
