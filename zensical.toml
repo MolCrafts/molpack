@@ -1,6 +1,8 @@
 [project]
 site_name = "molpack"
 site_description = "Packmol-grade molecular packing in pure Rust, with Python bindings."
+# Site is built by Cloudflare Pages (pip install "molcrafts-molpack[doc]" + zensical).
+# Keep site_url in sync with the Cloudflare custom domain when one is set.
 site_url = "https://molcrafts.github.io/molpack/"
 repo_url = "https://github.com/MolCrafts/molpack"
 repo_name = "MolCrafts/molpack"
@@ -69,8 +71,8 @@ language = "en"
 # from `extra.alternate` (theme partial partials/alternate.html). The `url`
 # filter passes absolute paths through unchanged, so each `link` carries the
 # site's base path (`/molpack/`, matching site_url) to stay correct from every
-# page and depth on GitHub Pages. The zh pages are placeholders for now — no
-# docs are translated yet.
+# page and depth. The zh pages are placeholders for now — no docs are
+# translated yet.
 [project.extra]
 alternate = [
   { name = "English", link = "/molpack/", lang = "en" },

@@ -1,6 +1,6 @@
 [package]
 name = "molpack-python"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.91"
 authors = ["MolCrafts"]
@@ -17,7 +17,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.28", features = ["extension-module"] }
 numpy = "0.28"
 ndarray = "0.17"
-molpack = { path = "..", package = "molcrafts-molpack", version = "0.1.1" }
+molpack = { path = "..", package = "molcrafts-molpack", version = "0.2.0" }
 # Same crate (and version) molpack links, so frame types unify across the wheel.
 # The merged `molcrafts-molrs` crate exposes core at its root with default
 # features off (matching molpack's dependency), so the wheel stays io/ff-free.
