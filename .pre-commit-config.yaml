@@ -1,5 +1,5 @@
-# Lint on commit; test gates on pre-push share scripts/ with CI.
-#   pre-commit install   # installs both types via default_install_hook_types
+# Managed by prek (drop-in pre-commit replacement): `prek install`
+# Lint on commit; test gates on pre-push (same commands as .github/workflows/ci.yml).
 default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -38,19 +38,25 @@ repos:
         files: ^python/
         pass_filenames: false
 
-      # --- CI parity (pre-push): same scripts as .github/workflows/ci.yml ---
+      # CI parity (pre-push) — no scripts/; commands match ci.yml
       - id: rust-tests
-        name: rust tests (scripts/run-rust-tests.sh)
+        name: rust tests (CI parity)
         language: system
-        entry: bash scripts/run-rust-tests.sh
+        entry: >-
+          sh -c 'cargo test --features io --lib --tests --examples
+          && cargo test --test cli --features cli
+          && cargo check --no-default-features
+          && cargo check --features rayon
+          && cargo check --features ff
+          && cargo build --benches'
         pass_filenames: false
         always_run: true
         stages: [pre-push]
 
       - id: python-tests
-        name: python tests (isolated venv; scripts/run-python-tests.sh)
+        name: python tests (tox isolated, non-editable)
         language: system
-        entry: bash scripts/run-python-tests.sh
+        entry: tox -e py
         pass_filenames: false
         always_run: true
         stages: [pre-push]

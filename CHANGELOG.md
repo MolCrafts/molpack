@@ -16,9 +16,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Pinned runtime deps to `molcrafts-molrs==0.9.3` and `molcrafts-molpy==0.9.3`;
   CI checks out `MolCrafts/molrs@v0.9.3` for path builds.
-- Python CI / pre-push run `scripts/run-python-tests.sh`: throwaway venv,
-  non-editable wheel install, then delete the venv. Rust CI / pre-push share
-  `scripts/run-rust-tests.sh` with the workflow.
+- Python tests via `tox -e py` (isolated, non-editable wheel; no `scripts/`).
+  Git hooks use **prek** (pre-commit-compatible); pre-push mirrors CI.
 
 ### Changed (earlier)
 

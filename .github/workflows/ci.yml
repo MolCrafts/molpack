@@ -7,16 +7,13 @@ on:
   workflow_call:
   workflow_dispatch:
 
-# Pin sibling molrs to the same version as Cargo.toml / pyproject.toml.
-# Bump this when raising molcrafts-molrs / molcrafts-molpy.
+# Pin sibling molrs to the same version as Cargo.toml / python/pyproject.toml / tox.ini.
+# Bump together when raising molcrafts-molrs / molcrafts-molpy.
 env:
   MOLRS_GIT_REF: v0.9.3
-  MOLRS_PIN: "0.9.3"
-  MOLPY_PIN: "0.9.3"
 
-# Tests live in scripts/run-{rust,python}-tests.sh so pre-commit/pre-push
-# and this workflow share one implementation. Lint/format stay in
-# .pre-commit-config.yaml (commit stage).
+# Lint: prek + .pre-commit-config.yaml (commit stage).
+# Tests: same commands as prek pre-push hooks (no scripts/).
 
 jobs:
   test:
@@ -43,14 +40,18 @@ jobs:
       - name: Fetch test data
         run: bash scripts/fetch-test-data.sh
         working-directory: molrs
-      - name: Rust tests (scripts/run-rust-tests.sh)
-        run: bash scripts/run-rust-tests.sh
+      - name: Rust tests
         working-directory: molpack
+        run: |
+          set -euo pipefail
+          cargo test --features io --lib --tests --examples
+          cargo test --test cli --features cli
+          cargo check --no-default-features
+          cargo check --features rayon
+          cargo check --features ff
+          cargo build --benches
 
-  # Packmol regression suite — expensive (runs all five example workloads to
-  # convergence, up to ~1h for the spherical case), so it is skipped on pull
-  # requests and runs on master pushes, the release gate (workflow_call), and
-  # manual dispatch. CONTRIBUTING requires it green for restraint/objective work.
+  # Packmol regression suite — expensive; master / release / dispatch only.
   regression:
     name: packmol regression
     runs-on: ubuntu-latest
@@ -92,9 +93,8 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
-      - name: Python tests (isolated venv via scripts/run-python-tests.sh)
-        run: bash scripts/run-python-tests.sh
+      - name: tox -e py (isolated, non-editable)
         working-directory: molpack
-        env:
-          MOLRS_PIN: ${{ env.MOLRS_PIN }}
-          MOLPY_PIN: ${{ env.MOLPY_PIN }}
+        run: |
+          uv tool install tox
+          tox -e py

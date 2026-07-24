@@ -8,6 +8,8 @@ development environment, run tests, and get a PR merged.
 **Prerequisites:**
 - Rust 1.91+ (`rustup update stable`)
 - Python 3.12+ with `maturin` and `pytest` for the Python bindings (the wheel's `requires-python` is `>=3.12`)
+- [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
+- [tox](https://tox.wiki/) (`uv tool install tox`) for isolated Python tests
 - The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling:
 
 ```
@@ -16,11 +18,11 @@ workspace/
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a path dependency on `../molrs/molrs-core`. With the
+The root `Cargo.toml` uses a path dependency on `../molrs/molrs`. With the
 sibling layout above everything resolves automatically.
 
 **Version pins:** path molrs / PyPI `molcrafts-molrs` / `molcrafts-molpy` are
-fixed at **0.9.3** (see `Cargo.toml`, `python/pyproject.toml`, and
+fixed at **0.9.3** (see `Cargo.toml`, `python/pyproject.toml`, `tox.ini`, and
 `MOLRS_GIT_REF` in `.github/workflows/ci.yml`). Keep the sibling molrs clone
 on that version line (`git checkout v0.9.3` or the matching release branch).
 
@@ -30,8 +32,8 @@ on that version line (`git checkout v0.9.3` or the matching release branch).
 # Fetch test data used by the regression suite
 bash ../molrs/scripts/fetch-test-data.sh
 
-# Lint + pre-push CI parity hooks (rust + isolated python tests)
-pre-commit install
+# Git hooks via prek (reads .pre-commit-config.yaml)
+prek install
 
 # Verify the Rust build
 cargo build -p molcrafts-molpack
@@ -39,28 +41,29 @@ cargo build -p molcrafts-molpack
 
 ## Running tests
 
-CI and pre-push share the same scripts under `scripts/`:
+prek pre-push and CI run the **same** commands (no project `scripts/` wrappers):
 
 ```bash
-# Same as the CI "rust tests" job (not the long packmol regression)
-bash scripts/run-rust-tests.sh
+# Rust — same as CI "rust tests" job
+cargo test --features io --lib --tests --examples
+cargo test --test cli --features cli
+cargo check --no-default-features && cargo check --features rayon && cargo check --features ff
+cargo build --benches
 
-# Isolated throwaway venv: non-editable molrs (sibling) + molpack wheel + pytest
-bash scripts/run-python-tests.sh
+# Python — tox isolated env (non-editable molrs + molpack wheel)
+tox -e py
 
-# Packmol regression suite (requires test data, slow; CI master only)
+# Packmol regression (slow; CI master only)
 cargo test --release --features io --test examples_batch -- --ignored
 ```
 
 For a quick local edit loop you may still `maturin develop` in a personal
-venv; **do not** rely on that for the gate — pre-push always uses the
-isolated script above.
+venv; **do not** rely on that for the gate — pre-push always uses `tox -e py`.
 
 ## Code style
 
-- `cargo fmt` / `clippy` / `ruff` / `ty` — commit-stage pre-commit hooks
-- pre-push runs `scripts/run-{rust,python}-tests.sh` (same as CI)
-- Follow the immutability rule: return new values, never mutate in place
+- `cargo fmt` / `clippy` / `ruff` / `ty` — commit-stage prek hooks
+- pre-push: rust tests + `tox -e py` (mirrors CI)
 - Follow the immutability rule: return new values, never mutate in place
 - Keep files under ~400 lines; split at ~200 if the module grows beyond one concern
 - New public types must implement `Debug` and, where appropriate, `Clone`
@@ -86,14 +89,3 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
-
-## Pull request checklist
-
-All items in the PR template must be checked before requesting review. CI must
-be green. For restraint or objective changes, the Packmol regression suite
-(`examples_batch`) must also pass.
-
-## Licensing
-
-By contributing you agree that your contributions will be licensed under
-the BSD-3-Clause license that covers this project.
