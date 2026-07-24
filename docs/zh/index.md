@@ -44,102 +44,80 @@ hero:
 
 <h1 class="molcrafts-sr-only">molpack</h1>
 
-<div class="molcrafts-manual-home molpack-home" markdown>
+<div class="molcrafts-manual-home" markdown>
 
-<section class="molcrafts-manual-section molpack-system-section" markdown>
+<section class="molcrafts-manual-section molcrafts-manual-section--compact" markdown>
 
 <div class="molcrafts-manual-section__header" markdown>
 
-<span class="molcrafts-manual-eyebrow">核心模型</span>
+<span class="molcrafts-manual-eyebrow">从这里开始</span>
 
-## 分子模板、数量、约束 — 然后运行一次装填
+## 找到对应页面
 
-molpack 在每个入口下都围绕同一个固定装填任务：给出分子模板、副本数量、几何约束，
-以及可选的固定放置或周期边界；引擎返回一个满足距离和区域要求的装填构型。
+本页是手册索引，不是营销页。所有入口共用同一模型：分子模板、副本数量、几何约束，
+然后运行一次装填。
 
-</div>
+!!! note "中文内容"
+    中文首页为导航入口；详细章节目前以英文正文为主。语言切换在页眉下拉菜单。
 
-<div class="molpack-system-panel">
-<div class="molpack-system-panel__header">
-<span>一个引擎 · 四个入口</span>
-<strong>脚本用于可复现任务 · API 用于流水线 · handler 用于观测</strong>
-</div>
-<div class="molpack-system-flow">
-<div>
-<span>01 · Packmol 脚本</span>
-<a href="../cli/"><strong>运行 `.inp`：structure、number、inside、fixed、pbc</strong></a>
-</div>
-<div>
-<span>02 · Python API</span>
-<a href="../python/"><strong>从 frame 构造 target，在 notebook 中装填</strong></a>
-</div>
-<div>
-<span>03 · Rust API</span>
-<a href="../rust/"><strong>在 crate 里使用 Target 与 Molpack builder</strong></a>
-</div>
-<div>
-<span>04 · 自定义 handler</span>
-<a href="../rust/handlers-relaxers/"><strong>观测 step、导出轨迹，或提前停止</strong></a>
-</div>
-</div>
 </div>
 
-[快速开始](../getting_started/) 会装填第一个水盒子。有 `.inp` 时用
-[Packmol 脚本](../cli/)，在 notebook 与流水线里用 [Python](../python/)，嵌入
-原生应用时用 [Rust](../rust/)。
+<nav class="molcrafts-manual-index" aria-label="手册入口">
+  <a href="../install/">
+    <span>01</span>
+    <strong>安装</strong>
+    <em>CLI、crates.io 或 PyPI — 选一个入口并验证可运行。</em>
+  </a>
+  <a href="../getting_started/">
+    <span>02</span>
+    <strong>快速开始</strong>
+    <em>在 40&nbsp;Å 立方体中装填 100 个水分子，并读取收敛诊断。</em>
+  </a>
+  <a href="../cli/">
+    <span>03</span>
+    <strong>Packmol 脚本</strong>
+    <em>运行 `.inp`：structure、number、inside、fixed、pbc。</em>
+  </a>
+  <a href="../python/">
+    <span>04</span>
+    <strong>Python API</strong>
+    <em>从 frame 构造 target，在 notebook 与流水线中装填。</em>
+  </a>
+  <a href="../rust/">
+    <span>05</span>
+    <strong>Rust API</strong>
+    <em>在 crate 里使用 Target 与 Molpack builder。</em>
+  </a>
+  <a href="../rust/handlers-relaxers/">
+    <span>06</span>
+    <strong>Handlers</strong>
+    <em>观测 step、导出轨迹，或提前停止。</em>
+  </a>
+</nav>
 
 </section>
 
-<section class="molcrafts-manual-section molpack-results-section" markdown>
+<section id="workflows" class="molcrafts-manual-section" markdown>
 
 <div class="molcrafts-manual-section__header" markdown>
 
-<span class="molcrafts-manual-eyebrow">结果示意</span>
-
-## 引擎能装出什么
-
-受限溶质、界面分布、多组分盒子 — 同一套约束模型贯穿所有入口。
-
-</div>
-
-<div class="molpack-result-gallery">
-<figure class="molpack-result-figure">
-<img src="../assets/images/paper-confinement-sphere.png" alt="球形约束内的溶剂装填" loading="lazy" />
-<figcaption>球形约束 — 活动溶剂被限制在固定溶质周围的几何区域内。</figcaption>
-</figure>
-<figure class="molpack-result-figure">
-<img src="../assets/images/paper-compatibility-distributions.png" alt="界面密度分布匹配" loading="lazy" />
-<figcaption>相容性分布 — 集体 profile 约束将界面密度曲线匹配到目标分布。</figcaption>
-</figure>
-<figure class="molpack-result-figure molpack-result-figure--wide">
-<img src="../assets/images/paper-mt-scaling.png" alt="多线程装填墙钟时间缩放" loading="lazy" />
-<figcaption>并行评估 — 开启 rayon 后墙钟时间随体系规模的变化。</figcaption>
-</figure>
-</div>
-
-</section>
-
-<section class="molcrafts-manual-section" markdown>
-
-<div class="molcrafts-manual-section__header" markdown>
-
-<span class="molcrafts-manual-eyebrow">实际使用</span>
+<span class="molcrafts-manual-eyebrow">工作流</span>
 
 ## 同一个装填模型，四个入口
 
-所有入口都会落到同一个 target / count / restraint 模型。按工作流语言选择入口。
+所有入口都会落到 target / count / restraint。按现有工作流语言选择入口。
 
 </div>
 
-<div class="molcrafts-workflow-list molpack-workflow-list" markdown>
+<div class="molcrafts-workflow-list" markdown>
 
 <article markdown>
 
-<div class="molcrafts-workflow-list__meta">01 · Packmol 脚本</div>
+<div class="molcrafts-workflow-list__meta">路径 01 · 脚本</div>
 
-### [运行 `.inp` 任务](../cli/)
+### 运行 `.inp` 任务
 
-CLI 适合已经写成 Packmol 风格输入、需要纳入版本控制的可复现任务。
+适合已写成 Packmol 风格、需要纳入版本控制的可复现任务。见 [CLI](../cli/)。
 
 ```text
 structure water.pdb
@@ -152,11 +130,11 @@ end structure
 
 <article markdown>
 
-<div class="molcrafts-workflow-list__meta">02 · Python API</div>
+<div class="molcrafts-workflow-list__meta">路径 02 · Python</div>
 
-### [在 notebook 或流水线中装填](../python/)
+### 在 notebook 或流水线中装填
 
-加载或构造 frame，创建不可变 target，再把结果交给已有的写出或分析代码。
+加载或构造 frame，创建不可变 target，再把结果交给写出或分析代码。见 [Python](../python/)。
 
 ```python
 water = Target(frame, 100).with_restraint(
@@ -169,11 +147,11 @@ packed = Molpack().with_seed(42).pack([water])
 
 <article markdown>
 
-<div class="molcrafts-workflow-list__meta">03 · Rust API</div>
+<div class="molcrafts-workflow-list__meta">路径 03 · Rust</div>
 
-### [把引擎嵌入 crate](../rust/)
+### 把引擎嵌入 crate
 
-适合原生应用、服务、测试，以及引擎本身的新功能。
+适合原生应用、服务与测试。见 [Rust](../rust/)。
 
 ```rust
 let frame = Molpack::new()
@@ -185,11 +163,11 @@ let frame = Molpack::new()
 
 <article markdown>
 
-<div class="molcrafts-workflow-list__meta">04 · 自定义 handler</div>
+<div class="molcrafts-workflow-list__meta">路径 04 · Handler</div>
 
-### [观测或停止一次运行](../rust/handlers-relaxers/)
+### 观测或停止一次运行
 
-Handler 接收装填循环中的结构化事件，便于记录诊断、导出中间 frame 或请求提前停止。
+Handler 接收装填循环中的结构化事件。见 [Handlers](../rust/handlers-relaxers/)。
 
 ```rust
 impl Handler for WatchFdist {
@@ -209,39 +187,60 @@ impl Handler for WatchFdist {
 
 <div class="molcrafts-manual-section__header" markdown>
 
-<span class="molcrafts-manual-eyebrow">页面索引</span>
+<span class="molcrafts-manual-eyebrow">地图</span>
 
-## 手册
-
-**Tutorial** 讲通用装填模型；**Packmol 脚本**、**Python**、**Rust** 覆盖公开界面；
-**Handler** 讲观测与提前停止。
-
-!!! note "中文内容"
-    中文首页为导航入口；详细章节目前以英文正文为主。语言切换在页眉下拉菜单。
+## 手册结构
 
 </div>
 
-<div class="molcrafts-doc-map molpack-doc-map">
-<section>
-<h3><a href="../install/">安装</a></h3>
-<p>CLI、crates.io 与 PyPI — 选一个入口并验证可导入 / 可运行。</p>
+<div class="molcrafts-doc-map">
+  <section>
+    <h3>Tutorial</h3>
+    <p>安装、快速开始、概念、示例与 Packmol 对等说明。</p>
+  </section>
+  <section>
+    <h3>Packmol 脚本</h3>
+    <p>`.inp` 概览、脚本说明、格式与 CLI 示例。</p>
+  </section>
+  <section>
+    <h3>Python</h3>
+    <p>安装、targets、restraints、packer、PBC 与 API 参考。</p>
+  </section>
+  <section>
+    <h3>Rust</h3>
+    <p>Builder、约束、周期边界、handlers 与 relaxers。</p>
+  </section>
+  <section>
+    <h3>Development</h3>
+    <p>贡献流程、架构与扩展点。</p>
+  </section>
+</div>
+
 </section>
-<section>
-<h3><a href="../getting_started/">快速开始</a></h3>
-<p>在 40&nbsp;Å 立方体中装填 100 个水分子，并读取收敛诊断。</p>
-</section>
-<section>
-<h3><a href="../cli/">Packmol 脚本</a></h3>
-<p>兼容 `.inp`、文件格式、路径解析与 CLI 示例。</p>
-</section>
-<section>
-<h3><a href="../python/">Python API</a></h3>
-<p>Targets、restraints、packer、PBC、示例与 API 参考。</p>
-</section>
-<section>
-<h3><a href="../rust/">Rust API</a></h3>
-<p>Builder、约束作用域、周期边界、handlers、relaxers。</p>
-</section>
+
+<section class="molcrafts-manual-section molcrafts-manual-section--stack" markdown>
+
+<div class="molcrafts-manual-section__header" markdown>
+
+<span class="molcrafts-manual-eyebrow">入口</span>
+
+## 跳转到表面
+
+</div>
+
+<div class="molcrafts-manual-grid molcrafts-manual-grid--cols-3">
+  <a href="../cli/">
+    <strong>Packmol 脚本</strong>
+    <em>可复现的 `.inp` 任务。</em>
+  </a>
+  <a href="../python/">
+    <strong>Python</strong>
+    <em>Notebook 与流水线装填。</em>
+  </a>
+  <a href="../rust/">
+    <strong>Rust</strong>
+    <em>原生 builder 与 handler。</em>
+  </a>
 </div>
 
 </section>
