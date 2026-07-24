@@ -1,19 +1,26 @@
+# English documentation site.
+#
+# Multi-language follows Zensical's official model
+# (https://zensical.org/docs/setup/language/):
+#   - One project = one theme.language (HTML allows a single lang per document).
+#   - Other languages are separate builds + header language selector via
+#     [project.extra].alternate (absolute links).
+#   - Content trees live under docs/en and docs/zh; this file builds English.
+#
+# Build:  zensical build -f zensical.toml
+# Pair:   zensical build -f zensical.zh.toml
+# Deploy: publish site/en → …/en/ and site/zh → …/zh/ (and optional root → /en/).
+
 [project]
 site_name = "molpack"
 site_description = "Packmol-grade molecular packing in pure Rust, with Python bindings."
-# Dual-language layout (Zensical alternate + molexp pattern):
-#   docs/en → site/en   (this file)
-#   docs/zh → site/zh   (zensical.zh.toml)
-# Language switcher points at /en/ and /zh/ under site_url.
-site_url = "https://molcrafts.github.io/molpack/"
+# Per-language site root (Material / Zensical multi-language practice).
+site_url = "https://molcrafts.github.io/molpack/en/"
 repo_url = "https://github.com/MolCrafts/molpack"
 repo_name = "MolCrafts/molpack"
 copyright = "Copyright &copy; 2026 MolCrafts"
 docs_dir = "docs/en"
 site_dir = "site/en"
-
-# Markdown extensions are intentionally not listed: Zensical's built-in default
-# set already covers admonitions, tabbed blocks, and code annotations.
 
 nav = [
   { "Home" = "index.md" },
@@ -57,15 +64,18 @@ nav = [
 
 extra_css = ["assets/stylesheets/extra.css"]
 
+# https://zensical.org/docs/setup/language/#site-language
 [project.theme]
 name = "molcrafts"
 language = "en"
 
+# https://zensical.org/docs/setup/language/#site-language-selector
+# Absolute links (with host) so the /molpack/ project path is not dropped —
+# Zensical only prepends the *domain* of site_url when the link has no host.
 [project.extra]
-# Absolute path under site_url (domain prepended when link has no host).
 alternate = [
-  { name = "English", link = "/en/", lang = "en" },
-  { name = "简体中文", link = "/zh/", lang = "zh" },
+  { name = "English", link = "https://molcrafts.github.io/molpack/en/", lang = "en" },
+  { name = "简体中文", link = "https://molcrafts.github.io/molpack/zh/", lang = "zh" },
 ]
 
 [project.extra.molcrafts]

@@ -1,9 +1,15 @@
+# Chinese documentation site (pair of zensical.toml).
+#
+# Official multi-language model (https://zensical.org/docs/setup/language/):
+#   theme.language = "zh"  for this project only
+#   extra.alternate        language selector → absolute links to each build
+#
+# Build: zensical build -f zensical.zh.toml  →  site/zh
+
 [project]
-site_name = "molpack 手册"
+site_name = "molpack"
 site_description = "纯 Rust 实现的 Packmol 级分子装填，提供命令行、Python API 和 Rust API。"
-# Chinese site tree. Build with: zensical build -f zensical.zh.toml
-# Deploy beside English under site/zh so the language switcher /zh/ works.
-site_url = "https://molcrafts.github.io/molpack/"
+site_url = "https://molcrafts.github.io/molpack/zh/"
 repo_url = "https://github.com/MolCrafts/molpack"
 repo_name = "MolCrafts/molpack"
 copyright = "Copyright &copy; 2026 MolCrafts"
@@ -52,14 +58,16 @@ nav = [
 
 extra_css = ["assets/stylesheets/extra.css"]
 
+# https://zensical.org/docs/setup/language/#site-language
 [project.theme]
 name = "molcrafts"
 language = "zh"
 
+# https://zensical.org/docs/setup/language/#site-language-selector
 [project.extra]
 alternate = [
-  { name = "English", link = "/en/", lang = "en" },
-  { name = "简体中文", link = "/zh/", lang = "zh" },
+  { name = "English", link = "https://molcrafts.github.io/molpack/en/", lang = "en" },
+  { name = "简体中文", link = "https://molcrafts.github.io/molpack/zh/", lang = "zh" },
 ]
 
 [project.extra.molcrafts]
