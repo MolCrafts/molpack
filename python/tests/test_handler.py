@@ -22,7 +22,8 @@ def _two_water_frame() -> molrs.Frame:
                     "z": np.array([0.0, 0.0]),
                     "element": ["O", "H"],
                 }
-            }
+            },
+            "meta": {},
         }
     )
 

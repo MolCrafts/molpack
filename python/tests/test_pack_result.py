@@ -27,7 +27,8 @@ def _make_frame(
                     "z": positions[:, 2].copy(),
                     "element": elements,
                 }
-            }
+            },
+            "meta": {},
         }
     )
 
@@ -103,7 +104,8 @@ class TestFrameTopology:
                         "z": np.array([0.0, 0.0]),
                     },
                     "bonds": {"atomi": np.array([0]), "atomj": np.array([1])},
-                }
+                },
+                "meta": {},
             }
         )
 
@@ -171,7 +173,8 @@ class TestMolpackErrorPaths:
                         "z": positions[:, 2],
                         "element": ["X"],
                     }
-                }
+                },
+                "meta": {},
             }
         )
         target = molpack.Target(frame, 1).with_restraint(
@@ -200,7 +203,8 @@ class TestMultipleRestraints:
                         "z": positions[:, 2],
                         "element": ["X"],
                     }
-                }
+                },
+                "meta": {},
             }
         )
         target = (

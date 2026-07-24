@@ -7,7 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Python tests construct `molrs.Frame.from_dict` with both `"blocks"` and
+  `"meta"` (required by molrs 0.9.x).
+
 ### Changed
+
+- Pinned runtime deps to `molcrafts-molrs==0.9.3` and `molcrafts-molpy==0.9.3`;
+  CI checks out `MolCrafts/molrs@v0.9.3` for path builds.
+- Python CI / pre-push run `scripts/run-python-tests.sh`: throwaway venv,
+  non-editable wheel install, then delete the venv. Rust CI / pre-push share
+  `scripts/run-rust-tests.sh` with the workflow.
+
+### Changed (earlier)
 
 - Updated the Rust integration for molrs's chemical-perception reorganization:
   torsion relaxers now use `molrs::perceive::rotatable` after the removal of the

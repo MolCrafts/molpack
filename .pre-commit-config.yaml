@@ -1,3 +1,6 @@
+# Lint on commit; test gates on pre-push share scripts/ with CI.
+#   pre-commit install   # installs both types via default_install_hook_types
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -34,3 +37,20 @@ repos:
         entry: sh -c 'cd python && ty check python tests examples'
         files: ^python/
         pass_filenames: false
+
+      # --- CI parity (pre-push): same scripts as .github/workflows/ci.yml ---
+      - id: rust-tests
+        name: rust tests (scripts/run-rust-tests.sh)
+        language: system
+        entry: bash scripts/run-rust-tests.sh
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: python-tests
+        name: python tests (isolated venv; scripts/run-python-tests.sh)
+        language: system
+        entry: bash scripts/run-python-tests.sh
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

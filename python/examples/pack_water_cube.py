@@ -23,7 +23,8 @@ def main() -> None:
                     "z": np.zeros(3, dtype=np.float64),
                     "element": ["O", "H", "H"],
                 }
-            }
+            },
+            "meta": {},
         }
     )
 

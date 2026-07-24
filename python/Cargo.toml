@@ -24,7 +24,7 @@ molpack = { path = "..", package = "molcrafts-molpack", version = "0.1.1" }
 molrs = { path = "../../molrs/molrs", package = "molcrafts-molrs", version = "0.9.3", default-features = false }
 # Stable FFI handle layer. molpack resolves molrs/molpy Python objects to
 # `molrs_ffi::{FrameRef, ForceFieldRef}` capsules (zero-copy) instead of dict
-# marshalling — see `src/interop.rs`. Pinned to the same 0.7.0 molrs-python
+# marshalling — see `src/interop.rs`. Pinned to the same 0.9.3 molrs-python
 # links, so the handle types and the `molrs::Frame` they lend share one layout
 # (path+version managed manually, per project convention).
 molrs-ffi = { path = "../../molrs/molrs-ffi", package = "molcrafts-molrs-ffi", version = "0.9.3" }

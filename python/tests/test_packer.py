@@ -23,7 +23,8 @@ def _make_frame(
                     "z": positions[:, 2].copy(),
                     "element": elements,
                 }
-            }
+            },
+            "meta": {},
         }
     )
 
@@ -39,7 +40,8 @@ def _make_two_atom_frame() -> molrs.Frame:
                     "z": positions[:, 2].copy(),
                     "element": ["O", "H"],
                 }
-            }
+            },
+            "meta": {},
         }
     )
 
@@ -65,7 +67,10 @@ class TestTargetConstructor:
 
     def test_missing_atoms_block_raises(self):
         with pytest.raises((ValueError, KeyError)):
-            molpack.Target(molrs.Frame.from_dict({"blocks": {}}), 1)
+            molpack.Target(
+                molrs.Frame.from_dict({"blocks": {}, "meta": {}}),
+                1,
+            )
 
     def test_missing_x_column_raises(self):
         frame = molrs.Frame.from_dict(
@@ -76,7 +81,8 @@ class TestTargetConstructor:
                         "z": np.array([0.0]),
                         "element": ["X"],
                     }
-                }
+                },
+                "meta": {},
             }
         )
         with pytest.raises(ValueError, match='"x"'):
@@ -96,7 +102,8 @@ class TestTargetConstructor:
                             "z": np.array([0.0, 0.0], dtype=np.float64),
                             "element": ["X", "X"],
                         }
-                    }
+                    },
+                    "meta": {},
                 }
             )
 
@@ -291,7 +298,8 @@ class TestMolpackPack:
                         "z": np.zeros(3, dtype=np.float64),
                         "element": ["O", "H", "H"],
                     }
-                }
+                },
+                "meta": {},
             }
         )
         target = (
