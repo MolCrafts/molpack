@@ -22,7 +22,7 @@ The root `Cargo.toml` uses a path dependency on `../molrs/molrs`. With the
 sibling layout above everything resolves automatically.
 
 **Version pins:** path molrs / PyPI `molcrafts-molrs` / `molcrafts-molpy` are
-fixed at **0.9.3** (see `Cargo.toml`, `python/pyproject.toml`, `tox.ini`, and
+fixed at **0.9.3** (see `Cargo.toml`, `python/pyproject.toml` `[tool.tox]`, and
 `MOLRS_GIT_REF` in `.github/workflows/ci.yml`). Keep the sibling molrs clone
 on that version line (`git checkout v0.9.3` or the matching release branch).
 
@@ -50,8 +50,8 @@ cargo test --test cli --features cli
 cargo check --no-default-features && cargo check --features rayon && cargo check --features ff
 cargo build --benches
 
-# Python — tox isolated env (non-editable molrs + molpack wheel)
-tox -e py
+# Python — tox isolated env (config in python/pyproject.toml [tool.tox])
+tox -c python -e py
 
 # Packmol regression (slow; CI master only)
 cargo test --release --features io --test examples_batch -- --ignored

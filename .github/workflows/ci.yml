@@ -7,7 +7,7 @@ on:
   workflow_call:
   workflow_dispatch:
 
-# Pin sibling molrs to the same version as Cargo.toml / python/pyproject.toml / tox.ini.
+# Pin sibling molrs to the same version as Cargo.toml / python/pyproject.toml [tool.tox].
 # Bump together when raising molcrafts-molrs / molcrafts-molpy.
 env:
   MOLRS_GIT_REF: v0.9.3
@@ -93,8 +93,8 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
-      - name: tox -e py (isolated, non-editable)
+      - name: tox -c python -e py (isolated, non-editable)
         working-directory: molpack
         run: |
           uv tool install tox
-          tox -e py
+          tox -c python -e py
