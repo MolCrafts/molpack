@@ -53,6 +53,10 @@ dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
+  # Gate driver (prek pre-push / CI): install with `uv sync --group dev`
+  # then `uv run --group dev tox -c python -e py` from repo root, or
+  # `uv run --group dev tox -e py` from python/.
+  "tox>=4.23",
 ]
 # Documentation build. Zensical is the static-site generator; it reads the
 # single site config at ../zensical.toml (the Python binding docs live under

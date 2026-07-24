@@ -9,7 +9,8 @@ development environment, run tests, and get a PR merged.
 - Rust 1.91+ (`rustup update stable`)
 - Python 3.12+ with `maturin` and `pytest` for the Python bindings (the wheel's `requires-python` is `>=3.12`)
 - [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
-- [tox](https://tox.wiki/) (`uv tool install tox`) for isolated Python tests
+- [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
+  `python/` dependency-group `dev`, not a separate global install)
 - The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling:
 
 ```
@@ -50,20 +51,21 @@ cargo test --test cli --features cli
 cargo check --no-default-features && cargo check --features rayon && cargo check --features ff
 cargo build --benches
 
-# Python — tox isolated env (config in python/pyproject.toml [tool.tox])
-tox -c python -e py
+# Python — tox isolated env (tox itself from python/ dependency-group dev)
+uv run --directory python --group dev tox -e py
 
 # Packmol regression (slow; CI master only)
 cargo test --release --features io --test examples_batch -- --ignored
 ```
 
 For a quick local edit loop you may still `maturin develop` in a personal
-venv; **do not** rely on that for the gate — pre-push always uses `tox -e py`.
+venv; **do not** rely on that for the gate — pre-push always uses
+`uv run --directory python --group dev tox -e py`.
 
 ## Code style
 
 - `cargo fmt` / `clippy` / `ruff` / `ty` — commit-stage prek hooks
-- pre-push: rust tests + `tox -e py` (mirrors CI)
+- pre-push: rust tests + `uv run … tox -e py` (mirrors CI)
 - Follow the immutability rule: return new values, never mutate in place
 - Keep files under ~400 lines; split at ~200 if the module grows beyond one concern
 - New public types must implement `Debug` and, where appropriate, `Clone`

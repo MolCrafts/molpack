@@ -56,7 +56,8 @@ repos:
       - id: python-tests
         name: python tests (tox isolated, non-editable)
         language: system
-        entry: tox -c python -e py
+        # tox comes from python/pyproject.toml dependency-group `dev`
+        entry: uv run --directory python --group dev tox -e py
         pass_filenames: false
         always_run: true
         stages: [pre-push]

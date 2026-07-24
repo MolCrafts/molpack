@@ -62,8 +62,10 @@ for frame loading, then builds targets from the loaded frame (the PyO3
 - **Configuration is Packmol `.inp` only.** Do not invent TOML / YAML configs.
 - **molrs path + version pins are managed manually.** Do not automate the check in pre-commit / CI.
 - **prek + tox for local gates.** Hooks use prek (pre-commit-compatible config).
-  No project `scripts/` test wrappers. Python isolation is `tox -e py` only.
-  Prefer registry-hosted hooks (`doublify/pre-commit-rust`, `astral-sh/ruff`).
+  No project `scripts/` test wrappers. Python isolation is
+  `uv run --directory python --group dev tox -e py` (tox lives in
+  `python/` dependency-group `dev`). Prefer registry-hosted hooks
+  (`doublify/pre-commit-rust`, `astral-sh/ruff`).
 - **Git workflow:** fork → PR. Never push directly to `MolCrafts/molpack` master. `origin` = Roy-Kid fork, `upstream` = MolCrafts.
 
 ## Coding style

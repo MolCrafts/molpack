@@ -93,8 +93,6 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
-      - name: tox -c python -e py (isolated, non-editable)
+      - name: tox -e py via python dev group (isolated, non-editable)
         working-directory: molpack
-        run: |
-          uv tool install tox
-          tox -c python -e py
+        run: uv run --directory python --group dev tox -e py
