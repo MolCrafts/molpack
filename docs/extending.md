@@ -333,6 +333,12 @@ Handler notes:
 Goal: a relaxer that tries random rigid-body translations and accepts
 if the objective decreases.
 
+![Confinement placement with a custom pivot-MC relaxer](assets/images/paper-confinement-sphere.png)
+
+The confinement example is a molpack extension workflow, not a Packmol parity
+claim: a custom pivot-MC relaxer folds flexible PEO chains before packing, so
+the same engine can place them inside a tight spherical cavity.
+
 ```no_run
 use molrs::Frame;
 use molrs::types::F;

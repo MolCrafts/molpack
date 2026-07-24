@@ -11,7 +11,7 @@
 //! - [`TorsionMcRelaxer`]: Monte Carlo torsion angle sampling for flexible molecules.
 
 use molrs::Frame;
-use molrs::chem::rotatable::{
+use molrs::perceive::rotatable::{
     RotatableBond, atom_id_to_index, detect_rotatable_bonds_with_downstream,
 };
 use molrs::system::atomistic::Atomistic;
@@ -458,7 +458,7 @@ fn rng_usize(rng: &mut dyn RngCore, max: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use molrs::chem::rotatable::RotatableBond;
+    use molrs::perceive::rotatable::RotatableBond;
     use molrs::system::molgraph::Atom;
 
     /// Build a chain MolGraph (topology only, no coords needed) + zigzag coords.

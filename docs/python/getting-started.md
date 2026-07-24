@@ -1,4 +1,4 @@
-# Getting Started
+# Quickstart
 
 A minimal end-to-end pack: 100 water molecules inside a 40 Å cube.
 

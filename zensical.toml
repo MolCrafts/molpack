@@ -16,33 +16,45 @@ site_dir = "site"
 
 nav = [
   { "Home" = "index.md" },
-  { "Get Started" = [
+  { "Tutorial" = [
     { "Install" = "install.md" },
-    { "Getting Started" = "getting_started.md" },
-  ] },
-  { "Guide" = [
+    { "Quickstart" = "getting_started.md" },
     { "Concepts" = "concepts.md" },
     { "Examples" = "examples.md" },
     { "Packmol Parity" = "packmol_parity.md" },
   ] },
+  { "CLI" = [
+    "cli/index.md",
+    { "Packmol Script Notes" = "cli/script-format.md" },
+    { "Formats" = "cli/formats.md" },
+    { "Examples" = "cli/examples.md" },
+  ] },
   { "Python" = [
     "python/index.md",
     { "Installation" = "python/installation.md" },
-    { "Getting Started" = "python/getting-started.md" },
-    { "Guide" = [
-      "python/guide/targets.md",
-      "python/guide/restraints.md",
-      "python/guide/packer.md",
-      "python/guide/periodic-boundaries.md",
-    ] },
+    { "Quickstart" = "python/getting-started.md" },
+    { "Targets" = "python/guide/targets.md" },
+    { "Restraints" = "python/guide/restraints.md" },
+    { "Packer" = "python/guide/packer.md" },
+    { "Periodic Boundaries" = "python/guide/periodic-boundaries.md" },
     { "Examples" = "python/examples.md" },
     { "API Reference" = "python/api-reference.md" },
   ] },
-  { "Internals" = [
+  { "Rust" = [
+    "rust/index.md",
+    { "Quickstart" = "rust/getting-started.md" },
+    { "Restraints and PBC" = "rust/restraints-and-pbc.md" },
+    { "Handlers and Relaxers" = "rust/handlers-relaxers.md" },
+    { "Examples" = "rust/examples.md" },
+  ] },
+  { "Development" = [
+    "development/index.md",
     { "Architecture" = "architecture.md" },
     { "Extending" = "extending.md" },
   ] },
 ]
+
+extra_css = ["assets/stylesheets/extra.css"]
 
 # Shared MolCrafts theme (github.com/MolCrafts/molcrafts-zensical-theme). Provides
 # the brand palette, light/dark schemes, navigation features, and the home-page
@@ -51,6 +63,19 @@ nav = [
 [project.theme]
 name = "molcrafts"
 language = "en"
+
+# Language selector. English is the default and lives at the site root; a
+# Chinese (zh) tree lives under docs/zh/. Zensical renders the header dropdown
+# from `extra.alternate` (theme partial partials/alternate.html). The `url`
+# filter passes absolute paths through unchanged, so each `link` carries the
+# site's base path (`/molpack/`, matching site_url) to stay correct from every
+# page and depth on GitHub Pages. The zh pages are placeholders for now — no
+# docs are translated yet.
+[project.extra]
+alternate = [
+  { name = "English", link = "/molpack/", lang = "en" },
+  { name = "简体中文", link = "/molpack/zh/", lang = "zh" },
+]
 
 # Selects the molpack accent (rust orange) for links, hovers, and hero eyebrows.
 [project.extra.molcrafts]

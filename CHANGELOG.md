@@ -5,6 +5,22 @@ All notable changes to `molcrafts-molpack` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Updated the Rust integration for molrs's chemical-perception reorganization:
+  torsion relaxers now use `molrs::perceive::rotatable` after the removal of the
+  compatibility `molrs::chem` module.
+- Aligned the force-field relaxer documentation and regression coverage with
+  molrs's generic MMFF94 pipeline (`typify` → typed frame →
+  `intramolecular_pairs` → `ForceField::to_potentials`) and the renamed
+  `MMFF94Typifier` API.
+- Updated nonbonded force-field coverage for molrs's explicit `coul/cut`
+  contract: force fields now provide their Coulomb constant and dielectric
+  instead of relying on kernel-owned physical defaults.
+- Updated post-pack relaxation references to molpy's `LAMMPSEngine` API.
+
 ## [0.1.1] - 2026-07-08
 
 ### Changed

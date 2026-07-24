@@ -27,12 +27,16 @@ cargo add molcrafts-molpack
 **Python**
 
 ```bash
-pip install molcrafts-molpack molcrafts-molrs
+pip install molcrafts-molpack
 ```
 
 ## CLI
 
-The `molpack` binary accepts the same `.inp` script format as Packmol, making it a drop-in replacement. Relative file paths in the script are resolved against the script's own directory (file-arg mode) or the current directory (stdin mode).
+The `molpack` binary accepts Packmol-style `.inp` scripts. Use the official
+[Packmol user guide](https://m3g.github.io/packmol/userguide.shtml) as the
+script-language reference; molpack documents only invocation behavior and
+extensions here. Relative file paths in the script are resolved against the
+script's own directory (file-arg mode) or the current directory (stdin mode).
 
 ```bash
 # File argument (paths resolved relative to the .inp file's directory)
@@ -43,46 +47,17 @@ molpack < mixture.inp
 cat mixture.inp | molpack
 ```
 
-**Supported `.inp` keywords**
+**molpack script additions**
 
-| Keyword | Description |
+| Addition | Description |
 |---|---|
-| `tolerance <f>` | Minimum atom–atom distance (Å). Default 2.0 |
-| `seed <n>` | Random seed for reproducibility |
-| `filetype <fmt>` | Input format for all structure files |
-| `output <path>` | Output file path (format inferred from extension) |
-| `nloop <n>` | Maximum outer-loop iterations. Default 400 |
-| `pbc x y z` / `pbc x0 y0 z0 x1 y1 z1` | Periodic box: side lengths from origin, or explicit min+max |
-| `avoid_overlap <no\|false\|0>` | Reject initial placements that land inside a fixed molecule (default on; faithful to Packmol's `initial.f90`) |
-| `structure <file>` … `end structure` | One block per molecule type |
-| `number <n>` | Copies to pack |
-| `inside\|outside box x0 y0 z0 x1 y1 z1` | Axis-aligned box restraint |
-| `inside\|outside cube x0 y0 z0 d` | Axis-aligned cube (origin corner + side) |
-| `inside\|outside sphere cx cy cz r` | Sphere restraint |
-| `inside\|outside ellipsoid a1 a2 a3 b1 b2 b3 c` | Ellipsoid (center, semi-axes, exponent) |
-| `inside\|outside cylinder a1 a2 a3 d1 d2 d3 r l` | Finite cylinder (center, axis, radius, length) |
-| `over\|above plane nx ny nz d` | Half-space (above) restraint |
-| `below plane nx ny nz d` | Half-space (below) restraint |
-| `center` | Center molecule at origin before packing |
-| `fixed x y z ex ey ez` | Fix molecule at position + Euler angles |
-| `atoms i j …` … `end atoms` | Per-atom-subset restraints |
+| `avoid_overlap <no\|false\|0>` | Disable the default fixed-solute initial-placement guard. Leave it on unless you need to reproduce a less guarded initialization. |
+| `filetype sdf` | Read SDF/MOL inputs. Read-only. |
+| `filetype lammps_dump` | Read LAMMPS dump inputs and write `.lammpstrj` outputs. |
+| `filetype lammps_data` | Read LAMMPS data inputs. Read-only. |
 
-All 12 box/cube/sphere/ellipsoid/cylinder/plane restraints are reachable from
-both whole-molecule and `atoms … end atoms` blocks. The Gaussian-surface
-restraints (`AboveGaussianRestraint` / `BelowGaussianRestraint`) are available
-through the Rust/Python API but not yet exposed as `.inp` keywords. To drive a
-whole species onto a target spatial distribution, use the collective
-`ProfileMatch` restraint via the Rust/Python API (`with_collective_restraint`).
-
-**Extended format support** — beyond Packmol's PDB/XYZ, molpack also reads SDF/MOL, LAMMPS dump, and LAMMPS data files. Set `filetype` to `sdf`, `lammps_dump`, or `lammps_data`, or use the matching file extension:
-
-| Format | Read | Write | Extension / filetype |
-|---|---|---|---|
-| PDB | ✓ | ✓ | `.pdb` / `pdb` |
-| XYZ | ✓ | ✓ | `.xyz` / `xyz` |
-| SDF / MOL | ✓ | — | `.sdf`, `.mol` / `sdf` |
-| LAMMPS dump | ✓ | ✓ | `.lammpstrj` / `lammps_dump` |
-| LAMMPS data | ✓ | — | `.data` / `lammps_data` |
+Unknown top-level keywords are rejected instead of ignored. Output format is
+inferred from the `output` extension.
 
 ## Quick start
 

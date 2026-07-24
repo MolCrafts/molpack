@@ -28,13 +28,13 @@ in-tree.
 For notebooks and pipelines:
 
 ```bash
-pip install molcrafts-molpack molcrafts-molrs
+pip install molcrafts-molpack
 ```
 
-`molcrafts-molrs` provides `molrs.Frame` plus PDB / XYZ readers — the
-Python wheel itself is I/O-free and relies on your installed
-`molcrafts-molrs` for all frame loading. Python 3.12 or newer is
-required.
+`molcrafts-molrs` is installed as a dependency of `molcrafts-molpack`.
+It provides `molrs.Frame` plus PDB / XYZ readers. The Python wheel itself
+is I/O-free and relies on `molrs` for frame loading and writing. Python
+3.12 or newer is required.
 
 ```python
 import molpack
@@ -71,5 +71,5 @@ this is the right path for contributor workflows.
 
 ## Next steps
 
-After verifying the install, run a first pack from
-[Getting Started](getting_started.md).
+After verifying the install, run a first pack from the
+[Quickstart](getting_started.md).

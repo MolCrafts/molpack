@@ -30,12 +30,13 @@ print(f"packed {frame['atoms'].nrows} atoms")
 ## Next steps
 
 - [Installation](installation.md) — pip install and verification.
-- [Getting Started](getting-started.md) — first pack end-to-end.
-- User Guide:
-  [Targets](guide/targets.md) ·
-  [Restraints](guide/restraints.md) ·
-  [Packer](guide/packer.md) ·
-  [Periodic boundaries](guide/periodic-boundaries.md)
+- [Quickstart](getting-started.md) — first pack end-to-end.
+- [Targets](guide/targets.md) — molecule templates, counts, fixed placement,
+  and atom-subset restraints.
+- [Restraints](guide/restraints.md) — geometric and collective restraints.
+- [Packer](guide/packer.md) — builder options, diagnostics, and handlers.
+- [Periodic boundaries](guide/periodic-boundaries.md) — PBC semantics and
+  validation rules.
 - [Examples](examples.md) — five Packmol-equivalent workloads.
 - [API Reference](api-reference.md) — class-by-class summary.
 
@@ -44,7 +45,7 @@ print(f"packed {frame['atoms'].nrows} atoms")
 - Rust crate: [`molcrafts-molpack`](https://crates.io/crates/molcrafts-molpack)
   — the underlying engine. All algorithmic details are documented there.
 - [`molcrafts-molrs`](https://pypi.org/project/molcrafts-molrs/) —
-  companion package for file I/O (PDB, XYZ, …) and the `Frame` data
-  model. Pass a `molrs.Frame` directly to `Target`; no manual array
-  extraction needed. `Molpack.pack()` returns a Frame-compatible
-  structure for the writer of your choice.
+  installed dependency that provides file I/O (PDB, XYZ, …) and the `Frame`
+  data model. Pass a `molrs.Frame` directly to `Target`; no manual array
+  extraction needed. `Molpack.pack()` returns a Frame-compatible structure
+  for the writer of your choice.

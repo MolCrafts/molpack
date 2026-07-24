@@ -5,6 +5,27 @@ J. Comput. Chem. 2009`). Coordinates are not byte-identical with the
 same seed, but functional equivalence is enforced on five canonical
 workloads.
 
+For script syntax, use the official
+[Packmol user guide](https://m3g.github.io/packmol/userguide.shtml). This page
+is about parity checks, accepted differences, and molpack-specific extensions.
+
+## Paper figures
+
+### Canonical workloads
+
+![Packmol and molpack distribution checks across canonical examples](assets/images/paper-compatibility-distributions.png)
+
+The five Packmol examples are run unchanged through Packmol and molpack.
+Coordinate identity is not the target; valid packing and matching spatial
+distributions are.
+
+### Thread scaling
+
+![Multithreaded objective-kernel scaling](assets/images/paper-mt-scaling.png){ .molpack-figure-small }
+
+The fused objective-and-gradient kernel is too small to parallelize profitably
+for tiny systems, then crosses over and scales on larger systems.
+
 ## What is matched
 
 **Objective structure**

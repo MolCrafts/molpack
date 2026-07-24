@@ -44,6 +44,60 @@ Each `impl Restraint` picks one internally. User-defined restraints
 may ignore both knobs and use their own stiffness coefficient as an
 instance field.
 
+## CollectiveRestraint
+
+A [`CollectiveRestraint`](crate::restraint::Restraint) is a
+**group-level** penalty — unlike [`AtomRestraint`](#atomrestraint), which sees one atom
+at a time and contributes an independent external field Σᵢ U(xᵢ), a
+collective restraint sees *every* copy of a species at once and returns a
+single penalty whose gradient is **coupled across the whole group**:
+
+```text
+pub trait Restraint: Send + Sync + std::fmt::Debug {
+    fn f (&self, coords: &[[F; 3]], scale: F, scale2: F) -> F;
+    fn fg(&self, coords: &[[F; 3]], scale: F, scale2: F, grads: &mut [[F; 3]]) -> F;
+    fn is_parallel_safe(&self) -> bool { true }
+    fn name(&self) -> &'static str { std::any::type_name::<Self>() }
+}
+```
+
+`coords` and `grads` have equal length — one entry per atom in the group.
+The gradient convention mirrors [`AtomRestraint`](#atomrestraint): `fg` accumulates INTO
+`grads[i]` with `+=`.
+
+### Why collective?
+
+A per-atom field built from a target density ρ\* (e.g. Boltzmann inversion
+U = −kT·ln ρ\*) is minimised by driving *every* site to the single minimum
+of U — the mode of ρ\* — so the sites collapse onto the peak instead of
+spreading over the distribution. A collective penalty over the whole
+species that matches the empirical distribution to a target profile via
+the squared 1-D Wasserstein (sorted-CDF) distance has the correct fixed
+point: *empirical distribution = target*.
+
+### Geometry × distribution cross-product
+
+Every member of this family matches a target distribution of a scalar
+reaction coordinate ξ defined by a **geometry**, via the Wasserstein
+engine. The two axes are orthogonal:
+
+- **Geometry** — maps Cartesian coordinates to ξ and scatters ∂L/∂ξ back:
+  `plane` (ξ = signed distance to a plane → slab profile), `point`
+  (ξ = distance to a centre → radial profile).
+- **Distribution** — the target quantile function q(p) = F⁻¹(p):
+  Gaussian, exponential, or tabulated (arbitrary user-supplied profile).
+
+Concrete types are the cross product, named `<Distribution><Geometry>`:
+
+| | Gaussian | Exponential | Tabulated |
+|---|---|---|---|
+| Plane | `GaussianPlane` | `ExponentialPlane` | `TabulatedPlane` |
+| Point | `GaussianPoint` | `ExponentialPoint` | `TabulatedPoint` |
+
+Attach with `Target::with_collective_restraint(r)`. A `TabulatedPlane`
+with a histogram from a target simulation is the one-line way to drive a
+species toward an experimentally-observed density profile.
+
 ## Region
 
 A [`Region`](crate::Region) is a **geometric predicate** with a signed
