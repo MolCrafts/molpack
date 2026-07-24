@@ -77,7 +77,8 @@ def _packed_dimers():
                     "atomj": np.array([1], dtype=np.int64),
                     "type": ["C-C"],
                 },
-            }
+            },
+            "meta": {},
         }
     )
     lo, hi = [0.0, 0.0, 0.0], [22.0, 22.0, 22.0]

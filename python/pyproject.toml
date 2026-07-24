@@ -4,12 +4,18 @@ build-backend = "maturin"
 
 [project]
 name = "molcrafts-molpack"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python bindings for molpack molecular packing (Packmol port)"
 requires-python = ">=3.12"
 readme = "README.md"
 license = "BSD-3-Clause"
-dependencies = ["numpy>=2.0", "typer>=0.12", "molcrafts-molrs>=0.7.0", "molcrafts-molpy>=0.7.0"]
+# Exact pins — keep in lockstep with Cargo.toml, [tool.tox], and CI MOLRS_GIT_REF.
+dependencies = [
+  "numpy>=2.0",
+  "typer>=0.12",
+  "molcrafts-molrs==0.9.3",
+  "molcrafts-molpy==0.9.3",
+]
 
 # Installable "extra" carrying the docs-build deps. Unlike the [dependency-groups]
 # doc group below (dev/CI-only, installs deps but not the package), an extra ships
@@ -18,8 +24,8 @@ dependencies = ["numpy>=2.0", "typer>=0.12", "molcrafts-molrs>=0.7.0", "molcraft
 # That is the build command a Cloudflare Pages Git-integration build should use.
 [project.optional-dependencies]
 doc = [
-  "zensical>=0.0.45",
-  "molcrafts-zensical-theme>=0.1.1",
+  "zensical>=0.0.51",
+  "molcrafts-zensical-theme>=0.2.3",
 ]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
@@ -32,7 +38,7 @@ typecheck = [
   "ty",
   "typer>=0.12",
   "numpy>=2.0",
-  "molcrafts-molrs>=0.7.0",
+  "molcrafts-molrs==0.9.3",
   # `ty check` walks tests/ which imports pytest.
   "pytest",
 ]
@@ -40,12 +46,17 @@ test = [
   "pytest",
   "typer>=0.12",
   "numpy>=2.0",
-  "molcrafts-molrs>=0.7.0",
+  "molcrafts-molrs==0.9.3",
+  "molcrafts-molpy==0.9.3",
 ]
 dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
+  # Gate driver (prek pre-push / CI): install with `uv sync --group dev`
+  # then `uv run --group dev tox -c python -e py` from repo root, or
+  # `uv run --group dev tox -e py` from python/.
+  "tox>=4.23",
 ]
 # Documentation build. Zensical is the static-site generator; it reads the
 # single site config at ../zensical.toml (the Python binding docs live under
@@ -53,9 +64,9 @@ dev = [
 # `theme.name = "molcrafts"` — the shared MolCrafts brand extension, now on
 # PyPI, so the docs build is reproducible from this group alone.
 doc = [
-  "zensical>=0.0.45",
+  "zensical>=0.0.51",
   # The molcrafts docs theme (zensical.toml sets `theme.name = "molcrafts"`).
-  "molcrafts-zensical-theme>=0.1.1",
+  "molcrafts-zensical-theme>=0.2.3",
 ]
 
 [project.scripts]
@@ -113,3 +124,68 @@ python-version = "3.12"
 # tests import _common via sys.path.insert at runtime; ty cannot follow dynamic
 # path manipulation, so we declare the examples dir as an extra source root.
 extra-paths = ["examples"]
+
+# Isolated binding tests — prek pre-push + CI call: `tox -c python -e py`
+# Non-editable only: sibling molrs path install + maturin wheel + pytest.
+# Requires ../../molrs at workspace version 0.9.3 (CI: MolCrafts/molrs@v0.9.3).
+[tool.tox]
+requires = ["tox>=4.23"]
+env_list = ["py"]
+no_package = true
+
+[tool.tox.env.py]
+description = "throwaway env: non-editable molrs + molpack wheel + pytest"
+base_python = ["python3.12"]
+deps = [
+  "maturin>=1.0,<2.0",
+  "pytest",
+  "numpy>=2.0",
+  "typer>=0.12",
+  "molcrafts-molpy==0.9.3",
+]
+pass_env = [
+  "HOME",
+  "PATH",
+  "CARGO_HOME",
+  "CARGO_TARGET_DIR",
+  "RUSTUP_HOME",
+  "RUSTFLAGS",
+  "MACOSX_DEPLOYMENT_TARGET",
+  "SSH_AUTH_SOCK",
+  "TERM",
+]
+allowlist_externals = ["maturin"]
+# toxinidir is python/ when config lives here; sibling molrs is ../.. /molrs.
+commands_pre = [
+  [
+    "{envpython}",
+    "-c",
+    "import tomllib; from pathlib import Path; p=Path('{toxinidir}')/'..'/'..'/'molrs'/'Cargo.toml'; v=tomllib.loads(p.read_text())['workspace']['package']['version']; assert v=='0.9.3', f'sibling molrs {{v}} != 0.9.3'",
+  ],
+  [
+    "{envpython}",
+    "-m",
+    "pip",
+    "install",
+    "{toxinidir}/../../molrs/molrs-python",
+  ],
+  [
+    "{envpython}",
+    "-c",
+    "import importlib.metadata as m; v=m.version('molcrafts-molrs'); assert v=='0.9.3', v",
+  ],
+  ["maturin", "build", "--release", "-o", "{env_tmp_dir}/wheels"],
+  [
+    "{envpython}",
+    "-c",
+    "from pathlib import Path; import subprocess, sys; w=next(Path(r'{env_tmp_dir}/wheels').glob('molcrafts_molpack-*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', '--no-deps', str(w)])",
+  ],
+  [
+    "{envpython}",
+    "-c",
+    "import molpack, pathlib; r=pathlib.Path(molpack.__file__).resolve(); assert 'site-packages' in str(r), r",
+  ],
+]
+commands = [
+  ["{envpython}", "-m", "pytest", "-v"],
+]

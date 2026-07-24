@@ -13,8 +13,6 @@
 
 use molpack::objective::{compute_f, compute_fg};
 use molpack::{F, PackContext};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 /// Same synthetic water-in-a-box builder as `benches/pair_kernel.rs`.
 /// Kept in-crate so the equivalence test uses the same workload shape
@@ -232,3 +230,6 @@ fn pack_seed_parity_serial_vs_parallel() {
     }
     eprintln!("pack_seed_parity: max coord diff = {max_err:e}");
 }
+use rand::RngExt;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

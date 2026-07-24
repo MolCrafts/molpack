@@ -28,7 +28,8 @@ def _ion_frame() -> molrs.Frame:
                     "z": np.array([0.0]),
                     "element": ["NA"],
                 }
-            }
+            },
+            "meta": {},
         }
     )
 

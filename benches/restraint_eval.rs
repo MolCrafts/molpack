@@ -15,8 +15,6 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use molpack::{AtomRestraint, F, InsideBoxRestraint, InsideSphereRestraint};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 /// Small point batch: enough to amortize call overhead, still << 1 s total.
 const N_POINTS: usize = 128;
@@ -95,3 +93,6 @@ fn bench_restraint_eval(c: &mut Criterion) {
 
 criterion_group!(benches, bench_restraint_eval);
 criterion_main!(benches);
+use rand::RngExt;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

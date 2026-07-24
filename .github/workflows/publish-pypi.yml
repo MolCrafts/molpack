@@ -10,6 +10,10 @@ permissions:
   contents: read
   id-token: write
 
+# Keep in lockstep with ci.yml / Cargo.toml molrs pin.
+env:
+  MOLRS_GIT_REF: v0.9.3
+
 # Build matrix produces one wheel per OS per supported Python (3.12, 3.13),
 # matching `requires-python = ">=3.12"` in pyproject.toml. Linux + macOS only;
 # each macOS wheel is universal2 so a single artifact covers both Apple Silicon
@@ -34,6 +38,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:
@@ -62,6 +67,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:
@@ -86,6 +92,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:

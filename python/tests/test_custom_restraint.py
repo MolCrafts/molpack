@@ -26,7 +26,8 @@ def _single_atom_frame() -> molrs.Frame:
                     "z": np.array([0.0]),
                     "element": ["O"],
                 }
-            }
+            },
+            "meta": {},
         }
     )
 

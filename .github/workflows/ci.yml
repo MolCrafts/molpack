@@ -7,12 +7,51 @@ on:
   workflow_call:
   workflow_dispatch:
 
-# CI is a tests-only gate. Formatting and linting (cargo fmt + clippy,
-# ruff-format + ruff, ty) are enforced by the pre-commit hooks in
-# `.pre-commit-config.yaml`, which use first-party registry-hosted tooling.
-# Keeping CI focused on the test suites avoids duplicating those checks here.
+# Pin sibling molrs to the same version as Cargo.toml / python/pyproject.toml [tool.tox].
+# Bump together when raising molcrafts-molrs / molcrafts-molpy.
+env:
+  MOLRS_GIT_REF: v0.9.3
+
+# Lint: same as prek commit-stage hooks in .pre-commit-config.yaml.
+# Tests: same commands as prek pre-push hooks (no scripts/).
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
+          path: molrs
+      - uses: actions/checkout@v6
+        with:
+          path: molpack
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: molpack
+      - uses: astral-sh/setup-uv@v6
+      - name: Rust fmt + clippy (pre-commit parity)
+        working-directory: molpack
+        run: |
+          set -euo pipefail
+          # Package roots only (avoid path-dep molrs noise from `cargo fmt --all`).
+          cargo fmt -- --check
+          cargo fmt --manifest-path python/Cargo.toml -- --check
+          cargo clippy --all-targets --all-features -- -D warnings
+      - name: Ruff + ty (pre-commit parity)
+        working-directory: molpack
+        run: |
+          set -euo pipefail
+          # Paths relative to python/ (matches local `cd python && ty check …`).
+          uv run --directory python --group typecheck ruff format --check python tests examples
+          uv run --directory python --group typecheck ruff check python tests examples
+          uv run --directory python --group typecheck ty check python tests examples
+
   test:
     name: rust tests
     runs-on: ubuntu-latest
@@ -20,6 +59,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:
@@ -36,32 +76,18 @@ jobs:
       - name: Fetch test data
         run: bash scripts/fetch-test-data.sh
         working-directory: molrs
-      - name: Test (library + integration + examples)
-        # `io` is on so the example programs and the io-gated integration tests
-        # (incl. the `examples_batch` regression harness, which only *runs* under
-        # `--ignored`) are compiled here — without it they are silently skipped.
-        run: cargo test --features io --lib --tests --examples
+      - name: Rust tests
         working-directory: molpack
-      - name: Test CLI (cli feature)
-        run: cargo test --test cli --features cli
-        working-directory: molpack
-      - name: Feature-gate checks (no-default-features / rayon / ff)
         run: |
+          set -euo pipefail
+          cargo test --features io --lib --tests --examples
+          cargo test --test cli --features cli
           cargo check --no-default-features
           cargo check --features rayon
           cargo check --features ff
-        working-directory: molpack
-      # Compile-check the criterion regression benches on every PR (the full
-      # timed run happens on canonical pushes in bench.yml). The benches
-      # synthesize their own geometry, so no `io` feature is needed.
-      - name: Build benches (rot guard)
-        run: cargo build --benches
-        working-directory: molpack
+          cargo build --benches
 
-  # Packmol regression suite — expensive (runs all five example workloads to
-  # convergence, up to ~1h for the spherical case), so it is skipped on pull
-  # requests and runs on master pushes, the release gate (workflow_call), and
-  # manual dispatch. CONTRIBUTING requires it green for restraint/objective work.
+  # Packmol regression suite — expensive; master / release / dispatch only.
   regression:
     name: packmol regression
     runs-on: ubuntu-latest
@@ -70,6 +96,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:
@@ -89,6 +116,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: MolCrafts/molrs
+          ref: ${{ env.MOLRS_GIT_REF }}
           path: molrs
       - uses: actions/checkout@v6
         with:
@@ -101,11 +129,6 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
-      - name: Build + test Python bindings
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv pip install --group dev
-          maturin develop --release
-          pytest -v
-        working-directory: molpack/python
+      - name: tox -e py via python dev group (isolated, non-editable)
+        working-directory: molpack
+        run: uv run --directory python --group dev tox -e py

@@ -84,7 +84,7 @@ class LAMMPSRelaxer:
         Args:
             target: A ``PackResult`` (its ``.frame`` is used) or a ``molrs.Frame``.
                 The frame must carry a periodic box.
-            **options: Forwarded to :meth:`molpy.engine.LAMMPS.minimize`
+            **options: Forwarded to :meth:`molpy.engine.LAMMPSEngine.minimize`
                 (``etol``, ``ftol``, ``max_iter``, ``max_eval``, ``pair_style``,
                 ``workdir``, ...).
         """
@@ -95,7 +95,7 @@ class LAMMPSRelaxer:
 
         Args:
             target: A ``PackResult`` or a ``molrs.Frame`` with a periodic box.
-            **options: Forwarded to :meth:`molpy.engine.LAMMPS.md`
+            **options: Forwarded to :meth:`molpy.engine.LAMMPSEngine.md`
                 (``ensemble``, ``steps``, ``temperature``, ``timestep``, ...).
         """
         return self._run("md", target, options)

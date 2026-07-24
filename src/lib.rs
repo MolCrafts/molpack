@@ -82,7 +82,7 @@
 //!   with [`script::StructurePlan::apply`] instead.
 //! - `cli` — build the `molpack` binary and its integration tests (pulls in
 //!   `clap` and implies `io`).
-//! - `ff` — pull in molrs's `ff` module (MMFF typifier + L-BFGS) and enable the
+//! - `ff` — pull in molrs's `ff` module (MMFF94/MMFF94s typifiers + L-BFGS) and enable the
 //!   `LBFGSRelaxer`, which relaxes a flexible molecule's internal geometry
 //!   during packing under a caller-supplied force field.
 //!

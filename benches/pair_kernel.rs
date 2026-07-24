@@ -18,8 +18,6 @@ use std::time::Duration;
 use criterion::{Criterion, criterion_group, criterion_main};
 use molpack::objective::{compute_f, compute_fg};
 use molpack::{F, PackContext};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 /// Small representative size: keeps the whole bench << 1 s.
 const N_MOLS: usize = 30;
@@ -137,3 +135,6 @@ fn bench_pair_kernel(c: &mut Criterion) {
 
 criterion_group!(benches, bench_pair_kernel);
 criterion_main!(benches);
+use rand::RngExt;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

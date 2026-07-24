@@ -61,7 +61,11 @@ for frame loading, then builds targets from the loaded frame (the PyO3
 - **No "packmol" in any public symbol or module name.** The product is `molpack`. The script format happens to be Packmol-compatible. Doc-comment prose may mention Packmol; identifiers may not.
 - **Configuration is Packmol `.inp` only.** Do not invent TOML / YAML configs.
 - **molrs path + version pins are managed manually.** Do not automate the check in pre-commit / CI.
-- **Pre-commit and CI use first-party tooling.** No bespoke `scripts/check-*.sh` glue. Prefer registry-hosted hooks (`doublify/pre-commit-rust`, `astral-sh/ruff`).
+- **prek + tox for local gates.** Hooks use prek (pre-commit-compatible config).
+  No project `scripts/` test wrappers. Python isolation is
+  `uv run --directory python --group dev tox -e py` (tox lives in
+  `python/` dependency-group `dev`). Prefer registry-hosted hooks
+  (`doublify/pre-commit-rust`, `astral-sh/ruff`).
 - **Git workflow:** fork → PR. Never push directly to `MolCrafts/molpack` master. `origin` = Roy-Kid fork, `upstream` = MolCrafts.
 
 ## Coding style

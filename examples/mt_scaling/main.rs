@@ -32,8 +32,6 @@ use std::time::{Duration, Instant};
 
 use molpack::objective::compute_fg;
 use molpack::{F, PackContext};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 /// Number density (atoms / Å³) held constant across sizes so the comparison is
 /// weak-scaling: cell occupancy — and therefore work-per-cell — stays fixed and
@@ -342,3 +340,6 @@ fn main() {
         run_size(s);
     }
 }
+use rand::RngExt;
+use rand::SeedableRng;
+use rand::rngs::SmallRng;

@@ -46,7 +46,7 @@ MOLRS_PACK_EXAMPLE_XYZ=1      cargo run --release --example pack_mixture --featu
 ## Run the Python examples
 
 The Python examples mirror the Rust ones and load their structure files
-through the user's `molcrafts-molrs` install:
+through the `molrs` dependency installed with molpack:
 
 ```bash
 cd python

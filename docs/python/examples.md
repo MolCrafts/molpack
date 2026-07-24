@@ -13,10 +13,10 @@ equivalent Rust example (same RNG seed → identical final coordinates).
 | `pack_spherical.py`   | `spherical.inp`   | nested spheres, double-layer shell |
 | `pack_solvprotein.py` | `solvprotein.inp` | fixed solute solvated by water + ions |
 
-All examples require `molcrafts-molrs`:
+Install molpack once; the `molrs` dependency comes with it:
 
 ```bash
-pip install molcrafts-molrs
+pip install molcrafts-molpack
 ```
 
 `pack_water_cube.py` builds its frame in memory with `molrs.Frame.from_dict`

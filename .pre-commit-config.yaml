@@ -1,6 +1,9 @@
+# Managed by prek (drop-in pre-commit replacement): `prek install`
+# Lint on commit; test gates on pre-push (same commands as .github/workflows/ci.yml).
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -11,7 +14,7 @@ repos:
         args: [--fix=lf]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.6
+    rev: v0.16.0
     hooks:
       - id: ruff-format
         files: ^python/
@@ -34,3 +37,27 @@ repos:
         entry: sh -c 'cd python && ty check python tests examples'
         files: ^python/
         pass_filenames: false
+
+      # CI parity (pre-push) — no scripts/; commands match ci.yml `test` + `python`
+      - id: rust-tests
+        name: rust tests (CI parity)
+        language: system
+        entry: >-
+          sh -c 'cargo test --features io --lib --tests --examples
+          && cargo test --test cli --features cli
+          && cargo check --no-default-features
+          && cargo check --features rayon
+          && cargo check --features ff
+          && cargo build --benches'
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: python-tests
+        name: python tests (tox isolated, non-editable)
+        language: system
+        # tox comes from python/pyproject.toml dependency-group `dev`
+        entry: uv run --directory python --group dev tox -e py
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

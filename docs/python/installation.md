@@ -12,16 +12,17 @@ The PyPI package `molcrafts-molpack` installs a Python module named `molpack`:
 import molpack
 ```
 
-Pre-built wheels are published for CPython 3.12–3.13 on Linux (x86_64,
-aarch64), macOS (x86_64, arm64), and Windows (x86_64).
+Pre-built wheels are published for CPython **3.12** and **3.13** on Linux
+(manylinux x86-64) and macOS (universal2). Other platforms fall back to the
+sdist and need a Rust toolchain to build locally.
 
-## With `molcrafts-molrs` (recommended)
+## Frame I/O
 
-`molpack` accepts `molrs.Frame` objects directly — the recommended way
-to load PDB and XYZ files:
+`molcrafts-molpack` installs `molcrafts-molrs` as a dependency. The
+importable `molrs` module provides the frame type plus PDB and XYZ readers:
 
 ```bash
-pip install molcrafts-molpack molcrafts-molrs
+pip install molcrafts-molpack
 ```
 
 ```python
@@ -37,9 +38,8 @@ water = (
 frame = Molpack().with_seed(42).pack([water], max_loops=200)
 ```
 
-`Target` takes a `molrs.Frame` (or a `molpy.Frame`), resolved zero-copy
-through its FFI capsule, so one of `molcrafts-molrs` / `molcrafts-molpy`
-is required to build targets from a structure.
+`Target` takes a `molrs.Frame` or `molpy.Frame`, resolved zero-copy through
+its FFI capsule.
 
 ## Building from source
 

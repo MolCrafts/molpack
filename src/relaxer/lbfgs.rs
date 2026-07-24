@@ -11,11 +11,13 @@
 //! swapped in when it does **not** worsen the packer objective, so the relaxer
 //! is a strict non-harm operation with respect to GENCAN convergence.
 //!
-//! The force field itself is supplied by the caller as an `Arc<dyn Potential>`:
-//! build it from a real molecule via `molrs::ff::typifier::mmff::MMFFTypifier`,
-//! or hand-assemble one from the `molrs::ff::potential` kernels. Keeping the
-//! potential caller-supplied means molpack stays agnostic to the chemistry and
-//! the user controls the force field.
+//! The caller can supply either a pre-built `Arc<dyn Potential>` or a molrs
+//! [`ForceField`]. A force field is compiled lazily against the target's typed
+//! [`Frame`] when packing starts. For MMFF94, obtain that pair through
+//! `MMFF94Typifier::typify(...).to_frame()` and
+//! `MMFF94Typifier::ff().clone()`. Molpack then owns the consumer side of the
+//! standard molrs chain: build `intramolecular_pairs` on the typed frame and
+//! call `ForceField::to_potentials`.
 //!
 //! [`TorsionMcRelaxer`]: crate::relaxer::TorsionMcRelaxer
 
@@ -26,7 +28,7 @@ use molrs::ff::ForceField;
 use molrs::ff::potential::{Potential, intramolecular_pairs};
 use molrs::optimize::{LBFGS, LbfgsConfig};
 use molrs::types::F;
-use rand::RngCore;
+use rand::Rng;
 
 use super::{Relaxer, RelaxerRunner, recenter};
 
@@ -181,7 +183,7 @@ impl RelaxerRunner for LBFGSRelaxerRunner {
         coords: &[[F; 3]],
         f_current: F,
         evaluate: &mut dyn FnMut(&[[F; 3]]) -> F,
-        _rng: &mut dyn RngCore,
+        _rng: &mut dyn Rng,
     ) -> Option<Vec<[F; 3]>> {
         // No compiled potential (no frame, or force-field compilation failed) →
         // nothing to relax against; leave the geometry unchanged.
@@ -447,6 +449,61 @@ mod tests {
     }
 
     #[test]
+    fn mmff94_uses_the_generic_typify_to_potentials_path() {
+        use molrs::ff::typifier::mmff::MMFF94Typifier;
+        use molrs::system::molgraph::PropValue;
+        use molrs::{AtomId, Atomistic};
+
+        fn bond(mol: &mut Atomistic, a: AtomId, b: AtomId, order: F) {
+            let id = mol.add_bond(a, b).expect("add bond");
+            mol.set_bond_prop(id, "order", PropValue::F64(order))
+                .expect("set bond order");
+        }
+
+        // Ethylene is the smallest convenient molecule that exercises MMFF's
+        // bonded, improper, torsion, van der Waals, and electrostatic styles.
+        let mut mol = Atomistic::new();
+        let atoms = [
+            ("C", [0.000, 0.000, 0.0]),
+            ("C", [1.330, 0.000, 0.0]),
+            ("H", [-0.570, 0.925, 0.0]),
+            ("H", [-0.570, -0.925, 0.0]),
+            ("H", [1.900, 0.925, 0.0]),
+            ("H", [1.900, -0.925, 0.0]),
+        ];
+        let ids: Vec<_> = atoms
+            .iter()
+            .map(|(symbol, [x, y, z])| mol.add_atom_xyz(symbol, *x, *y, *z))
+            .collect();
+        bond(&mut mol, ids[0], ids[1], 2.0);
+        bond(&mut mol, ids[0], ids[2], 1.0);
+        bond(&mut mol, ids[0], ids[3], 1.0);
+        bond(&mut mol, ids[1], ids[4], 1.0);
+        bond(&mut mol, ids[1], ids[5], 1.0);
+
+        let typifier = MMFF94Typifier::new();
+        let frame = typifier.typify(&mol).expect("typify ethylene").to_frame();
+        let potential = compile_forcefield(typifier.ff(), Some(&frame))
+            .expect("molpack should compile the current generic MMFF route");
+
+        let atoms = frame.get("atoms").expect("atoms block");
+        let (x, y, z) = (
+            atoms.get_float("x").expect("x"),
+            atoms.get_float("y").expect("y"),
+            atoms.get_float("z").expect("z"),
+        );
+        let coords: Vec<F> = (0..x.len()).flat_map(|i| [x[i], y[i], z[i]]).collect();
+        let (energy, forces) = potential.calc_energy_forces(&coords);
+
+        assert!(
+            energy.is_finite(),
+            "MMFF energy must be finite, got {energy}"
+        );
+        assert_eq!(forces.len(), coords.len());
+        assert!(forces.iter().all(|force| force.is_finite()));
+    }
+
+    #[test]
     fn from_forcefield_with_nonbonded_compiles_and_relaxes() {
         use molrs::store::block::Block;
         use molrs::types::U;
@@ -460,7 +517,10 @@ mod tests {
             .def_type("c3-c3", &[("k", 300.0), ("r0", 1.5)]);
         ff.def_pairstyle("lj/cut", &[])
             .def_type("c3", &[("epsilon", 0.05), ("sigma", 2.0)]);
-        ff.def_pairstyle("coul/cut", &[]);
+        // `coul/cut` no longer invents physical force-field constants. The
+        // force field must choose its Coulomb constant and dielectric; `delta`
+        // and `cutoff` retain their semantic defaults (unbuffered / unbounded).
+        ff.def_pairstyle("coul/cut", &[("coulomb", 332.06371), ("dielectric", 1.0)]);
 
         // A 4-atom c3 chain with charges, bonds stretched to 1.6 (r0 = 1.5).
         let mut frame = Frame::new();

@@ -46,7 +46,8 @@ class TestConstraintStackingOnTarget:
                         "z": np.array([0.0]),
                         "element": ["O"],
                     }
-                }
+                },
+                "meta": {},
             }
         )
 
