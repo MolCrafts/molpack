@@ -1,0 +1,474 @@
+# Extending the Crate
+
+Tutorials for writing your own `AtomRestraint` / `Region` / `Handler` /
+`Relaxer` types. Every extension trait in this crate follows the same
+shape (direction-3 rule — see [`concepts`](crate::concepts)):
+
+> `pub trait X` + N concrete `pub struct` types implementing it.
+> User types `impl X` identically. No built-in/plugin type-level
+> distinction.
+
+## Custom `AtomRestraint`
+
+Goal: pull atoms toward a target plane with a quadratic attractive
+well.
+
+### Step 1 — define the struct
+
+```rust
+use molrs::types::F;
+# use molpack::AtomRestraint;
+
+#[derive(Debug, Clone, Copy)]
+pub struct PlaneTether {
+    pub normal: [F; 3],
+    pub offset: F,
+    pub k: F,
+}
+# impl AtomRestraint for PlaneTether {
+#     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
+#     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
+# }
+```
+
+- `pub` fields — users construct with `PlaneTether { normal, offset,
+  k }`, no builder.
+- `Debug` required because [`AtomRestraint`](crate::AtomRestraint) has a
+  `Debug` supertrait bound (so `Target`'s derived `Debug` keeps
+  working).
+
+### Step 2 — implement `AtomRestraint`
+
+```rust
+# use molrs::types::F;
+# use molpack::AtomRestraint;
+# #[derive(Debug)]
+# pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
+impl AtomRestraint for PlaneTether {
+    fn f(&self, pos: &[F; 3], _scale: F, _scale2: F) -> F {
+        let d = self.normal[0] * pos[0]
+              + self.normal[1] * pos[1]
+              + self.normal[2] * pos[2]
+              - self.offset;
+        0.5 * self.k * d * d
+    }
+    fn fg(&self, pos: &[F; 3], scale: F, scale2: F, g: &mut [F; 3]) -> F {
+        let d = self.normal[0] * pos[0]
+              + self.normal[1] * pos[1]
+              + self.normal[2] * pos[2]
+              - self.offset;
+        g[0] += self.k * d * self.normal[0];
+        g[1] += self.k * d * self.normal[1];
+        g[2] += self.k * d * self.normal[2];
+        self.f(pos, scale, scale2)
+    }
+}
+```
+
+Three contracts that all restraints must obey:
+
+1. **Gradient accumulates with `+=`.** Multiple restraints may touch
+   the same atom.
+2. **`fg` returns the value.** The hot path uses the returned value
+   for the `fdist`/`frest` accumulation — don't return `0.0` just
+   because the caller might discard it.
+3. **Scale/scale2 usage is your choice.** Linear-penalty restraints
+   typically use `scale`; quadratic-penalty ones use `scale2`. Your
+   tether uses its own `k` — ignore both knobs if you prefer.
+
+### Step 3 — write a gradient test
+
+```no_run
+# use molrs::types::F;
+# use molpack::AtomRestraint;
+# #[derive(Debug)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
+# impl AtomRestraint for PlaneTether {
+#     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
+#     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
+# }
+#[test]
+fn plane_tether_gradient_matches_fd() {
+    let r = PlaneTether { normal: [0.0, 0.0, 1.0], offset: 5.0, k: 2.0 };
+    let x = [1.0, 2.0, 7.0];
+    let mut g = [0.0; 3];
+    let _ = r.fg(&x, 1.0, 1.0, &mut g);
+    let h: F = 1e-5;
+    for k in 0..3 {
+        let mut xp = x; xp[k] += h;
+        let mut xm = x; xm[k] -= h;
+        let fd = (r.f(&xp, 1.0, 1.0) - r.f(&xm, 1.0, 1.0)) / (2.0 * h);
+        assert!(
+            (g[k] - fd).abs() < 1e-4,
+            "axis {k}: analytic={}, fd={}", g[k], fd,
+        );
+    }
+}
+```
+
+Convention: `ε = 1e-5`, tolerance `1e-3` (looser if the restraint has
+kinks).
+
+### Step 4 — use it
+
+```no_run
+# use molrs::types::F;
+# use molpack::AtomRestraint;
+# #[derive(Debug, Clone, Copy)] pub struct PlaneTether { pub normal: [F; 3], pub offset: F, pub k: F }
+# impl AtomRestraint for PlaneTether {
+#     fn f(&self, _x: &[F; 3], _s: F, _s2: F) -> F { 0.0 }
+#     fn fg(&self, _x: &[F; 3], _s: F, _s2: F, _g: &mut [F; 3]) -> F { 0.0 }
+# }
+use molpack::{InsideBoxRestraint, Target};
+# let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
+
+let target = Target::from_coords(pos, rad, 100)
+    .with_restraint(InsideBoxRestraint::new([0.0; 3], [40.0; 3], [false; 3]))
+    .with_restraint(PlaneTether { normal: [0.0, 0.0, 1.0], offset: 20.0, k: 1.0 });
+```
+
+Built-in `InsideBoxRestraint` and user `PlaneTether` take the same
+code path — direction-3 in action.
+
+### In Python — the same restraint, duck-typed
+
+The interfaces are also exposed to Python through a *duck-typed* protocol: a
+restraint is any object exposing `f` and `fg`, and the packer consumes it on the
+same code path as a built-in. That makes Python the natural place to *prototype*
+a restraint the input grammar can't express — a few lines, no recompile — and
+then, once it earns its place, swap in the native equivalent with the driver
+script unchanged.
+
+A duck-typed restraint is any object exposing `f` and `fg`. The Python protocol
+differs from the Rust trait in exactly one way: `fg` **returns**
+`(energy, (gx, gy, gz))` instead of accumulating into a `&mut [F; 3]` — the
+binding does the `+=` for you. The contracts are otherwise identical: `fg`
+returns the energy, the gradient is the chain rule `(dU/dξ)·∇ξ`, a linear-energy
+penalty rides `scale` (a quadratic one `scale2`). A missing `f` or `fg` is
+rejected at attach time with a `TypeError`, and an exception raised inside `fg`
+propagates back out of `pack`. The `PlaneTether` above, duck-typed in Python:
+
+```python
+import numpy as np
+
+class PlaneTether:
+    """Pull a site toward the plane z = offset (a per-site geometric bias)."""
+    def __init__(self, normal, offset, k):
+        n = np.asarray(normal, float)
+        self.n, self.offset, self.k = n / np.linalg.norm(n), offset, k
+
+    def f(self, x, scale, scale2):
+        d = float(self.n @ np.asarray(x, float)) - self.offset
+        return scale * 0.5 * self.k * d * d
+
+    def fg(self, x, scale, scale2):
+        d = float(self.n @ np.asarray(x, float)) - self.offset
+        g = scale * self.k * d * self.n
+        return scale * 0.5 * self.k * d * d, (float(g[0]), float(g[1]), float(g[2]))
+```
+
+Attach it with `with_atom_restraint` (a site subset) or `with_restraint` (every
+copy), and pack.
+
+> **A per-site field cannot reproduce a distribution.** It is tempting to build a
+> per-site penalty from a target density `ρ*` (e.g. Boltzmann inversion
+> `U = −kT·ln ρ*`) to make sites *follow* `ρ*`. This fails under packing's energy
+> **minimisation**: `∑ᵢ U(xᵢ)` is minimised by driving *every* site to the single
+> minimum of `U` — the mode of `ρ*` — so the sites collapse onto the peak instead
+> of spreading over the distribution. To drive a whole species onto a target
+> profile, use a **collective** restraint (`Target.with_collective_restraint`,
+> e.g. the built-in `ProfileMatch`), whose penalty is a function of the entire
+> group and whose gradient couples the copies, so the fixed point is *empirical
+> distribution = target*.
+
+## Custom `Region`
+
+Goal: a conical region with apex at origin, axis along +z,
+half-angle 30°.
+
+```rust
+use molrs::types::F;
+# use molpack::Region;
+
+#[derive(Debug, Clone, Copy)]
+pub struct ConeRegion {
+    pub apex: [F; 3],
+    pub axis: [F; 3],
+    pub half_angle_cos: F,
+}
+
+impl Region for ConeRegion {
+    fn contains(&self, x: &[F; 3]) -> bool {
+        self.signed_distance(x) <= 0.0
+    }
+    fn signed_distance(&self, x: &[F; 3]) -> F {
+        let dx = x[0] - self.apex[0];
+        let dy = x[1] - self.apex[1];
+        let dz = x[2] - self.apex[2];
+        let r = (dx * dx + dy * dy + dz * dz).sqrt();
+        if r < 1e-12 { return 0.0; }
+        let axis_dot =
+            (dx * self.axis[0] + dy * self.axis[1] + dz * self.axis[2]) / r;
+        self.half_angle_cos - axis_dot
+    }
+    // Default FD gradient is OK for prototypes. Override analytically
+    // for hot-path use — see below.
+}
+```
+
+### Compose with built-ins
+
+```no_run
+# use molrs::types::F;
+# use molpack::Region;
+# #[derive(Debug, Clone, Copy)]
+# pub struct ConeRegion { pub apex: [F; 3], pub axis: [F; 3], pub half_angle_cos: F }
+# impl Region for ConeRegion {
+#     fn contains(&self, _x: &[F; 3]) -> bool { true }
+#     fn signed_distance(&self, _x: &[F; 3]) -> F { 0.0 }
+# }
+use molpack::{InsideSphereRegion, RegionExt, RegionRestraint, Target};
+# let (pos, rad) = (&[[0.0; 3]][..], &[1.0][..]);
+
+let cone = ConeRegion {
+    apex: [0.0; 3],
+    axis: [0.0, 0.0, 1.0],
+    half_angle_cos: (std::f64::consts::PI / 6.0).cos(),
+};
+let sphere = InsideSphereRegion::new([0.0; 3], 10.0);
+let region = cone.and(sphere);
+
+let target = Target::from_coords(pos, rad, 100)
+    .with_restraint(RegionRestraint(region));
+```
+
+[`RegionExt::and`](crate::RegionExt::and) / `or` / `not` come from a
+blanket impl on every `Region`. The resulting type
+`And<ConeRegion, InsideSphereRegion>` is static-dispatch — no heap.
+
+### Analytic gradient override
+
+For hot-path use, override `signed_distance_grad` analytically. The
+cone above:
+
+```rust
+# use molrs::types::F;
+# use molpack::Region;
+# #[derive(Debug, Clone, Copy)]
+# pub struct ConeRegion { pub apex: [F; 3], pub axis: [F; 3], pub half_angle_cos: F }
+# impl Region for ConeRegion {
+#     fn contains(&self, _x: &[F; 3]) -> bool { true }
+#     fn signed_distance(&self, _x: &[F; 3]) -> F { 0.0 }
+fn signed_distance_grad(&self, x: &[F; 3]) -> [F; 3] {
+    let dx = x[0] - self.apex[0];
+    let dy = x[1] - self.apex[1];
+    let dz = x[2] - self.apex[2];
+    let r2 = dx * dx + dy * dy + dz * dz;
+    let r = r2.sqrt();
+    if r < 1e-12 { return [0.0; 3]; }
+    let axis_dot = (dx * self.axis[0] + dy * self.axis[1] + dz * self.axis[2]) / r;
+    let inv_r = 1.0 / r;
+    // signed_distance = cos(α) - axis_dot ⇒ grad = -∂axis_dot/∂x
+    [
+        -(self.axis[0] * inv_r - axis_dot * dx * inv_r * inv_r),
+        -(self.axis[1] * inv_r - axis_dot * dy * inv_r * inv_r),
+        -(self.axis[2] * inv_r - axis_dot * dz * inv_r * inv_r),
+    ]
+}
+# }
+```
+
+Then finite-difference check it — same pattern as the `AtomRestraint`
+test.
+
+## Custom `Handler`
+
+Goal: a handler that writes a CSV row per step so you can plot the
+objective evolution.
+
+```no_run
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use molpack::{F, Handler, PackContext, StepInfo};
+
+pub struct CsvHandler { writer: BufWriter<File> }
+
+impl CsvHandler {
+    pub fn new(path: &str) -> std::io::Result<Self> {
+        let mut w = BufWriter::new(File::create(path)?);
+        writeln!(w, "phase,loop_idx,fdist,frest,improvement_pct")?;
+        Ok(Self { writer: w })
+    }
+}
+
+impl Handler for CsvHandler {
+    fn on_step(&mut self, info: &StepInfo, _sys: &PackContext) {
+        let _ = writeln!(
+            self.writer,
+            "{},{},{},{},{}",
+            info.phase.phase,
+            info.loop_idx,
+            info.fdist,
+            info.frest,
+            info.improvement_pct,
+        );
+    }
+}
+```
+
+Handler notes:
+
+- **`on_step` is the only required method.** Everything else has a
+  default no-op.
+- **`sys` is `&PackContext`, never `&mut`.** Handlers cannot mutate
+  packer state — use a `Relaxer` if you need to.
+- **Multiple handlers run in registration order.** Register your CSV
+  handler before `ProgressHandler` to get a row on every step,
+  vice-versa otherwise.
+- **`should_stop` is polled every iteration.** Return `true` to break
+  the outer loop early. Useful for time budgets or custom convergence
+  criteria.
+
+## Custom `Relaxer`
+
+Goal: a relaxer that tries random rigid-body translations and accepts
+if the objective decreases.
+
+![Confinement placement with a custom pivot-MC relaxer](assets/images/paper-confinement-sphere.png)
+
+The confinement example is a molpack extension workflow, not a Packmol parity
+claim: a custom pivot-MC relaxer folds flexible PEO chains before packing, so
+the same engine can place them inside a tight spherical cavity.
+
+```no_run
+use molrs::Frame;
+use molrs::types::F;
+use molpack::{Relaxer, RelaxerRunner};
+use rand::{Rng, RngCore};
+
+#[derive(Debug, Clone)]
+pub struct JiggleRelaxer {
+    pub steps: usize,
+    pub max_delta: F,
+}
+
+impl Relaxer for JiggleRelaxer {
+    fn spawn(&self, _frame: Option<&Frame>, _ref_coords: &[[F; 3]]) -> Box<dyn RelaxerRunner> {
+        Box::new(JiggleRunner {
+            steps: self.steps,
+            max_delta: self.max_delta,
+            accepted: 0,
+            total: 0,
+        })
+    }
+}
+
+pub struct JiggleRunner {
+    steps: usize,
+    max_delta: F,
+    accepted: usize,
+    total: usize,
+}
+
+impl RelaxerRunner for JiggleRunner {
+    fn on_iter(
+        &mut self,
+        coords: &[[F; 3]],
+        f_current: F,
+        evaluate: &mut dyn FnMut(&[[F; 3]]) -> F,
+        rng: &mut dyn RngCore,
+    ) -> Option<Vec<[F; 3]>> {
+        let mut best = coords.to_vec();
+        let mut best_f = f_current;
+        let mut accepted_any = false;
+        for _ in 0..self.steps {
+            let dx = (rng.next_u32() as f64 / u32::MAX as f64 * 2.0 - 1.0) * self.max_delta;
+            let dy = (rng.next_u32() as f64 / u32::MAX as f64 * 2.0 - 1.0) * self.max_delta;
+            let dz = (rng.next_u32() as f64 / u32::MAX as f64 * 2.0 - 1.0) * self.max_delta;
+            let trial: Vec<[F; 3]> = best.iter()
+                .map(|p| [p[0] + dx, p[1] + dy, p[2] + dz])
+                .collect();
+            let f_trial = evaluate(&trial);
+            self.total += 1;
+            if f_trial < best_f {
+                self.accepted += 1;
+                best_f = f_trial;
+                best = trial;
+                accepted_any = true;
+            }
+        }
+        if accepted_any { Some(best) } else { None }
+    }
+    fn acceptance_rate(&self) -> F {
+        if self.total == 0 { 0.0 } else { self.accepted as F / self.total as F }
+    }
+}
+```
+
+Relaxer notes:
+
+- **Two-part design.** [`Relaxer`](crate::Relaxer) is the immutable
+  builder; [`RelaxerRunner`](crate::RelaxerRunner) holds per-pack
+  state. `spawn()` is called once per target type at `pack()` entry.
+- **`evaluate` closure tests trial coords against the full objective**
+  without mutating the reference — use it as often as you like.
+- **Return `Some(new_coords)` only if something changed.** The packer
+  skips unnecessary cache invalidation when you return `None`.
+- **`count == 1` required.** Multi-copy targets share reference
+  coords; a relaxer that mutates them would silently change all
+  copies.
+
+## Testing discipline
+
+| Kind | Location | Convention |
+|---|---|---|
+| Unit test | `#[cfg(test)] mod tests` in the same file | One `#[test]` fn per behavior |
+| Integration test | `tests/<name>.rs` | `use molpack::{…};` only public API |
+| Gradient finite-difference | alongside unit test | ε=1e-5, tol=1e-3 |
+| Regression vs Packmol | `tests/examples_batch.rs` (`#[ignore]`) | Run with `--ignored --release` |
+
+Run all:
+
+```bash
+cargo test --all-features
+cargo test --release --test examples_batch -- --ignored
+```
+
+Rules:
+
+- Every new `AtomRestraint` gets an FD gradient test.
+- Every new `Region` gets a boolean-algebra + signed-distance sign
+  test and (for hot-path use) an analytic-gradient FD test.
+
+## Common pitfalls
+
+- **Gradient sign.** Every `AtomRestraint` accumulates `∂penalty/∂x`.
+  Optimizer negates for descent. If your molecules fly out of the
+  region, the gradient has the wrong sign — penalty should point
+  toward the violation boundary.
+- **Rotation convention.** Single-atom tests pass with both LEFT and
+  RIGHT Euler multiplication; multi-atom tests don't. Always test
+  Euler changes with ≥ 2 atoms.
+- **`Cell<f64>` is not `Sync`.** Use `AtomicU64` +
+  `f64::to_bits` / `from_bits` for interior mutability in
+  `Send + Sync` contexts.
+- **0-based atom indexing.** `Target::with_atom_restraint` uses
+  Rust-native 0-based indices. `&[0, 1]` selects the first two atoms.
+  Packmol `.inp` files use 1-based — subtract 1 at the parse boundary.
+- **`count == 1` required for relaxers.** Multi-copy targets share
+  reference coords.
+- **`radscale` is phase-dependent.** Don't hard-code atomic radii —
+  always go through `sys.radius[i]`. `evaluate_unscaled` temporarily
+  swaps `radius` with `radius_ini` for user-facing numbers.
+- **PBC boxes must be valid.** Zero-length axis returns
+  `PackError::InvalidPBCBox`.
+
+## Contributing flow
+
+1. Write a failing test.
+2. Implement until it passes.
+3. Run the full gate:
+   ```bash
+   cargo test --all-features
+   cargo clippy -- -D warnings
+   cargo fmt --all --check
+   ```

@@ -58,11 +58,11 @@ dev = [
   # `uv run --group dev tox -e py` from python/.
   "tox>=4.23",
 ]
-# Documentation build. Zensical is the static-site generator; it reads the
-# single site config at ../zensical.toml (the Python binding docs live under
-# ../docs/python/ as the "Python" nav section). That config sets
-# `theme.name = "molcrafts"` — the shared MolCrafts brand extension, now on
-# PyPI, so the docs build is reproducible from this group alone.
+# Documentation build. Dual-language Zensical trees:
+#   zensical.toml     → docs/en → site/en
+#   zensical.zh.toml  → docs/zh → site/zh
+# Cloudflare / CI should run both builds and place a root redirect to /en/.
+# Theme: `theme.name = "molcrafts"` (molcrafts-zensical-theme on PyPI).
 doc = [
   "zensical>=0.0.51",
   # The molcrafts docs theme (zensical.toml sets `theme.name = "molcrafts"`).

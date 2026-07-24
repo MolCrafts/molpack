@@ -32,14 +32,14 @@ hero:
       alt: BSD-3-Clause 许可证
   actions:
     - label: 快速开始
-      href: ../getting_started/
+      href: getting_started/
       style: primary
     - label: Packmol 脚本
-      href: ../cli/
+      href: cli/
     - label: Python API
-      href: ../python/
+      href: python/
     - label: Rust API
-      href: ../rust/
+      href: rust/
 ---
 
 <h1 class="molcrafts-sr-only">molpack</h1>
@@ -57,8 +57,9 @@ hero:
 本页是手册索引，不是营销页。所有入口共用同一模型：分子模板、副本数量、几何约束，
 然后运行一次装填。
 
-!!! note "中文内容"
-    中文首页为导航入口；详细章节目前以英文正文为主。语言切换在页眉下拉菜单。
+!!! note "翻译进度"
+    中文站与英文站平行（`docs/zh/` ↔ `docs/en/`）。导航与首页为中文；
+    部分章节正文仍暂用英文，点导航会留在 `/zh/` 下，不会跳回英文站。
 
 </div>
 
@@ -117,7 +118,7 @@ hero:
 
 ### 运行 `.inp` 任务
 
-适合已写成 Packmol 风格、需要纳入版本控制的可复现任务。见 [CLI](../cli/)。
+适合已写成 Packmol 风格、需要纳入版本控制的可复现任务。见 [CLI](cli/)。
 
 ```text
 structure water.pdb
@@ -134,7 +135,7 @@ end structure
 
 ### 在 notebook 或流水线中装填
 
-加载或构造 frame，创建不可变 target，再把结果交给写出或分析代码。见 [Python](../python/)。
+加载或构造 frame，创建不可变 target，再把结果交给写出或分析代码。见 [Python](python/)。
 
 ```python
 water = Target(frame, 100).with_restraint(
@@ -151,7 +152,7 @@ packed = Molpack().with_seed(42).pack([water])
 
 ### 把引擎嵌入 crate
 
-适合原生应用、服务与测试。见 [Rust](../rust/)。
+适合原生应用、服务与测试。见 [Rust](rust/)。
 
 ```rust
 let frame = Molpack::new()
@@ -167,7 +168,7 @@ let frame = Molpack::new()
 
 ### 观测或停止一次运行
 
-Handler 接收装填循环中的结构化事件。见 [Handlers](../rust/handlers-relaxers/)。
+Handler 接收装填循环中的结构化事件。见 [Handlers](rust/handlers-relaxers/)。
 
 ```rust
 impl Handler for WatchFdist {
