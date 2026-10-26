@@ -140,7 +140,7 @@ pub(crate) fn run_optimizer_bindings(
         return;
     }
     let xcart_snapshot = sys.xcart.clone();
-    let mic = sys.simbox.mic().simplified();
+    let mic = sys.simbox.mic();
 
     for binding in bindings.iter_mut() {
         match binding.select.mode {
@@ -343,7 +343,6 @@ fn environment_atoms(
 #[cfg(test)]
 mod tests {
     use molrs::core::SimBox;
-    use ndarray::array;
 
     use super::*;
 
@@ -352,13 +351,13 @@ mod tests {
     /// periodic pulled the `z` atom in as environment.
     #[test]
     fn environment_wraps_only_periodic_axes() {
-        let bx = SimBox::ortho(
-            array![10.0, 10.0, 10.0],
-            array![0.0, 0.0, 0.0],
+        let bx = SimBox::new(
+            molrs::core::Cell::Lengths([10.0; 3]),
+            [0.0; 3],
             [true, true, false],
         )
         .unwrap();
-        let mic = bx.mic().simplified();
+        let mic = bx.mic();
         let xcart = [[0.5, 5.0, 0.5], [9.5, 5.0, 0.5], [0.5, 5.0, 9.5]];
         let movable = [true, false, false];
         let near = environment_atoms(&xcart, &movable, &xcart[..1], 2.0, &mic);
@@ -370,7 +369,7 @@ mod tests {
     fn environment_without_pbc_does_not_wrap() {
         let xcart = [[0.5, 5.0, 0.5], [9.5, 5.0, 0.5], [0.5, 5.0, 9.5]];
         let movable = [true, false, false];
-        let near = environment_atoms(&xcart, &movable, &xcart[..1], 2.0, &Mic::Free);
+        let near = environment_atoms(&xcart, &movable, &xcart[..1], 2.0, &Mic::free());
         assert!(near.is_empty());
     }
 
@@ -383,8 +382,8 @@ mod tests {
         fn minimize(
             &mut self,
             frame: &mut Frame,
-        ) -> Result<molrs::optimize::OptimizationReport, String> {
-            let n = frame.coords().map_err(|e| e.to_string())?.nrows();
+        ) -> Result<molrs::optimize::OptimizationReport, molrs::optimize::OptimizeError> {
+            let n = frame.coords()?.nrows();
             self.0.lock().unwrap().push(n);
             Ok(molrs::optimize::OptimizationReport {
                 converged: true,
@@ -458,12 +457,20 @@ mod tests {
         use crate::{GencanPack, PackEngine, Target};
 
         /// Counts the calls it forwards to the wrapped optimizer.
-        struct Counted(Lbfgs, std::sync::Arc<std::sync::atomic::AtomicUsize>);
-        impl Optimizer for Counted {
+        struct Counted<P>(Lbfgs<P>, std::sync::Arc<std::sync::atomic::AtomicUsize>)
+        where
+            P: std::ops::Deref + Send + Sync,
+            P::Target: molrs::ff::potential::Potential;
+        impl<P> Optimizer for Counted<P>
+        where
+            P: std::ops::Deref + Send + Sync,
+            P::Target: molrs::ff::potential::Potential,
+        {
             fn minimize(
                 &mut self,
                 frame: &mut Frame,
-            ) -> Result<molrs::optimize::OptimizationReport, String> {
+            ) -> Result<molrs::optimize::OptimizationReport, molrs::optimize::OptimizeError>
+            {
                 self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 self.0.minimize(frame)
             }

@@ -86,7 +86,8 @@
 //! | Callback trait + built-ins | [`Callback`], [`LammpsLogCallback`], [`ProgressCallback`], [`EarlyStopCallback`], `XyzTrajectoryCallback` (feature `io`), [`StepReport`], [`StageProgress`], [`PhaseProgress`], [`PhaseReport`] |
 //! | Objective | [`Objective`], [`EvalMode`], [`EvalOutput`] |
 //! | In-loop optimizer | [`OptimizeSelect`], [`OptimizeMode`], [`GencanPack::with_optimizer`], [`TorsionMcOptimizer`], over molrs's [`molrs::optimize::Optimizer`] trait |
-//! | Errors | [`PackError`] |
+//! | Errors | [`PackError`], [`BondWeightsError`] |
+//! | Intramolecular scale | [`BondDistanceWeights`] |
 //!
 //! ## Feature flags
 //!
@@ -108,6 +109,7 @@
 //! Precision is fixed at `f64` via `molrs::op::F`.
 
 mod assemble;
+mod bond_weights;
 mod callback;
 mod error;
 mod euler;
@@ -132,6 +134,7 @@ mod template;
 #[cfg(test)]
 mod test_fixtures;
 
+pub use bond_weights::{BondDistanceWeights, BondWeightsError};
 #[cfg(feature = "io")]
 pub use callback::XyzTrajectoryCallback;
 pub use callback::{

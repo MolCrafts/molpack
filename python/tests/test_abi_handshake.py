@@ -1,7 +1,7 @@
 """FFI ABI gates: versioned capsule names + the import-time handshake.
 
 Minor-line = ABI version: molpack exchanges ``molrs_ffi`` handle capsules with
-the installed ``molcrafts-molrs`` wheel, so both must embed the same molrs
+the installed ``molcrafts-molpy`` wheel, so both must embed the same molrs
 ``major.minor``. The import-time handshake (``molrs_capsule::check_abi``) already
 passed — this module is importable — so these tests pin the *other* gate: a
 capsule whose name carries no matching minor line must be rejected at resolve
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import ctypes
 
-import molrs
+import molpy as mp
 import pytest
 
 import molpack
@@ -38,8 +38,8 @@ class TestVersionedCapsuleGate:
     def test_same_line_frame_resolves(self) -> None:
         import numpy as np
 
-        frame = molrs.core.Frame()
-        block = molrs.core.Block()
+        frame = mp.Frame()
+        block = mp.Block()
         block.insert("x", np.array([0.0, 1.0]))
         block.insert("y", np.array([0.0, 0.0]))
         block.insert("z", np.array([0.0, 0.0]))
@@ -67,8 +67,8 @@ class TestRegionCapsuleGate:
     def _target(self):
         import numpy as np
 
-        frame = molrs.core.Frame()
-        block = molrs.core.Block()
+        frame = mp.Frame()
+        block = mp.Block()
         block.insert("x", np.array([0.0]))
         block.insert("y", np.array([0.0]))
         block.insert("z", np.array([0.0]))
@@ -87,5 +87,5 @@ class TestRegionCapsuleGate:
     def test_same_line_region_resolves(self) -> None:
         import numpy as np
 
-        region = molrs.core.Sphere(np.zeros(3), 5.0)
+        region = mp.core.Sphere(np.zeros(3), 5.0)
         assert self._target().with_restraint(region) is not None

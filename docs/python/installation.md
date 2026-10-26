@@ -18,27 +18,28 @@ sdist and need a Rust toolchain to build locally.
 
 ## Frame I/O
 
-`molcrafts-molpack` installs `molcrafts-molrs` as a dependency. The
-importable `molrs` module provides the frame type plus PDB and XYZ readers:
+`molcrafts-molpack` installs `molcrafts-molpy` as a dependency. Import it as
+`molpy`; it provides the frame type plus PDB and XYZ readers:
 
 ```bash
 pip install molcrafts-molpack
 ```
 
 ```python
-import molrs
+import molpy as mp
 from molpack import GencanPack, Target
+from pathlib import Path
 
-frame = molrs.io.read_pdb("water.pdb")
+frame = mp.io.read_pdb(Path("water.pdb"))
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(molrs.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
+    .with_restraint(mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 frame = GencanPack().with_seed(42).run([water], max_loops=200).frame
 ```
 
-`Target` takes a `molrs.core.Frame` (`molpy.Frame` is the same class), resolved zero-copy through
+`Target` takes a `mp.Frame` (`molpy.Frame` is the same class), resolved zero-copy through
 its FFI capsule.
 
 ## Building from source
@@ -57,10 +58,10 @@ This builds against the local `molpack` Rust crate under `../`.
 ## Verification
 
 ```python
-import molrs
+import molpy as mp
 from molpack import Target
 
-frame = molrs.core.Frame(
+frame = mp.Frame(
     {"atoms": {"x": [0.0], "y": [0.0], "z": [0.0], "element": ["O"]}}
 )
 target = Target(frame, count=1).with_name("mol")

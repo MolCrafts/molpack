@@ -33,8 +33,8 @@ pub(crate) struct Placements {
 ///
 /// An empty class is `+∞` ([`F::INFINITY`]). There is no [`Default`] — a
 /// residual is classified from coordinates and a skip table, not from a
-/// placeholder. Distances are Euclidean lengths of
-/// [`SimBox::shortest_vector_impl`].
+/// placeholder. Distances are Euclidean lengths of the minimum-image
+/// displacement ([`molrs::core::Mic::apply`]).
 ///
 /// Classification is driven by each target's
 /// [`Target::special_bonds`]. This type does not pick an exclusion depth.
@@ -53,8 +53,8 @@ enum IntraSkip {
     Identity,
     /// `Topology::from_frame` `NotFound` / `Validation`: omit the target.
     Omit,
-    /// Per-atom skip lists from [`molrs::core::Topology::exclusions`] (sorted,
-    /// root-inclusive).
+    /// Per-atom skip lists from [`crate::bond_weights::excluded_partners`]
+    /// (sorted, root-inclusive).
     Partners(Vec<Vec<usize>>),
 }
 
@@ -84,7 +84,9 @@ impl IntraResidual {
                 None => IntraSkip::Identity,
                 Some(frame) => match molrs::core::Topology::from_frame(frame) {
                     Ok(topo) if topo.n_bonds() == 0 => IntraSkip::Identity,
-                    Ok(topo) => IntraSkip::Partners(topo.exclusions(table)),
+                    Ok(topo) => {
+                        IntraSkip::Partners(crate::bond_weights::excluded_partners(&topo, table))
+                    }
                     Err(_) => IntraSkip::Omit,
                 },
             };
@@ -93,12 +95,14 @@ impl IntraResidual {
                 continue;
             }
             let tail_scored = table.weight(usize::MAX) != 0.0;
+            let mic = simbox.mic();
             for c in 0..ncopy {
                 let base = offset + c * n;
                 for i in 0..n {
                     for j in (i + 1)..n {
-                        let dr =
-                            simbox.shortest_vector_impl(positions[base + i], positions[base + j]);
+                        let a = positions[base + i];
+                        let b = positions[base + j];
+                        let dr = mic.apply([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
                         let dist = (dr[0] * dr[0] + dr[1] * dr[1] + dr[2] * dr[2]).sqrt();
                         let pair_exempted = match &skip {
                             IntraSkip::Identity => false,
@@ -216,13 +220,12 @@ pub(crate) fn positions_in_target_order(
 #[cfg(test)]
 mod tests {
     use super::IntraResidual;
+    use crate::BondDistanceWeights;
     use crate::Target;
     use crate::test_fixtures::{chain_bonds, frame_from_parts};
-    use molrs::core::BondDistanceWeights;
     use molrs::core::SimBox;
 
     use molrs::op::F;
-    use ndarray::array;
 
     fn along_x(n: usize) -> Vec<[F; 3]> {
         (0..n).map(|i| [i as F, 0.0, 0.0]).collect()
@@ -233,12 +236,8 @@ mod tests {
     }
 
     fn open_box() -> SimBox {
-        SimBox::ortho(
-            array![100.0, 100.0, 100.0],
-            array![0.0, 0.0, 0.0],
-            [false; 3],
-        )
-        .expect("orthorhombic box")
+        SimBox::new(molrs::core::Cell::Lengths([100.0; 3]), [0.0; 3], [false; 3])
+            .expect("orthorhombic box")
     }
 
     fn assert_angstrom(got: F, want: F, what: &str) {
@@ -357,9 +356,9 @@ mod tests {
         ];
         let target = bonded_target(&positions, 1)
             .with_special_bonds(BondDistanceWeights::from_exclusion_depth(3));
-        let cell = SimBox::ortho(
-            array![10.0, 20.0, 20.0],
-            array![0.0, 0.0, 0.0],
+        let cell = SimBox::new(
+            molrs::core::Cell::Lengths([10.0, 20.0, 20.0]),
+            [0.0; 3],
             [true, false, false],
         )
         .expect("orthorhombic box");

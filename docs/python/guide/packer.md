@@ -74,7 +74,7 @@ Attach a single restraint to every target in a pack:
 
 ```python
 packer = packer.with_global_restraint(
-    molrs.core.Cuboid([0, 0, 0], [40, 40, 40])
+    mp.core.Cuboid([0, 0, 0], [40, 40, 40])
 )
 ```
 
@@ -127,7 +127,7 @@ one engine, one run. Calling `run()` twice on the same object raises
 
 ```python
 result.positions   # (N, 3) float64 ndarray — packed coordinates
-result.frame       # molrs.core.Frame — topology-complete packed frame
+result.frame       # mp.Frame — topology-complete packed frame
 result.elements    # list[str]  — one entry per atom
 result.natoms      # int
 result.converged   # bool — True iff both fdist and frest < precision
@@ -145,7 +145,7 @@ if not result.converged:
 ```
 
 `State.frame` is the packed frame. Pass it to a writer of your
-choice (e.g. `molrs.io.write_pdb`). molpack does **not** provide
+choice (e.g. `mp.io.write_pdb`). molpack does **not** provide
 writers.
 
 ## Composing stages

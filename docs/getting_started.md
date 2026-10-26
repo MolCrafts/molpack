@@ -10,30 +10,31 @@ same model is available as a [CLI script](cli/) or the [Rust builder](rust/).
 pip install molcrafts-molpack
 ```
 
-This installs the packing engine and pulls in `molcrafts-molrs` for the frame
+This installs the packing engine and pulls in `molcrafts-molpy` for the frame
 type plus PDB/XYZ I/O.
 
 ## 2. Load or build a template
 
 A **template** is one copy of the molecule you want many of — its atom
 positions and element symbols, in any orientation. molpack takes the template
-as a `molrs.core.Frame`, the shared MolCrafts container for atomic data, so any
+as a `mp.Frame`, the shared MolCrafts container for atomic data, so any
 loader molrs supports will do. Read one from a Protein Data Bank (PDB) file:
 
 ```python
-import molrs
+import molpy as mp
+from pathlib import Path
 
-frame = molrs.io.read_pdb("water.pdb")
+frame = mp.io.read_pdb(Path("water.pdb"))
 ```
 
 Or build one in memory, with no file involved — here a water molecule with the
 oxygen at the origin:
 
 ```python
-import molrs
+import molpy as mp
 import numpy as np
 
-frame = molrs.core.Frame({
+frame = mp.Frame({
     "atoms": {
         "x": np.array([0.00, 0.96, -0.24]),
         "y": np.array([0.00, 0.00, 0.93]),
@@ -51,10 +52,10 @@ A `Target` is one molecule species plus the number of copies to place. Every
 mobile target needs a spatial restraint:
 
 ```python
-import molrs
+import molpy as mp
 from molpack import Target
 
-box = molrs.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])  # a molrs region
+box = mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])  # a molrs region
 water = (
     Target(frame, count=100)
     .with_name("water")
@@ -87,7 +88,7 @@ packed = result.frame
 | `converged` | Both objectives fell below the packer precision threshold |
 | `fdist` | Pair-distance (overlap) violations |
 | `frest` | Restraint violations |
-| `frame` | Topology-complete packed `molrs.core.Frame` |
+| `frame` | Topology-complete packed `mp.Frame` |
 
 `GencanPack` is the rigid-body engine; `CbmcGrow` grows chains instead. Each
 engine runs once — `run()` consumes it, so build a new one per pack. If you
@@ -96,10 +97,11 @@ only want the frame, take `result.frame`.
 ## 5. Save
 
 ```python
-import molrs
+import molpy as mp
+from pathlib import Path
 
-molrs.io.write_pdb("water_box.pdb", packed)
-# or: molrs.io.write_xyz("water_box.xyz", packed)
+mp.io.write_pdb(Path("water_box.pdb"), packed)
+# or: mp.io.write_xyz(Path("water_box.xyz"), packed)
 ```
 
 ## Where next

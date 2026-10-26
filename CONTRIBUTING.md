@@ -11,22 +11,25 @@ development environment, run tests, and get a PR merged.
 - [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
 - [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
   `python/` dependency-group `dev`, not a separate global install)
-- The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling:
+- The [molpy](https://github.com/MolCrafts/molpy) repo checked out as a sibling
+  directory named `molrs`:
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molrs
+├── molrs/      ← git clone https://github.com/MolCrafts/molpy molrs
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a path dependency on `../molrs/molrs`. With the
+The root `Cargo.toml` uses a path dependency on `../molrs/crates/molrs`
+(and `../molrs/crates/molrs-ffi` from the Python binding). With the
 sibling layout above everything resolves automatically.
 
 **Version pins:** a local build uses the sibling checkout `../molrs`. The
-version fields name the **0.17.*** minor line (see `Cargo.toml` and
+version fields name the **0.20.*** minor line (see `Cargo.toml` and
 `python/pyproject.toml`). CI, and the pre-push hooks, build against
-`MolCrafts/molrs` at the commit `scripts/partners.py` resolves (molrs's
-`dev`; see [Partners](#partners)), in a layout of their own -- not your
+`MolCrafts/molpy` at the commit `scripts/partners.py` resolves (checked out
+as the directory `molrs`; molpy's `dev`, or a release tag; see
+[Partners](#partners)), in a layout of their own -- not your
 sibling. `Cargo.lock`, `python/Cargo.lock` and `python/uv.lock` are committed
 and every cargo / uv call in the gates is `--locked`; they record molrs's
 package metadata, not a commit, so relock only when molrs's `dev` changes its
@@ -37,9 +40,6 @@ The Python wheel checks this on ``import molpack`` — a molrs minor mismatch is
 **First-time setup:**
 
 ```bash
-# Fetch test data used by the regression suite
-bash ../molrs/scripts/fetch-test-data.sh
-
 # Git hooks via prek (reads .pre-commit-config.yaml)
 prek install
 
@@ -92,7 +92,7 @@ command in `.github/workflows/{lint,test,docs}.yml` has a hook. **Never `git com
   - clippy (`--all-targets --all-features -D warnings`), ty, the rust tests
     and tox -- each in CI's sibling layout (`scripts/partners.py run`: a copy
     of this tree next to molrs at its resolved commit), `--locked`,
-    on the toolchain `rust-toolchain.toml` pins (1.99.0, the same as molrs)
+    on the toolchain `rust-toolchain.toml` names (`stable`, the same file as molrs)
     and Python 3.12.
 - **Dispatch on the MolCrafts cluster:** the compiling gates go through
   `scripts/hook-run.sh`, which hands the command to `$MOLCRAFTS_HOOK_RUNNER`
@@ -113,12 +113,12 @@ run`) alike -- to the first of:
 
 1. molrs's branch named like the one being built (CI: the pushed branch or a
    pull request's head branch; locally: the checked-out branch), looked up
-   first on the fork the build comes from (`<owner>/molrs`, where `<owner>`
+   first on the fork the build comes from (`<owner>/molpy`, where `<owner>`
    owns the pull request's head repository or the repository CI runs in; in a
-   git hook, the remote being pushed to), then on MolCrafts/molrs;
+   git hook, the remote being pushed to), then on MolCrafts/molpy;
 2. outside CI only, that branch in your sibling clone `../molrs`, when it has
    one and neither remote does yet;
-3. MolCrafts/molrs's `dev`.
+3. MolCrafts/molpy at `MOLRS_REF` (`dev` on the dev branch).
 
 A change that needs a molrs change lands as two same-named branches, never by
 skipping a gate: create the same branch (say `converge/x`) in both checkouts;

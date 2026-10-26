@@ -3,12 +3,14 @@
 
 use std::sync::Arc;
 
-use molrs::core::Atom;
 use molrs::core::Atomistic;
 use molrs::core::Block;
 use molrs::core::Cuboid;
+use molrs::core::Element;
 use molrs::core::Frame;
+use molrs::core::keys;
 use molrs::op::F;
+use molrs::props;
 use ndarray::{Array1, Array2, array};
 
 use crate::RegionRestraint;
@@ -55,10 +57,10 @@ pub(crate) fn frame_from_parts(coords: &[[F; 3]], bonds: &[(u32, u32)]) -> Frame
         let ai: Vec<u32> = bonds.iter().map(|&(i, _)| i).collect();
         let aj: Vec<u32> = bonds.iter().map(|&(_, j)| j).collect();
         block
-            .insert("atomi", Array1::from_vec(ai).into_dyn())
+            .insert("atomi", Array1::from_vec(ai).into_dyn(), None)
             .expect("atomi column");
         block
-            .insert("atomj", Array1::from_vec(aj).into_dyn())
+            .insert("atomj", Array1::from_vec(aj).into_dyn(), None)
             .expect("atomj column");
         frame.insert("bonds", block);
     }
@@ -73,9 +75,14 @@ pub(crate) fn chain_frame(n: usize, bond_len: F) -> Frame {
 /// A linear chain's bond graph: `n` bare atoms bonded `(i, i+1)`.
 pub(crate) fn chain_graph(n: usize) -> Atomistic {
     let mut g = Atomistic::new();
-    let ids: Vec<_> = (0..n).map(|_| g.add_atom(Atom::new())).collect();
+    let ids: Vec<_> = (0..n)
+        .map(|_| {
+            g.add_atom(props! { keys::ATOMIC_NUMBER => Element::C })
+                .expect("atom")
+        })
+        .collect();
     for pair in ids.windows(2) {
-        g.add_bond(pair[0], pair[1]).expect("bond");
+        g.add_bond(pair[0], pair[1], props! {}).expect("bond");
     }
     g
 }

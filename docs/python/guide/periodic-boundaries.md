@@ -22,13 +22,13 @@ cell is the `.inp` keyword `cell a b c alpha beta gamma`, or Rust
 `with_cell`.
 
 A region does not declare periodicity — it only confines. To keep every
-atom centre inside the cell as well, attach a `molrs.core.Cuboid` with the same
+atom centre inside the cell as well, attach a `mp.core.Cuboid` with the same
 bounds (or broadcast it with `with_global_restraint`):
 
 ```python
-import molrs
+import molpy as mp
 
-cell = molrs.core.Cuboid([0.0, 0.0, 0.0], [30.0, 30.0, 30.0])   # origin, lengths
+cell = mp.core.Cuboid([0.0, 0.0, 0.0], [30.0, 30.0, 30.0])   # origin, lengths
 target = target.with_restraint(cell)
 ```
 
@@ -41,7 +41,7 @@ setting still applies and is checked against the wrapped distance.
 
 Regions are evaluated in the **unwrapped** frame — they describe the
 solid as defined, regardless of the periodic cell. The one exception is
-`molrs.core.SphereUnion` built with a `box`: its spheres are minimum-image on
+`mp.core.SphereUnion` built with a `box`: its spheres are minimum-image on
 the box's periodic axes, so a void computed from beads in a periodic frame
 is periodic too.
 
@@ -73,7 +73,7 @@ every target that must stay inside it:
 cell_min = [0.0, 0.0, 0.0]
 cell_len = [30.0, 30.0, 30.0]
 
-box = molrs.core.Cuboid(cell_min, cell_len)
+box = mp.core.Cuboid(cell_min, cell_len)
 target = target.with_restraint(box)
 
 result = (

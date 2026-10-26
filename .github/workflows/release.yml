@@ -119,7 +119,7 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
         with:
           python-version: ${{ matrix.python }}
-      # python/Cargo.toml path-deps ../../molrs/{molrs,molrs-ffi}; maturin
+      # python/Cargo.toml path-deps ../../molrs/crates/{molrs,molrs-ffi}; maturin
       # runs `cargo metadata` for every command, so molrs must be there, and
       # mounted into the manylinux container at the same path.
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master

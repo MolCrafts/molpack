@@ -86,7 +86,7 @@ pub struct GroupEvaluation<'a> {
     /// [`CellGrid`]: molrs::core::CellGrid
     pub cell: &'a SimBox,
     /// Minimum-image convention in force, derived from [`cell`](Self::cell).
-    /// [`Mic::Free`] when no axis wraps.
+    /// [`Mic::free`] when no axis wraps.
     ///
     /// Redundant with `cell` on purpose: it is computed once per objective
     /// evaluation and shared, because deriving it costs two array builds on a
@@ -180,7 +180,7 @@ pub(super) mod test_fixtures {
     /// A free-boundary cube big enough to hold the test coordinates; the
     /// partitioning a restraint builds from it must not change any answer.
     pub(crate) fn free_box(side: F) -> SimBox {
-        SimBox::cube(side, molrs::op::F3::zeros(3), [false; 3]).expect("test box")
+        SimBox::new(molrs::core::Cell::Lengths([side; 3]), [0.0; 3], [false; 3]).expect("test box")
     }
 
     /// Unit scales, free boundaries, `natoms_per_copy` atoms per copy.
@@ -190,7 +190,7 @@ pub(super) mod test_fixtures {
             scale2: 1.0,
             natoms_per_copy,
             cell,
-            mic: Mic::Free,
+            mic: Mic::free(),
         }
     }
 
