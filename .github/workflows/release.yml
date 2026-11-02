@@ -1,17 +1,13 @@
 name: release
 
-# A `v*` tag on MolCrafts/molpack: guard -> lint + the full test tier ->
-# crates.io (molcrafts-molpack), PyPI (Linux and universal2 macOS wheels for
-# Python 3.12 and 3.13, plus the sdist for every other platform), and the
-# GitHub Release. molrs is checked out at the commit scripts/partners.py
-# resolves: a release commit on master names the molrs release tag of the
-# line Cargo.toml names in .github/partners.env.
+# A `v*` tag on MolCrafts/molpack: the shared CI (every leg), then crates.io
+# (molcrafts-molpack), PyPI (Linux and universal2 macOS wheels for Python 3.12
+# and 3.13, plus the sdist), and the GitHub Release. molrs is cloned at the
+# ref `.github/ci.toml` names (`molci partners` -> ../molrs).
 #
-# A dispatch is the dry run, on any branch, fork or upstream: the same guard,
-# gates and builds, `cargo publish --dry-run`, no upload and no Release. Only
-# a tag push on MolCrafts uploads (PUBLISH, from `release / context`). Every
-# upload skips a version the registry already has, so a partial release is
-# retried by re-running the tag's run.
+# A dispatch is the dry run, on any branch: the same CI and builds,
+# `cargo publish --dry-run`, no upload and no Release. Only a tag push on
+# MolCrafts uploads. Every upload skips a version the registry already has.
 #
 # Trusted publishing names this file, release.yml, and one environment per
 # registry: crates-io, pypi. A dispatch never enters an environment.
@@ -23,9 +19,6 @@ on:
 permissions:
   contents: read
 
-# One group per file, workflow, event and ref. Under workflow_call (release.yml
-# running lint/test) github.workflow and github.event_name are the caller's, so
-# a called run never shares, and so never cancels, a direct run's group.
 concurrency:
   group: release-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
@@ -35,24 +28,9 @@ defaults:
     shell: bash
 
 jobs:
-  # Where this run happens, decided once: MolCrafts/molcrafts-ci/actions/ci-context.
-  context:
-    name: release / context
-    runs-on: ubuntu-latest
-    outputs:
-      tier: ${{ steps.context.outputs.tier }}
-      upstream: ${{ steps.context.outputs.upstream }}
-      integration: ${{ steps.context.outputs.integration }}
-      skip-pr: ${{ steps.context.outputs.skip-pr }}
-      cancel: ${{ steps.context.outputs.cancel }}
-    steps:
-      - id: context
-        uses: MolCrafts/molcrafts-ci/actions/ci-context@master
-
   guard:
     name: release / guard
-    needs: context
-    if: github.event_name == 'workflow_dispatch' || needs.context.outputs.upstream == 'true'
+    if: github.event_name == 'workflow_dispatch' || github.repository_owner == 'MolCrafts'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,28 +43,25 @@ jobs:
           [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "::error::tag $GITHUB_REF_NAME is not v$version"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "::error::tag is not on master"; exit 1; }
 
-  lint:
+  ci:
     needs: guard
-    uses: ./.github/workflows/lint.yml
-
-  test:
-    needs: guard
-    uses: ./.github/workflows/test.yml
+    uses: MolCrafts/molcrafts-ci/.github/workflows/ci.yml@master
+    secrets: inherit
 
   crate:
     name: release / crate
-    needs: [context, lint, test]
+    needs: ci
     runs-on: ubuntu-latest
     env:
-      PUBLISH: ${{ github.event_name == 'push' && needs.context.outputs.upstream == 'true' }}
+      PUBLISH: ${{ github.event_name == 'push' && github.repository_owner == 'MolCrafts' }}
     environment: ${{ github.event_name == 'push' && 'crates-io' || '' }}
     permissions:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+      - uses: MolCrafts/molcrafts-ci/actions/setup-molci@master
+      - run: molci partners
+      - run: molci rust
       - if: env.PUBLISH == 'true'
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
@@ -116,13 +91,17 @@ jobs:
         python: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
+      - uses: MolCrafts/molcrafts-ci/actions/setup-molci@master
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
         with:
           python-version: ${{ matrix.python }}
-      # python/Cargo.toml path-deps ../../molrs/{molrs,molrs-ffi}; maturin
-      # runs `cargo metadata` for every command, so molrs must be there, and
-      # mounted into the manylinux container at the same path.
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+      # python/Cargo.toml path-deps ../../molrs; maturin runs cargo metadata
+      # for every command, so molrs must be there and mounted into the
+      # manylinux container at the same path.
+      - name: Partners
+        run: |
+          molci partners
+          echo "MOLRS_DIR=$(cd "$GITHUB_WORKSPACE/../molrs" && pwd)" >> "$GITHUB_ENV"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: python
@@ -143,8 +122,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: MolCrafts/molcrafts-ci/actions/setup-molci@master
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+      - run: molci partners
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: python
@@ -157,10 +137,10 @@ jobs:
 
   pypi:
     name: release / pypi
-    needs: [context, lint, test, wheels, sdist]
-    if: github.event_name == 'push' && needs.context.outputs.upstream == 'true'
+    needs: [ci, wheels, sdist]
+    if: github.event_name == 'push' && github.repository_owner == 'MolCrafts'
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'push' && 'pypi' || '' }}
+    environment: pypi
     permissions:
       id-token: write
     steps:

@@ -27,7 +27,7 @@ doc = [
 ]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
-# deps used by both CI jobs and local pre-commit hooks.
+# deps used by both CI and `molci check`.
 #
 # Install with `pip install --group <name>` (pip 25.1+) from this directory.
 [dependency-groups]
@@ -48,9 +48,8 @@ dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
-  # Gate driver (prek pre-push / CI): install with `uv sync --group dev`
-  # then `uv run --group dev tox -c python -e py` from repo root, or
-  # `uv run --group dev tox -e py` from python/.
+  # Gate driver (molci pre-push / CI): install with `uv sync --group dev`
+  # then `uv run --locked --python 3.12 --directory python --group dev tox -e py`.
   "tox>=4.23",
 ]
 # Documentation build: `zensical build` reads zensical.toml (docs → site).
@@ -127,12 +126,12 @@ python-version = "3.12"
 # dynamic path manipulation, so we declare the examples dir as an extra source root.
 extra-paths = ["examples"]
 
-# Isolated binding tests — prek pre-push + CI call: `tox -c python -e py`
+# Isolated binding tests — `molci check` and CI call:
+#   uv run --locked --python 3.12 --directory python --group dev tox -e py
 # Non-editable only: sibling molrs path install + maturin wheel + pytest.
-# Requires ../../molrs (the molpy checkout) on the 0.20.* minor line. The hooks
-# and CI both run it in a layout whose ../../molrs is the commit
-# scripts/partners.py resolves. Both builds are --locked
-# (MATURIN_PEP517_ARGS reaches the molpy wheel).
+# Requires ../../molrs (the molpy checkout) on the 0.20.* minor line. CI
+# clones the ref in .github/ci.toml; a local check uses the sibling.
+# Both builds are --locked (MATURIN_PEP517_ARGS reaches the molpy wheel).
 [tool.tox]
 requires = ["tox>=4.23"]
 env_list = ["py"]

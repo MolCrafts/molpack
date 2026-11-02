@@ -1,152 +1,23 @@
-# Managed by prek (drop-in pre-commit replacement): `prek install`
-# CI parity: every command in .github/workflows/{lint,test,docs}.yml has a hook here.
-#
-#   pre-commit  file hygiene, ruff, rustfmt, no ignored tests: nothing
-#               compiles, so a commit never waits for a build (or for Slurm).
-#   pre-push    the commit hooks on --all-files (lint.yml runs them that
-#               way), the partners, the locks, the docs build, and the
-#               gates that compile -- clippy, ty, rust tests, tox -- in CI's
-#               sibling layout with molrs at the commit
-#               scripts/partners.py resolves (molrs's dev, or its branch
-#               named like this one; scripts/partners.py run), never
-#               the developer's ../molrs. Outside CI that layout is kept in
-#               ~/.cache/molcrafts-partners, so target/, .tox and .venv
-#               survive from one hook to the next and from one push to the
-#               next. The Python wheel gate builds the dev profile locally;
-#               CI's tox -e py stays --release.
-#
-# Compiling gates go through scripts/hook-run.sh, which hands them to
-# $MOLCRAFTS_HOOK_RUNNER (a compute node on the MolCrafts cluster) when set and
-# runs them in place otherwise. See "Hooks" in CONTRIBUTING.md. Never --no-verify.
+# The checks of .github/ci.toml, by stage. CI runs the same commands.
+# pre-commit stays on the login node. molci hands each pre-push check to
+# $MOLCRAFTS_HOOK_RUNNER when that is set. scripts/hook-run.sh keeps the
+# MOLCRAFTS_HOOK_RUNNER string so the shared githooks do not send this whole
+# hook to Slurm. Never --no-verify.
 default_install_hook_types: [pre-commit, pre-push]
-default_stages: [pre-commit]
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-toml
-      - id: check-merge-conflict
-      - id: mixed-line-ending
-        args: [--fix=lf]
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.0
-    hooks:
-      - id: ruff-format
-        files: ^python/
-      - id: ruff
-        files: ^python/
-        args: [--fix, --exit-non-zero-on-fix]
-
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-      - id: fmt
-
   - repo: local
     hooks:
-      # An ignored test is a failing test: no `ignore` doctest fence, no #[ignore].
-      - id: no-ignored-tests
-        name: no ignored tests
-        language: pygrep
-        entry: '```[a-z,_]*ignore|#\[ignore'
-        files: ^(src|docs|examples|python/src)/.*\.(rs|md)$
-
-      # A commit checks its staged files only; lint.yml runs the hooks
-      # above on every file.
-      - id: all-files
-        name: commit hooks on --all-files (lint.yml)
-        entry: uvx pre-commit run --all-files --hook-stage pre-commit --show-diff-on-failure
+      - id: molci-pre-commit
+        name: molci check --stage pre-commit
+        entry: uvx --from git+https://github.com/MolCrafts/molcrafts-ci@master molci check --stage pre-commit
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-push]
-
-      - id: partners
-        name: partners resolve; path deps resolve in CI (lint.yml)
-        entry: python3 scripts/partners.py check
+        stages: [pre-commit]
+      - id: molci-pre-push
+        name: molci check --stage pre-push
+        entry: uvx --from git+https://github.com/MolCrafts/molcrafts-ci@master molci check --stage pre-push
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-push]
-
-      # The three lock files record the resolved molrs's metadata; every
-      # cargo and uv call below is --locked, so a stale one fails here first.
-      - id: locks
-        name: Cargo.lock + python/Cargo.lock + python/uv.lock current (lint.yml)
-        entry: >-
-          python3 scripts/partners.py run -- sh -c
-          'cargo metadata --locked --format-version 1 >/dev/null
-          && cargo metadata --locked --format-version 1 --manifest-path python/Cargo.toml >/dev/null
-          && uv lock --check --directory python'
-        language: system
-        pass_filenames: false
-        files: ^(Cargo\.(toml|lock)|python/(Cargo\.(toml|lock)|pyproject\.toml|uv\.lock)|\.github/partners\.env)$
-        stages: [pre-push]
-
-      # The docs site, built from the `doc` group in a clean copy of the tree,
-      # --strict: any warning fails (docs.yml, Cloudflare Pages).
-      - id: docs
-        name: docs build (docs.yml)
-        entry: >-
-          python3 scripts/partners.py run --
-          uv run --isolated --locked --python 3.12 --project python --only-group doc
-          zensical build --clean --strict
-        language: system
-        pass_filenames: false
-        files: ^(docs/|zensical\.toml|python/pyproject\.toml|python/uv\.lock)
-        stages: [pre-push]
-
-      - id: clippy
-        name: clippy --all-targets --all-features (lint.yml)
-        entry: >-
-          scripts/hook-run.sh python3 scripts/partners.py run --
-          cargo clippy --locked --all-targets --all-features -- -D warnings
-        language: system
-        pass_filenames: false
-        files: ^(src/|examples/|Cargo\.(toml|lock)|\.cargo/|rust-toolchain\.toml|\.github/partners\.env)
-        stages: [pre-push]
-
-      # Builds the molrs extension (editable) into the typecheck env. uv's
-      # maturin builds (molrs, molpack) get --locked through MATURIN_PEP517_ARGS.
-      - id: ty
-        name: ty (Python type check, lint.yml)
-        entry: >-
-          scripts/hook-run.sh python3 scripts/partners.py run --
-          env MATURIN_PEP517_ARGS='--locked --profile=dev'
-          uv run --locked --python 3.12 --directory python --group typecheck
-          ty check python tests examples
-        language: system
-        pass_filenames: false
-        files: ^(python/|\.github/partners\.env)
-        stages: [pre-push]
-
-      # clippy --all-targets --all-features already compiled the cli union,
-      # so this does not repeat `cargo check --all-targets --features cli`.
-      # The two checks that remain are feature sets clippy does not build.
-      - id: rust-tests
-        name: rust tests (test.yml)
-        entry: >-
-          scripts/hook-run.sh python3 scripts/partners.py run -- sh -c
-          'cargo test --locked --lib --features cli
-          && cargo test --locked --doc --features cli
-          && cargo check --locked --no-default-features
-          && cargo check --locked --features rayon'
-        language: system
-        pass_filenames: false
-        files: ^(src/|examples/|Cargo\.(toml|lock)|\.cargo/|rust-toolchain\.toml|\.github/partners\.env)
-        stages: [pre-push]
-
-      - id: python-tests
-        name: python tests, tox isolated non-editable (test.yml)
-        entry: >-
-          scripts/hook-run.sh python3 scripts/partners.py run --
-          env MATURIN_PEP517_ARGS='--locked --profile=dev' MOLPACK_WHEEL_PROFILE=--profile=dev
-          uv run --locked --python 3.12 --directory python --group dev tox -e py
-        language: system
-        pass_filenames: false
-        files: ^(python/|src/|Cargo\.(toml|lock)|\.github/partners\.env)
         stages: [pre-push]

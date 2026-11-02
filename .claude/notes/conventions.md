@@ -68,16 +68,15 @@ frame (the PyO3 `target_from_frame` helper) and lowers scripts with
   needs `io` or `ff` is a plain `no_run` block, with any setup on hidden `#`
   lines.
 - An ignored test is a failing test. No `ignore` doctest fence, no `#[ignore]`:
-  the `no-ignored-tests` prek hook (commit stage, mirrored in CI `lint`) rejects
+  the `hygiene` check in `.github/ci.toml` (commit stage, and CI) rejects
   both. Uncompiled illustration is a `text` fence.
 - `uv run --locked --python 3.12 --directory python --group dev tox -e py` — Python wheel, isolated and non-editable (`maturin develop` is not the gate).
-- CI parity (pre-push hooks in `.pre-commit-config.yaml`, mirrored by
-  `mol_project.ci.local`): commit hooks on `--all-files`, partners, lock
-  files, docs, clippy, ty, lib tests, doc tests, `--all-targets` check (bin +
-  examples must compile), `--no-default-features` / `rayon` checks, then tox
-  -- the compiling ones in CI's layout at the resolved partner commits,
-  all `--locked`. CONTRIBUTING.md "Hooks" has the stage table and the
-  cluster dispatch.
+- CI parity is `.github/ci.toml`: the hooks run `molci check` for
+  `pre-commit` and `pre-push`, and CI runs the same commands. Pre-push is
+  the partner pin, the lock files, docs, clippy, ty, lib tests, doc tests,
+  `--all-targets` check (bin + examples must compile), `--no-default-features`
+  / `rayon` checks, then tox, all `--locked`. CONTRIBUTING.md "Hooks" has
+  the cluster dispatch.
 
 ## Repo layout
 

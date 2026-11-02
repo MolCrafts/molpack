@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """The partner repositories this one is built and tested against.
 
-``.github/partners.env`` names them, and this script resolves them for both
-the workflows (``fetch``, through ``MolCrafts/molcrafts-ci/actions/setup-partners``)
-and the git hooks (``check``, ``fetch``, ``run``), so a local gate and CI judge
-against the same partner commit -- never whatever branch a developer's
-sibling checkout is on.
+``.github/partners.env`` names them. CI does not check them out with this
+script: ``molci partners`` clones the ref in ``.github/ci.toml`` and does
+not use the same-named-branch order below. The ``locks`` check compares the
+two pins, then runs ``check``, which resolves this file, fails when a path
+dependency lands outside that checkout, and fails when a workflow spells a
+partner commit. ``run`` is the relock recipe. A local ``molci check`` uses
+the sibling checkout as it is.
 
 Each partner is a ``<NAME>_REPOSITORY=owner/repo`` + ``<NAME>_REF`` pair,
 checked out as the directory ``<name>`` (lower case). ``<NAME>_REF`` is a
@@ -29,9 +31,10 @@ A branch resolves to the first of:
 
     partners.py check             cheap pre-push gate (login node is fine):
                                   every partner resolves, every path
-                                  dependency resolves inside the layout CI
-                                  checks out, and no workflow spells a partner
-                                  commit of its own.
+                                  dependency resolves inside the checkout
+                                  named in partners.env (the same ref as
+                                  .github/ci.toml), and no workflow spells a
+                                  partner commit of its own.
     partners.py fetch NAME DEST   check partner NAME out, resolved, into DEST.
     partners.py run -- CMD...     run CMD in CI's sibling layout: a copy of
                                   this working tree at <root>/<SELF> next to

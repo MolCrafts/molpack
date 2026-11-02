@@ -368,44 +368,42 @@ language would fork the user base and the parser.
 <!-- mol:law:id:molrs-pins-manual -->
 ## P3. molrs path, version and partner refs are managed manually
 
-**Principle.** The `../molrs/molrs` path dependency, its version line,
-and the partner refs in `.github/partners.env` are edited by a human,
-deliberately. On `dev` the ref is molrs's `dev` branch: partners are
-tracked, not pinned (owner ruling 2026-10-07). `scripts/partners.py`
-resolves it -- molrs's same-named branch first, so a coordinated change
-lands as same-named branches -- for CI and the hooks alike, and verifies
-it -- the ref resolves, every path dependency lands in a checkout CI
-makes, the lock files match. A release commit names a molrs tag.
+**Principle.** The `../molrs` path dependency, its version line, and the
+partner ref are edited by a human, deliberately. On `dev` the ref is
+molrs's `dev` branch: the partner is tracked, not pinned (owner ruling
+2026-10-07). The pin is `[partners]` in `.github/ci.toml`.
+`.github/partners.env` names the same repository and ref.
+`scripts/partners.py check` fails when they disagree, when a path
+dependency lands outside that checkout, or when a workflow spells a
+partner commit. CI clones the named ref with `molci partners` (`../molrs`).
+A local `molci check` uses the sibling checkout and prints its branch and
+commit. A release commit names a molrs tag in both files.
 
 **Never**
 
 - Never let a hook or script rewrite `Cargo.toml` / `pyproject.toml` /
-  `.github/partners.env`.
-- Never check a partner out in CI or a hook other than through
-  `scripts/partners.py` (`fetch`, `run`).
+  `.github/ci.toml` / `.github/partners.env`.
+- Never point CI at a different ref than `.github/partners.env`.
 
 <!-- mol:law:id:local-gates-prek-tox -->
 ## P4. Local gates are prek + tox
 
-**Principle.** Hooks use prek (pre-commit-compatible config); Python
-isolation is tox from the `python/` `dev` dependency group. Gate commands
-are spelled in `.pre-commit-config.yaml` and `.github/workflows/`. `scripts/` holds the
-hook plumbing only: `hook-run.sh` (dispatch to a compute node on the
-MolCrafts cluster) and `partners.py` (CI's sibling layout at the resolved
-partner commits).
+**Principle.** Hooks use prek. Both hooks run `molci check` for one stage
+of `.github/ci.toml`, which is where the gate commands are spelled.
+Python isolation is tox from the `python/` `dev` dependency group.
+`molci` hands each pre-push check to `$MOLCRAFTS_HOOK_RUNNER` on the
+MolCrafts cluster. `scripts/hook-run.sh` stays so the shared git hooks
+keep the commit stage on the login node; `scripts/partners.py` checks
+the pin and is the relock recipe.
 
 **Never**
 
 - Never add a project `scripts/` test wrapper, or move a gate's command
   into `scripts/`.
-- Never hand-write a local hook where a registry-hosted one exists
-  (`doublify/pre-commit-rust`, `astral-sh/ruff`) -- unless the gate
-  compiles: those run through `scripts/hook-run.sh` in the partner layout
-  (clippy), which a registry hook cannot.
 - Never `git commit --no-verify` / `git push --no-verify`.
 - Never run Python binding tests any way other than
-  `uv run --directory python --group dev tox -e py` (non-editable,
-  sibling molrs path install + maturin wheel + pytest).
+  `uv run --locked --python 3.12 --directory python --group dev tox -e py`
+  (non-editable, sibling molrs path install + maturin wheel + pytest).
 
 <!-- mol:law:id:fork-pr-workflow -->
 ## P5. Fork → PR
