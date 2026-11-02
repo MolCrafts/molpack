@@ -110,8 +110,9 @@ metadata, and is tagged. When `master` is merged back into `dev`, both name
 
 `.github/workflows/ci.yml` is the workflow. Its jobs call
 `MolCrafts/molcrafts-ci` `setup-rust`, `setup-python` and `setup-partners`.
-Every push, pull request and manual run executes every job: `python` on
-Linux, macOS and Windows, and the other checks on Linux. The job `result`
+A pull request, a push to `dev` or `master`, and a manual run execute every
+job. `python` is CPython 3.12 on Linux, macOS and Windows, and the test wheel
+is a dev build. The other checks run on Linux. The job `result`
 is the check `ci / result`, and it passes when every other job did.
 `release.yml` calls this same file.
 

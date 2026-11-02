@@ -7,8 +7,10 @@ name: ci
 # .github/partners.env names that same repository and ref.
 
 on:
+  # A feature branch is tested by its pull request, once. A second push run
+  # asks for another macOS runner and the one left in the queue is cancelled.
   push:
-    branches: ["**"]
+    branches: [dev, master]
   pull_request:
     branches: [dev, master]
   workflow_dispatch:
@@ -204,7 +206,13 @@ jobs:
           cache: molpack
           workspaces: ../molrs -> target
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+        with:
+          python-version: "3.12"
+      # One interpreter, CPython 3.12. The dev profile runs the same tests
+      # without a from-scratch LTO release of molpy and molpack.
       - name: tox
+        env:
+          MOLPACK_WHEEL_PROFILE: --profile=dev
         run: uv run --locked --python 3.12 --directory python --group dev tox -e py
 
   docs:
