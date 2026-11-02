@@ -222,8 +222,10 @@ jobs:
       - name: zensical
         run: uv run --isolated --locked --python 3.12 --project python --only-group doc zensical build --clean --strict
 
-  # Branch rules require this check: `ci / result`.
+  # The job name is the ruleset context. A bare id `result` is reported as
+  # `result`; branch rules require `ci / result`.
   result:
+    name: ci / result
     needs: [hygiene, locks, clippy, ty, rust, python, docs]
     if: always()
     runs-on: ubuntu-latest
