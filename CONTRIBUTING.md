@@ -25,13 +25,11 @@ sibling layout above everything resolves automatically.
 
 **Version pins:** a local build uses the sibling checkout `../molrs`. The
 version fields name the **0.20.*** minor line (see `Cargo.toml` and
-`python/pyproject.toml`). CI checks out `MolCrafts/molpy` at the ref in
-`.github/ci.toml` (`molrs = "MolCrafts/molpy@dev"`) as `../molrs`. A local
-`molci check` uses the sibling you already have and prints its branch and
-commit. `.github/partners.env` names the same repository and ref;
-`scripts/partners.py check` fails when the two disagree. `Cargo.lock`,
+`python/pyproject.toml`). CI checks out `MolCrafts/molpy` at ref `dev` into
+`../molrs` (`setup-partners` in `.github/workflows/ci.yml`).
+`.github/partners.env` names the same repository and ref. `Cargo.lock`,
 `python/Cargo.lock` and `python/uv.lock` are committed and every cargo / uv
-call in the gates is `--locked`; they record molpy's package metadata, not a
+call in the workflow is `--locked`; they record molpy's package metadata, not a
 commit, so relock only when molpy's `dev` changes its version or dependencies
 (the recipe is in `.github/partners.env`).
 The Python wheel checks this on ``import molpack`` — a molpy minor mismatch is an
@@ -52,7 +50,7 @@ cargo build -p molcrafts-molpack
 
 ## Running tests
 
-`molci check` and CI run the **same** commands, from `.github/ci.toml`:
+`.github/workflows/ci.yml` is the only place these commands are written:
 
 ```bash
 # Rust — the `rust` check. Behaviour lives in `#[cfg(test)]` modules next
@@ -66,80 +64,58 @@ cargo check --locked --no-default-features && cargo check --locked --features ra
 uv run --locked --python 3.12 --directory python --group dev tox -e py
 ```
 
-Locally those use your sibling `../molrs`. CI clones the ref named in
-`.github/ci.toml`.
+CI checks `../molrs` out at that ref. A local build uses the sibling as it is.
 
 For a quick local edit loop you may still `maturin develop` in a personal
-venv; **do not** rely on that for the gate — pre-push always uses
+venv; **do not** rely on that for the gate — CI uses
 `uv run --locked --python 3.12 --directory python --group dev tox -e py`.
 
 ## Hooks
 
 `prek install` installs both hook types from `.pre-commit-config.yaml`.
-Each hook runs `molci check` for one stage of `.github/ci.toml`. **Never
-`git commit --no-verify` or `git push --no-verify`, and never merge a red
-pull request.**
+The hook is actionlint on `.github/workflows`, on commit and on push. It
+does not run the test or lint commands; those exist only as jobs in
+`.github/workflows/ci.yml`. **Never `git commit --no-verify` or
+`git push --no-verify`, and never merge a red pull request.**
 
-- **pre-commit** (nothing compiles, in place): rustfmt, ruff format + ruff
-  (`python/`), trailing whitespace, a final newline, and the no-ignored-tests
-  guard.
-- **pre-push**: the partner pin (`.github/ci.toml` matches
-  `.github/partners.env`), `scripts/partners.py check`, the three lock files,
-  clippy, ty, the rust tests, tox, and the docs build. They run on every push,
-  `--locked`, on the toolchain `rust-toolchain.toml` pins and Python 3.12.
-  The commands are the ones CI runs. Locally molrs is your sibling
-  `../molrs`; CI clones the named ref.
-- **Dispatch on the MolCrafts cluster:** `molci` hands each pre-push check to
-  `$MOLCRAFTS_HOOK_RUNNER` when that is set and it is not already inside a
-  Slurm job. The cluster's shared `core.hooksPath` sets it to
-  `.build-alloc/hookrun`, which runs the command on a compute node (allocation
-  `$USER-hooks`; it fails after 20 minutes without a node, never passes).
-  A commit stays on the login node. `scripts/hook-run.sh` is what tells those
-  shared hooks to keep it that way: they look for `MOLCRAFTS_HOOK_RUNNER` in
-  that file.
+`scripts/hook-run.sh` stays so the shared git hooks on this cluster keep
+prek on the login node. They look for `MOLCRAFTS_HOOK_RUNNER` in that file;
+if the string is missing they send the whole hook to Slurm.
 
 ## Partners
 
-On `dev`, the partner is tracked, not pinned. `.github/ci.toml` names it:
+On `dev`, the partner is tracked, not pinned. `setup-partners` in
+`.github/workflows/ci.yml` and `release.yml` names it: repository
+`MolCrafts/molpy`, ref `dev`, path `../molrs`. It does not look up a branch
+of the same name. `.github/partners.env` must name the same repository and
+ref (`MOLRS_REPOSITORY`, `MOLRS_REF`). `scripts/partners.py check` fails when
+a path dependency (`../molrs`, `../../molrs`, ...) lands outside that
+checkout, or when a workflow spells a partner commit of its own. The relock
+recipe in `partners.env` still uses `scripts/partners.py run`.
 
-```toml
-molrs = "MolCrafts/molpy@dev"
-```
+A local build does not move `../molrs`.
 
-CI clones that ref into `../molrs` (`molci partners`). It does not look up a
-branch of the same name. `.github/partners.env` must name the same repository
-and ref (`MOLRS_REPOSITORY`, `MOLRS_REF`). `scripts/partners.py check` fails
-when they disagree, when a path dependency (`../molrs`, `../../molrs`, ...)
-lands outside that checkout, or when a workflow spells a partner commit of its
-own. The relock recipe in `partners.env` still uses `scripts/partners.py run`.
-
-A local `molci check` does not clone. It uses `../molrs` as it is and prints
-the branch and commit next to the ref CI uses.
-
-A change that needs a molrs change lands by updating the pin in both files to
-the molrs commit you built against, in a commit of its own, after molrs's
-change is on the ref you name. Do not expect CI to follow a same-named branch.
+A change that needs a molrs change lands by updating the workflow `ref` and
+`MOLRS_REF` to the molrs commit you built against, in a commit of its own,
+after molrs's change is on the ref you name. Do not expect CI to follow a
+same-named branch.
 
 **Releasing.** A release builds against a fixed molrs: the release commit on
-`master` sets the `ci.toml` partner and `MOLRS_REF` to the molrs release tag
+`master` sets the workflow `ref` and `MOLRS_REF` to the molrs release tag
 of the line `Cargo.toml` names (`vX.Y.Z`), relocks if that changes molrs's
-metadata, and is tagged. When `master` is merged back into `dev`, both files
-name `dev` again.
+metadata, and is tagged. When `master` is merged back into `dev`, both name
+`dev` again.
 
 ## CI
 
-`.github/workflows/ci.yml` calls
-`MolCrafts/molcrafts-ci/.github/workflows/ci.yml@master`. What it runs is
-`.github/ci.toml`.
+`.github/workflows/ci.yml` is the workflow. Its jobs call
+`MolCrafts/molcrafts-ci` `setup-rust`, `setup-python` and `setup-partners`.
+Every push, pull request and manual run executes every job: `python` on
+Linux, macOS and Windows, and the other checks on Linux. The job `result`
+is the check `ci / result`, and it passes when every other job did.
+`release.yml` calls this same file.
 
-A push to a feature branch of MolCrafts runs the first leg of each check
-(Linux). A push to `dev` or `master`, a pull request, a push to a fork, and a
-manual run run every leg: `python` on Linux, macOS and Windows, and the other
-checks on Linux. A pull request inside a fork runs nothing; that branch
-already ran on its push. The `require-green-ci` (`dev`) and `protect-master`
-rulesets require one check, `ci / result`, which passes when every check did.
-
-`release.yml` is the tag (and the manual dry run). It runs that same CI, then
+`release.yml` is the tag (and the manual dry run). It runs that CI, then
 publishes. A dispatch builds and runs `cargo publish --dry-run` and uploads
 nothing. A `v*` tag on MolCrafts publishes the crate, the wheels, the sdist
 and the GitHub Release. The tag must be `v` plus the `Cargo.toml` version and
@@ -149,8 +125,8 @@ MolCrafts; CI only builds it (`docs`, `zensical build --clean --strict`).
 
 ## Code style
 
-- `cargo fmt` / `ruff` — `molci check --stage pre-commit`; `clippy` / `ty` — pre-push
-- pre-push: clippy, ty, rust tests + `uv run … tox -e py` (the same commands as CI; see [Hooks](#hooks))
+- `cargo fmt` / `ruff` / `clippy` / `ty` — the `hygiene`, `clippy` and `ty` jobs in `.github/workflows/ci.yml`
+- CI: clippy, ty, rust tests + `uv run … tox -e py` (see [Running tests](#running-tests))
 - Follow the immutability rule: return new values, never mutate in place
 - Keep files under ~400 lines; split at ~200 if the module grows beyond one concern
 - New public types must implement `Debug` and, where appropriate, `Clone`

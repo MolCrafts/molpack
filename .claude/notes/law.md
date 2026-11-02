@@ -371,30 +371,31 @@ language would fork the user base and the parser.
 **Principle.** The `../molrs` path dependency, its version line, and the
 partner ref are edited by a human, deliberately. On `dev` the ref is
 molrs's `dev` branch: the partner is tracked, not pinned (owner ruling
-2026-10-07). The pin is `[partners]` in `.github/ci.toml`.
-`.github/partners.env` names the same repository and ref.
-`scripts/partners.py check` fails when they disagree, when a path
+2026-10-07). The pin is `setup-partners` (`repository` / `ref`) in
+`.github/workflows/ci.yml` and `release.yml`. `.github/partners.env` names
+the same repository and ref. `scripts/partners.py check` fails when a path
 dependency lands outside that checkout, or when a workflow spells a
-partner commit. CI clones the named ref with `molci partners` (`../molrs`).
-A local `molci check` uses the sibling checkout and prints its branch and
-commit. A release commit names a molrs tag in both files.
+partner commit. CI checks the named ref out with `setup-partners`
+(`../molrs`). A release commit names a molrs tag in the workflow `ref` and
+in `partners.env`.
 
 **Never**
 
 - Never let a hook or script rewrite `Cargo.toml` / `pyproject.toml` /
-  `.github/ci.toml` / `.github/partners.env`.
-- Never point CI at a different ref than `.github/partners.env`.
+  `.github/workflows/ci.yml` / `.github/workflows/release.yml` /
+  `.github/partners.env`.
+- Never point the workflow `ref` at a different ref than `.github/partners.env`.
 
 <!-- mol:law:id:local-gates-prek-tox -->
 ## P4. Local gates are prek + tox
 
-**Principle.** Hooks use prek. Both hooks run `molci check` for one stage
-of `.github/ci.toml`, which is where the gate commands are spelled.
-Python isolation is tox from the `python/` `dev` dependency group.
-`molci` hands each pre-push check to `$MOLCRAFTS_HOOK_RUNNER` on the
-MolCrafts cluster. `scripts/hook-run.sh` stays so the shared git hooks
-keep the commit stage on the login node; `scripts/partners.py` checks
-the pin and is the relock recipe.
+**Principle.** Hooks use prek. Both hooks run actionlint on
+`.github/workflows`. The gate commands are spelled only in
+`.github/workflows/ci.yml`. Python isolation there is tox from the
+`python/` `dev` dependency group. `scripts/hook-run.sh` stays so the
+shared git hooks keep prek on the login node (they look for
+`MOLCRAFTS_HOOK_RUNNER` in that file). `scripts/partners.py` checks the
+partner layout and is the relock recipe.
 
 **Never**
 

@@ -68,15 +68,15 @@ frame (the PyO3 `target_from_frame` helper) and lowers scripts with
   needs `io` or `ff` is a plain `no_run` block, with any setup on hidden `#`
   lines.
 - An ignored test is a failing test. No `ignore` doctest fence, no `#[ignore]`:
-  the `hygiene` check in `.github/ci.toml` (commit stage, and CI) rejects
-  both. Uncompiled illustration is a `text` fence.
+  the `hygiene` job in `.github/workflows/ci.yml` rejects both. Uncompiled
+  illustration is a `text` fence.
 - `uv run --locked --python 3.12 --directory python --group dev tox -e py` — Python wheel, isolated and non-editable (`maturin develop` is not the gate).
-- CI parity is `.github/ci.toml`: the hooks run `molci check` for
-  `pre-commit` and `pre-push`, and CI runs the same commands. Pre-push is
-  the partner pin, the lock files, docs, clippy, ty, lib tests, doc tests,
-  `--all-targets` check (bin + examples must compile), `--no-default-features`
-  / `rayon` checks, then tox, all `--locked`. CONTRIBUTING.md "Hooks" has
-  the cluster dispatch.
+- The check commands live only in `.github/workflows/ci.yml`: locks, docs,
+  clippy, ty, lib tests, doc tests, `--all-targets` check (bin + examples
+  must compile), `--no-default-features` / `rayon` checks, then tox, all
+  `--locked`, plus `python` on Linux, macOS and Windows. prek runs actionlint
+  on `.github/workflows` at commit and at push. CONTRIBUTING.md "Hooks" has
+  the login-node rule.
 
 ## Repo layout
 

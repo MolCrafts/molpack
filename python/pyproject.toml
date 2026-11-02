@@ -27,7 +27,7 @@ doc = [
 ]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
-# deps used by both CI and `molci check`.
+# deps used by .github/workflows/ci.yml.
 #
 # Install with `pip install --group <name>` (pip 25.1+) from this directory.
 [dependency-groups]
@@ -48,7 +48,7 @@ dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
-  # Gate driver (molci pre-push / CI): install with `uv sync --group dev`
+  # Gate driver (the `python` job): install with `uv sync --group dev`
   # then `uv run --locked --python 3.12 --directory python --group dev tox -e py`.
   "tox>=4.23",
 ]
@@ -126,11 +126,11 @@ python-version = "3.12"
 # dynamic path manipulation, so we declare the examples dir as an extra source root.
 extra-paths = ["examples"]
 
-# Isolated binding tests — `molci check` and CI call:
+# Isolated binding tests — the `python` job calls:
 #   uv run --locked --python 3.12 --directory python --group dev tox -e py
 # Non-editable only: sibling molrs path install + maturin wheel + pytest.
 # Requires ../../molrs (the molpy checkout) on the 0.20.* minor line. CI
-# clones the ref in .github/ci.toml; a local check uses the sibling.
+# checks out MolCrafts/molpy ref dev (setup-partners); a local build uses the sibling.
 # Both builds are --locked (MATURIN_PEP517_ARGS reaches the molpy wheel).
 [tool.tox]
 requires = ["tox>=4.23"]

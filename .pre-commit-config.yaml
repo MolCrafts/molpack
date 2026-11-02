@@ -1,23 +1,12 @@
-# The checks of .github/ci.toml, by stage. CI runs the same commands.
-# pre-commit stays on the login node. molci hands each pre-push check to
-# $MOLCRAFTS_HOOK_RUNNER when that is set. scripts/hook-run.sh keeps the
-# MOLCRAFTS_HOOK_RUNNER string so the shared githooks do not send this whole
-# hook to Slurm. Never --no-verify.
+# prek runs this on commit and on push. It lints .github/workflows.
+# The checks themselves are the jobs in .github/workflows/ci.yml.
 default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit, pre-push]
+
 repos:
-  - repo: local
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
     hooks:
-      - id: molci-pre-commit
-        name: molci check --stage pre-commit
-        entry: uvx --from git+https://github.com/MolCrafts/molcrafts-ci@master molci check --stage pre-commit
-        language: system
+      - id: actionlint
         pass_filenames: false
         always_run: true
-        stages: [pre-commit]
-      - id: molci-pre-push
-        name: molci check --stage pre-push
-        entry: uvx --from git+https://github.com/MolCrafts/molcrafts-ci@master molci check --stage pre-push
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]

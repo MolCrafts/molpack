@@ -3,10 +3,10 @@
 #
 #   scripts/hook-run.sh <command...>
 #
-# The git hooks no longer call this script. `molci check` hands each
-# pre-push check to $MOLCRAFTS_HOOK_RUNNER itself. This file stays because
-# the shared githooks look for the string MOLCRAFTS_HOOK_RUNNER here: if it
-# is missing they send the whole hook, including the commit stage, to Slurm.
+# The git hooks no longer call this script. prek only lints
+# .github/workflows, on the login node. This file stays because the shared
+# githooks look for the string MOLCRAFTS_HOOK_RUNNER here: if it is missing
+# they send the whole hook, including the commit stage, to Slurm.
 #
 # When the environment names a runner in MOLCRAFTS_HOOK_RUNNER and this is not
 # already inside a Slurm job, the command is handed to that runner. The

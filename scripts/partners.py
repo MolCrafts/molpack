@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """The partner repositories this one is built and tested against.
 
-``.github/partners.env`` names them. CI does not check them out with this
-script: ``molci partners`` clones the ref in ``.github/ci.toml`` and does
-not use the same-named-branch order below. The ``locks`` check compares the
-two pins, then runs ``check``, which resolves this file, fails when a path
-dependency lands outside that checkout, and fails when a workflow spells a
-partner commit. ``run`` is the relock recipe. A local ``molci check`` uses
+``.github/partners.env`` names them. CI checks that same repository and
+ref out with ``setup-partners`` (``path`` ``../molrs``) and does not use the
+same-named-branch order below. ``check`` resolves this file, fails when a
+path dependency lands outside that checkout, and fails when a workflow
+spells a partner commit. ``run`` is the relock recipe. A local build uses
 the sibling checkout as it is.
 
 Each partner is a ``<NAME>_REPOSITORY=owner/repo`` + ``<NAME>_REF`` pair,
@@ -29,12 +28,10 @@ A branch resolves to the first of:
    of two coordinated pushes is judged against the partner's local branch;
 3. ``<NAME>_REF`` itself, on ``<NAME>_REPOSITORY``.
 
-    partners.py check             cheap pre-push gate (login node is fine):
-                                  every partner resolves, every path
-                                  dependency resolves inside the checkout
-                                  named in partners.env (the same ref as
-                                  .github/ci.toml), and no workflow spells a
-                                  partner commit of its own.
+    partners.py check             the locks job: every partner resolves,
+                                  every path dependency resolves inside the
+                                  checkout named in partners.env, and no
+                                  workflow spells a partner commit of its own.
     partners.py fetch NAME DEST   check partner NAME out, resolved, into DEST.
     partners.py run -- CMD...     run CMD in CI's sibling layout: a copy of
                                   this working tree at <root>/<SELF> next to
