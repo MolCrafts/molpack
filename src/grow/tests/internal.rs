@@ -114,6 +114,63 @@ fn internal_random_vars_preserve_bonded_geometry() {
     }
 }
 
+/// A template with a linear angle (2–3–4 at 180°) rebuilds exactly: the
+/// collinear preferred reference of every atom on 4 is replaced by a bonded,
+/// well-conditioned one. Before, NeRF's frame degenerated and the 1.09 Å
+/// branches came back at |1.09 · cos 109.5°| = 0.36 Å from atom 4. Bond
+/// lengths also survive arbitrary free torsions.
+#[test]
+fn internal_linear_angle_template_keeps_its_bonds() {
+    let (coords, bonds) = linear_angle_parts();
+    let tree = assert_roundtrip(&coords, &bonds, "linear angle");
+    let pi = std::f64::consts::PI as F;
+    let mut rng = SmallRng::seed_from_u64(20261031);
+    for trial in 0..5 {
+        let vars: Vec<F> = (0..tree.n_vars())
+            .map(|_| (rng.random::<f64>() as F * 2.0 - 1.0) * pi)
+            .collect();
+        let rebuilt = rebuild_coords(&tree, &coords, &vars);
+        for &(i, j) in &bonds {
+            let (i, j) = (i as usize, j as usize);
+            let (want, got) = (vdist(coords[i], coords[j]), vdist(rebuilt[i], rebuilt[j]));
+            assert!(
+                (got - want).abs() < 1e-9,
+                "trial {trial}: bond ({i},{j}) = {got} vs template {want}"
+            );
+        }
+    }
+}
+
+/// A straight rod rebuilds exactly — every atom sits on its own reference
+/// axis, where any frame places it — but an off-axis atom whose placed
+/// references are all collinear (a straight three-atom seed, then a bend) has
+/// no placement frame: a named refusal, not a rebuild on the axis.
+#[test]
+fn internal_collinear_references_refuse_only_an_off_axis_atom() {
+    let rod = [
+        [0.0, 0.0, 0.0],
+        [1.5, 0.0, 0.0],
+        [3.0, 0.0, 0.0],
+        [4.5, 0.0, 0.0],
+    ];
+    assert_roundtrip(&rod, &chain_bonds(4), "straight rod");
+    let bent = [
+        [0.0, 0.0, 0.0],
+        [1.5, 0.0, 0.0],
+        [3.0, 0.0, 0.0],
+        [3.5, 1.4, 0.0],
+    ];
+    let err = InternalTree::from_frame(
+        &frame_from_parts(&bent, &chain_bonds(4)),
+        &BondDistanceWeights::from_exclusion_depth(3),
+    )
+    .expect_err("a bend off a straight seed has no placement frame");
+    assert!(
+        matches!(err, GrowError::CollinearReference(3)),
+        "expected CollinearReference(3), got {err:?}"
+    );
+}
+
 /// The 1-`EXCLUDE_BONDS` (depth 3, AA convention) exclusion table: sorted,
 /// self included, 1-2/1-3/1-4 partners in, 1-5 partners out.
 #[test]

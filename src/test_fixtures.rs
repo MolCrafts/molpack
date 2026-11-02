@@ -43,25 +43,14 @@ pub(crate) fn chain_bonds(n: usize) -> Vec<(u32, u32)> {
 
 /// Coordinates + explicit bond list as a `molrs::core::Frame`: an atoms block with
 /// `x`/`y`/`z` and, unless `bonds` is empty, a bonds block with `atomi`/`atomj`.
-/// Deliberately no `bond_type` column — the shape a PDB CONECT list or a
-/// hand-built coarse-grain frame has.
+/// Deliberately no `bond_type` and no `atomic_number` — the shape of a PDB
+/// `CONECT` list or a hand-built coarse-grain frame. Packing uses the columns
+/// that are present.
 pub(crate) fn frame_from_parts(coords: &[[F; 3]], bonds: &[(u32, u32)]) -> Frame {
     let mut frame = Frame::new();
     frame
         .set_coords(Array2::from(coords.to_vec()).view())
         .expect("an N x 3 array always fits a fresh frame");
-    {
-        let atoms = frame
-            .get_mut("atoms")
-            .expect("coords create an atoms block");
-        atoms
-            .insert(
-                keys::ATOMIC_NUMBER,
-                Array1::from_vec(vec![0u8; coords.len()]).into_dyn(),
-                None,
-            )
-            .expect("atomic number");
-    }
     if !bonds.is_empty() {
         let mut block = Block::new();
         let ai: Vec<Idx> = bonds.iter().map(|&(i, _)| Idx::from(i)).collect();

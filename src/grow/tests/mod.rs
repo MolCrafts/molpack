@@ -186,6 +186,53 @@ fn branched_parts() -> (Vec<[F; 3]>, Vec<(u32, u32)>) {
     (coords, bonds)
 }
 
+/// A zigzag backbone whose angle at atom 3 is exactly linear (2–3–4 at 180°,
+/// as a conformer generator can leave one), continued from atom 4 by atom 5
+/// and two one-atom branches 6 and 7, all three at 109.5° to the 3→4 axis.
+/// Every placement on atom 4 prefers atom 2 as its third reference, which is
+/// collinear with 3→4.
+fn linear_angle_parts() -> (Vec<[F; 3]>, Vec<(u32, u32)>) {
+    let mut coords = zigzag_coords(4, 1.53);
+    let (c2, c3) = (coords[2], coords[3]);
+    let len = vdist(c2, c3);
+    let u = [
+        (c3[0] - c2[0]) / len,
+        (c3[1] - c2[1]) / len,
+        (c3[2] - c2[2]) / len,
+    ];
+    let c4 = [
+        c3[0] + 1.53 * u[0],
+        c3[1] + 1.53 * u[1],
+        c3[2] + 1.53 * u[2],
+    ];
+    coords.push(c4); // atom 4: 2–3–4 linear
+    // Two unit vectors perpendicular to u (u lies in the x–z plane).
+    let v = [0.0, 1.0, 0.0];
+    let w = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
+    let theta = 109.5 * std::f64::consts::PI as F / 180.0;
+    let (c, s) = (theta.cos(), theta.sin());
+    let around = |len: F, phi: F| {
+        let (cp, sp) = (phi.cos(), phi.sin());
+        let d = [
+            -c * -u[0] + s * (cp * v[0] + sp * w[0]),
+            -c * -u[1] + s * (cp * v[1] + sp * w[1]),
+            -c * -u[2] + s * (cp * v[2] + sp * w[2]),
+        ];
+        [c4[0] + len * d[0], c4[1] + len * d[1], c4[2] + len * d[2]]
+    };
+    let third = 2.0 * std::f64::consts::PI as F / 3.0;
+    coords.push(around(1.53, 0.0)); // atom 5, the chain
+    coords.push(around(1.09, third)); // atom 6
+    coords.push(around(1.09, -third)); // atom 7
+    let mut bonds = chain_bonds(6);
+    bonds.extend([(4, 6), (4, 7)]);
+    (coords, bonds)
+}
+
 /// Chair-ish (non-planar) 6-ring with ~1.54 Å bonds plus a 4-atom zigzag tail
 /// off ring atom 0. Ring bonds are cyclic and must never become free
 /// variables; the three non-terminal tail bonds must.

@@ -16,11 +16,14 @@
 
 use std::collections::HashMap;
 
-use molrs::core::Atomistic;
 use molrs::core::Frame;
 use molrs::op::F;
 
 use crate::grow::GrowError;
+
+/// Smallest `sin` of the angle between `g − gg` and the `g → p` axis a
+/// placement frame may have (≈ 5.7°): below it the frame normal is noise.
+const MIN_FRAME_SIN: F = 0.1;
 
 /// One atom's placement recipe against three earlier atoms.
 #[derive(Debug, Clone)]
@@ -84,12 +87,11 @@ impl InternalTree {
         let root = diameter_endpoint(&topo);
         let (order, parent) = bfs_order(&topo, root, n);
 
-        // Rotatable bonds, as an unordered key set. PDB / GROMACS / XYZ
-        // connectivity reads back as `BondOrder::Unknown`; for a conformer
-        // search an unclassed bond is a rotatable single bond.
-        let graph = crate::template::atomistic_from_frame(frame)
-            .map_err(|e| GrowError::Perceive(e.to_string()))?;
-        let rotatable = rotatable_bond_keys(&graph);
+        // Rotatable bonds, as an unordered index set. The frame's own columns
+        // decide: no `bond_type` means every non-terminal, non-ring bond is
+        // free, and `atomic_number` is not required.
+        let rotatable = crate::template::rotatable_pairs(frame, &topo)
+            .map_err(|err| GrowError::Perceive(err.to_string()))?;
 
         let seed = [order[0], order[1], order[2]];
         let seed_local = {
@@ -110,24 +112,43 @@ impl InternalTree {
         for &i in &order[3..] {
             let p = parent[i].expect("BFS parent");
             let g = pick_ref(&topo, &placed, p, i, parent[p]).ok_or(GrowError::NoReference(i))?;
-            let gg = pick_ref(&topo, &placed, g, p, parent[g])
-                .filter(|&c| c != i)
-                .or_else(|| {
-                    // Fallback reference: pick the placed atom whose frame is
-                    // best conditioned — a gg (near-)collinear with g→p
-                    // degenerates NeRF's frame and corrupts the placement
-                    // silently, so maximize the cross-product norm instead of
-                    // taking the first index.
-                    let gp = sub(xyz[p], xyz[g]);
-                    (0..n)
-                        .filter(|&c| placed[c] && c != p && c != g)
-                        .max_by(|&a, &b| {
-                            let na = norm(cross(sub(xyz[g], xyz[a]), gp));
-                            let nb = norm(cross(sub(xyz[g], xyz[b]), gp));
-                            na.total_cmp(&nb)
-                        })
-                })
-                .ok_or(GrowError::NoReference(i))?;
+            // A gg (near-)collinear with g→p degenerates NeRF's frame: the
+            // frame normal is zero and an off-axis atom lands at
+            // |bond·cos(angle)| from p (a 1.09 Å C–H rebuilt at 0.41 Å),
+            // silently. A template with a linear angle at g makes the
+            // preferred gg collinear; then another placed neighbour of g or
+            // of p is taken — it sits at a fixed bond angle to the g–p axis,
+            // so its conditioning holds for every sampled torsion — and
+            // failing that the best-conditioned placed atom. An atom on the
+            // axis itself (angle g–p–i of 0 or π) is placed exactly by any
+            // frame; an off-axis atom with no conditioned frame is refused.
+            let gp = sub(xyz[p], xyz[g]);
+            let frame_sin = |c: usize| {
+                let gc = sub(xyz[g], xyz[c]);
+                norm(cross(gc, gp)) / (norm(gc) * norm(gp))
+            };
+            let usable = |c: usize| placed[c] && c != p && c != g && c != i;
+            let best = || {
+                (0..n)
+                    .filter(|&c| placed[c] && c != p && c != g)
+                    .max_by(|&a, &b| frame_sin(a).total_cmp(&frame_sin(b)))
+            };
+            let gg = match pick_ref(&topo, &placed, g, p, parent[g]).filter(|&c| c != i) {
+                Some(c) if frame_sin(c) >= MIN_FRAME_SIN => c,
+                Some(c) => topo
+                    .neighbors(g)
+                    .into_iter()
+                    .chain(topo.neighbors(p))
+                    .find(|&b| usable(b) && frame_sin(b) >= MIN_FRAME_SIN)
+                    .or_else(best)
+                    .unwrap_or(c),
+                None => best().ok_or(GrowError::NoReference(i))?,
+            };
+            let off_axis =
+                norm(cross(sub(xyz[i], xyz[p]), gp)) / (norm(sub(xyz[i], xyz[p])) * norm(gp));
+            if frame_sin(gg) < MIN_FRAME_SIN && off_axis >= MIN_FRAME_SIN {
+                return Err(GrowError::CollinearReference(i));
+            }
 
             let bond = norm(sub(xyz[i], xyz[p]));
             let angle = angle(xyz[g], xyz[p], xyz[i]);
@@ -329,18 +350,6 @@ impl InternalTree {
 }
 
 // ── graph helpers ──────────────────────────────────────────────────────────
-
-/// The rotatable bonds of `graph` (see [`crate::template::rotatable_bonds`])
-/// as an unordered index-pair set.
-pub(crate) fn rotatable_bond_keys(graph: &Atomistic) -> std::collections::HashSet<(usize, usize)> {
-    // `RotatableBond.j` / `.k` are positional indices in `Atomistic::atoms`
-    // order, which `Atomistic::from_frame` builds in frame row order — the
-    // same index space as the template coordinates.
-    crate::template::rotatable_bonds(graph)
-        .iter()
-        .map(|b| (b.j.min(b.k), b.j.max(b.k)))
-        .collect()
-}
 
 /// One endpoint of a longest shortest-path in the graph — a chain end for a
 /// linear polymer, so growth runs along the backbone instead of starting in

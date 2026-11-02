@@ -51,6 +51,10 @@ pub enum GrowError {
     Disconnected,
     /// No placed reference atom could be found while decomposing atom `.0`.
     NoReference(usize),
+    /// Every placed reference for atom `.0` is (near-)collinear with its
+    /// `g → p` axis, so no placement frame exists (a template with linear
+    /// angles everywhere around it).
+    CollinearReference(usize),
     /// Rotatable-bond perception failed.
     Perceive(String),
     /// A Grow target needs a box: neither a periodic box nor a cell (nor a
@@ -121,6 +125,11 @@ impl fmt::Display for GrowError {
             GrowError::NoReference(i) => write!(
                 f,
                 "no placed reference atom found while decomposing atom {i}"
+            ),
+            GrowError::CollinearReference(i) => write!(
+                f,
+                "every placed reference of atom {i} is collinear with its bond axis; the \
+                 template has linear angles around it and no placement frame exists"
             ),
             GrowError::Perceive(msg) => write!(f, "rotatable-bond perception failed: {msg}"),
             GrowError::NoBox => write!(
