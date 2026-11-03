@@ -168,13 +168,13 @@ pass_env = [
 ]
 set_env = { MATURIN_PEP517_ARGS = "--locked" }
 allowlist_externals = ["maturin"]
-# toxinidir is python/ when config lives here; sibling molpy is ../.. /molrs.
+# toxinidir is python/ when config lives here; sibling molpy is ../../molpy.
 # Minor-line only: 0.20.* (patch may differ).
 commands_pre = [
   [
     "{envpython}",
     "-c",
-    "import tomllib; from pathlib import Path; p=Path(r'{toxinidir}')/'..'/'..'/'molrs'/'Cargo.toml'; v=tomllib.loads(p.read_text(encoding='utf-8'))['workspace']['package']['version']; assert tuple(map(int, v.split('.')[:2]))==(0,20), f'sibling molpy {{v}} not on 0.20.*'",
+    "import tomllib; from pathlib import Path; p=Path(r'{toxinidir}')/'..'/'..'/'molpy'/'Cargo.toml'; v=tomllib.loads(p.read_text(encoding='utf-8'))['workspace']['package']['version']; assert tuple(map(int, v.split('.')[:2]))==(0,20), f'sibling molpy {{v}} not on 0.20.*'",
   ],
   [
     "{envpython}",
