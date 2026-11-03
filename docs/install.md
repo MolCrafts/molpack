@@ -67,7 +67,7 @@ print(molpack.GencanPack)
 ## Build from source
 
 When you are modifying the crate or Python binding, check out **molrs** as a
-sibling (path deps resolve `../molrs/molrs`). molpack 0.5 builds on the molrs
+sibling (path deps resolve `../molpy/crates/molrs`). molpack 0.5 builds on the molrs
 **0.17** line: molrs `dev`, or the release tag `v0.17.0`. Both wheels must
 share that minor line; `import molpack` raises `ImportError` when they do not.
 

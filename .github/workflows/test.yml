@@ -64,7 +64,7 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: rust
-          workspaces: . -> ../molrs/target
+          workspaces: . -> ../molpy/target
       - run: |
           cargo test --locked --lib --features cli
           cargo test --locked --doc --features cli
@@ -89,5 +89,5 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: python
-          workspaces: . -> ../molrs/target
+          workspaces: . -> ../molpy/target
       - run: uv run --locked --python 3.12 --directory python --group dev tox -e py

@@ -11,22 +11,22 @@ development environment, run tests, and get a PR merged.
 - [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
 - [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
   `python/` dependency-group `dev`, not a separate global install)
-- The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling
+- The [molrs](https://github.com/MolCrafts/molpy) repo checked out as a sibling
   directory named `molrs`:
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molrs
+├── molrs/      ← git clone https://github.com/MolCrafts/molpy
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a path dependency on `../molrs/crates/molrs`. With the
+The root `Cargo.toml` uses a path dependency on `../molpy/crates/molrs`. With the
 sibling layout above everything resolves automatically.
 
-**Version pins:** a local build uses the sibling checkout `../molrs`. The
+**Version pins:** a local build uses the sibling checkout `../molpy`. The
 version fields name the **0.20.*** minor line (see `Cargo.toml` and
-`python/pyproject.toml`). CI checks out `MolCrafts/molrs` at ref `dev` into
-`../molrs` (`setup-partners` in `.github/workflows/ci.yml`).
+`python/pyproject.toml`). CI checks out `MolCrafts/molpy` at ref `dev` into
+`../molpy` (`setup-partners` in `.github/workflows/ci.yml`).
 `.github/partners.env` names the same repository and ref. `Cargo.lock`,
 `python/Cargo.lock` and `python/uv.lock` are committed and every cargo / uv
 call in the workflow is `--locked`; they record molpy's package metadata, not a
@@ -39,7 +39,7 @@ The Python wheel checks this on ``import molpack`` — a molpy minor mismatch is
 
 ```bash
 # Fetch test data used by the regression suite
-bash ../molrs/scripts/fetch-test-data.sh
+bash ../molpy/scripts/fetch-test-data.sh
 
 # Git hooks via prek (reads .pre-commit-config.yaml)
 prek install
@@ -64,7 +64,7 @@ cargo check --locked --no-default-features && cargo check --locked --features ra
 uv run --locked --python 3.12 --directory python --group dev tox -e py
 ```
 
-CI checks `../molrs` out at that ref. A local build uses the sibling as it is.
+CI checks `../molpy` out at that ref. A local build uses the sibling as it is.
 
 For a quick local edit loop you may still `maturin develop` in a personal
 venv; **do not** rely on that for the gate — CI uses
@@ -86,22 +86,22 @@ if the string is missing they send the whole hook to Slurm.
 
 On `dev`, the partner is tracked, not pinned. `setup-partners` in
 `.github/workflows/ci.yml` and `release.yml` names it: repository
-`MolCrafts/molrs`, ref `dev`, path `../molrs`. It does not look up a branch
+`MolCrafts/molpy`, ref `dev`, path `../molpy`. It does not look up a branch
 of the same name. `.github/partners.env` must name the same repository and
-ref (`MOLRS_REPOSITORY`, `MOLRS_REF`). `scripts/partners.py check` fails when
-a path dependency (`../molrs`, `../../molrs`, ...) lands outside that
+ref (`MOLPY_REPOSITORY`, `MOLPY_REF`). `scripts/partners.py check` fails when
+a path dependency (`../molpy`, `../../molpy`, ...) lands outside that
 checkout, or when a workflow spells a partner commit of its own. The relock
 recipe in `partners.env` still uses `scripts/partners.py run`.
 
-A local build does not move `../molrs`.
+A local build does not move `../molpy`.
 
 A change that needs a molrs change lands by updating the workflow `ref` and
-`MOLRS_REF` to the molrs commit you built against, in a commit of its own,
+`MOLPY_REF` to the molrs commit you built against, in a commit of its own,
 after molrs's change is on the ref you name. Do not expect CI to follow a
 same-named branch.
 
 **Releasing.** A release builds against a fixed molrs: the release commit on
-`master` sets the workflow `ref` and `MOLRS_REF` to the molrs release tag
+`master` sets the workflow `ref` and `MOLPY_REF` to the molrs release tag
 of the line `Cargo.toml` names (`vX.Y.Z`), relocks if that changes molrs's
 metadata, and is tagged. When `master` is merged back into `dev`, both name
 `dev` again.

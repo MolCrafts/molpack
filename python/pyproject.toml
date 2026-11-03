@@ -117,7 +117,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.uv.sources]
-molcrafts-molpy = { path = "../../molrs/molpy", editable = true }
+molcrafts-molpy = { path = "../../molpy/molpy", editable = true }
 
 [tool.ty]
 [tool.ty.environment]
@@ -129,8 +129,8 @@ extra-paths = ["examples"]
 # Isolated binding tests — the `python` job calls:
 #   uv run --locked --python 3.12 --directory python --group dev tox -e py
 # Non-editable only: sibling molrs path install + maturin wheel + pytest.
-# Requires ../../molrs (the molpy checkout) on the 0.20.* minor line. CI
-# checks out MolCrafts/molrs ref dev (setup-partners); a local build uses the sibling.
+# Requires ../../molpy (the molpy checkout) on the 0.20.* minor line. CI
+# checks out MolCrafts/molpy ref dev (setup-partners); a local build uses the sibling.
 # Both builds are --locked (MATURIN_PEP517_ARGS reaches the molpy wheel).
 [tool.tox]
 requires = ["tox>=4.23"]
@@ -168,20 +168,20 @@ pass_env = [
 ]
 set_env = { MATURIN_PEP517_ARGS = "--locked" }
 allowlist_externals = ["maturin"]
-# toxinidir is python/ when config lives here; sibling molpy is ../.. /molrs.
+# toxinidir is python/ when config lives here; sibling molpy is ../../molpy.
 # Minor-line only: 0.20.* (patch may differ).
 commands_pre = [
   [
     "{envpython}",
     "-c",
-    "import tomllib; from pathlib import Path; p=Path(r'{toxinidir}')/'..'/'..'/'molrs'/'Cargo.toml'; v=tomllib.loads(p.read_text(encoding='utf-8'))['workspace']['package']['version']; assert tuple(map(int, v.split('.')[:2]))==(0,20), f'sibling molpy {{v}} not on 0.20.*'",
+    "import tomllib; from pathlib import Path; p=Path(r'{toxinidir}')/'..'/'..'/'molpy'/'Cargo.toml'; v=tomllib.loads(p.read_text(encoding='utf-8'))['workspace']['package']['version']; assert tuple(map(int, v.split('.')[:2]))==(0,20), f'sibling molpy {{v}} not on 0.20.*'",
   ],
   [
     "{envpython}",
     "-m",
     "pip",
     "install",
-    "{toxinidir}/../../molrs/molpy",
+    "{toxinidir}/../../molpy/molpy",
   ],
   [
     "{envpython}",

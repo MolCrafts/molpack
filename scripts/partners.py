@@ -2,7 +2,7 @@
 """The partner repositories this one is built and tested against.
 
 ``.github/partners.env`` names them. CI checks that same repository and
-ref out with ``setup-partners`` (``path`` ``../molrs``) and does not use the
+ref out with ``setup-partners`` (``path`` ``../molpy``) and does not use the
 same-named-branch order below. ``check`` resolves this file, fails when a
 path dependency lands outside that checkout, and fails when a workflow
 spells a partner commit. ``run`` is the relock recipe. A local build uses
