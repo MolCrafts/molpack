@@ -8,7 +8,7 @@
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 Packmol-grade molecular packing in pure Rust, with Python bindings.
-Part of the [molrs](https://github.com/MolCrafts/molrs) toolkit.
+Part of the [molrs](https://github.com/MolCrafts/molpy) toolkit.
 
 ## Install
 

@@ -3,7 +3,7 @@ name: ci
 # The only list of molpack checks. prek lints the files under
 # .github/workflows; it does not run these commands.
 #
-# setup-partners checks MolCrafts/molrs out at ref dev into ../molrs.
+# setup-partners checks MolCrafts/molpy out at ref dev into ../molpy.
 # .github/partners.env names that same repository and ref.
 
 on:
@@ -56,13 +56,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - name: rustfmt
         run: |
@@ -126,13 +126,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - name: locks
         run: |
@@ -152,13 +152,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - name: clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
@@ -173,13 +173,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - name: ty
         run: uv run --locked --python 3.12 --directory python --group typecheck ty check python tests examples
@@ -195,13 +195,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - name: test lib
         run: cargo test --locked --lib --features cli
       - name: test doc
@@ -228,13 +228,13 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
-          workspaces: ../molrs -> target
+          workspaces: ../molpy -> target
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
         with:
           python-version: "3.12"
@@ -256,9 +256,9 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molrs
+          repository: MolCrafts/molpy
           ref: dev
-          path: ../molrs
+          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - name: zensical
         run: uv run --isolated --locked --python 3.12 --project python --only-group doc zensical build --clean --strict

@@ -42,6 +42,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
-      # `--locked` checks python/uv.lock, whose path sources are ../molrs.
+      # `--locked` checks python/uv.lock, whose path sources are ../molpy.
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
       - run: uv run --isolated --locked --python 3.12 --project python --only-group doc zensical build --clean --strict

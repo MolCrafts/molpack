@@ -1,6 +1,6 @@
 # Floating `stable`: the molrs-ffi ABI fingerprint hashes `rustc -V`, so molpy
 # and molpack must be built by one toolchain. Keep this file identical to
-# ../molrs/rust-toolchain.toml.
+# ../molpy/rust-toolchain.toml.
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]
