@@ -130,7 +130,7 @@ extra-paths = ["examples"]
 #   uv run --locked --python 3.12 --directory python --group dev tox -e py
 # Non-editable only: sibling molrs path install + maturin wheel + pytest.
 # Requires ../../molrs (the molpy checkout) on the 0.20.* minor line. CI
-# checks out MolCrafts/molpy ref dev (setup-partners); a local build uses the sibling.
+# checks out MolCrafts/molrs ref dev (setup-partners); a local build uses the sibling.
 # Both builds are --locked (MATURIN_PEP517_ARGS reaches the molpy wheel).
 [tool.tox]
 requires = ["tox>=4.23"]

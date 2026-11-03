@@ -3,7 +3,7 @@ name: ci
 # The only list of molpack checks. prek lints the files under
 # .github/workflows; it does not run these commands.
 #
-# setup-partners checks MolCrafts/molpy out at ref dev into ../molrs.
+# setup-partners checks MolCrafts/molrs out at ref dev into ../molrs.
 # .github/partners.env names that same repository and ref.
 
 on:
@@ -56,7 +56,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -126,7 +126,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -152,7 +152,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -173,7 +173,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -195,7 +195,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -228,7 +228,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
@@ -256,7 +256,7 @@ jobs:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
