@@ -3,7 +3,7 @@ name: release
 # A `v*` tag on MolCrafts/molpack: .github/workflows/ci.yml (every job), then
 # crates.io (molcrafts-molpack), PyPI (Linux and universal2 macOS wheels for
 # Python 3.12 and 3.13, plus the sdist), and the GitHub Release. molrs is
-# checked out by setup-partners (MolCrafts/molpy ref dev, path ../molrs), the
+# checked out by setup-partners (MolCrafts/molrs ref dev, path ../molrs), the
 # same repository and ref as .github/partners.env.
 #
 # A dispatch is the dry run, on any branch: the same CI and builds,
@@ -33,8 +33,22 @@ defaults:
     shell: bash
 
 jobs:
+  context:
+    name: release / context
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.context.outputs.tier }}
+      upstream: ${{ steps.context.outputs.upstream }}
+      integration: ${{ steps.context.outputs.integration }}
+      skip-pr: ${{ steps.context.outputs.skip-pr }}
+      publish: ${{ steps.context.outputs.publish }}
+    steps:
+      - id: context
+        uses: MolCrafts/molcrafts-ci/actions/ci-context@master
+
   guard:
     name: release / guard
+    needs: context
     if: github.event_name == 'workflow_dispatch' || github.repository_owner == 'MolCrafts'
     runs-on: ubuntu-latest
     steps:
@@ -49,39 +63,52 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "::error::tag is not on master"; exit 1; }
 
   ci:
-    needs: guard
+    name: release / ci
+    needs: [context, guard]
     uses: ./.github/workflows/ci.yml
 
   crate:
     name: release / crate
-    needs: ci
+    needs: [context, ci]
+    if: needs.context.outputs.publish != 'true'
     runs-on: ubuntu-latest
-    env:
-      PUBLISH: ${{ github.event_name == 'push' && github.repository_owner == 'MolCrafts' }}
-    environment: ${{ github.event_name == 'push' && 'crates-io' || '' }}
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack-release
           workspaces: ../molrs -> target
-      - if: env.PUBLISH == 'true'
-        id: auth
+      - run: cargo publish --dry-run --locked
+
+  publish-crate:
+    name: release / publish crate
+    needs: [context, ci]
+    if: needs.context.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molrs
+          ref: dev
+          path: ../molrs
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack-release
+          workspaces: ../molrs -> target
+      - id: auth
         uses: rust-lang/crates-io-auth-action@v1
       - env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
-          if [ "$PUBLISH" != true ]; then
-            cargo publish --dry-run --locked
-            exit
-          fi
           version=$(sed -nE 's/^version = "(.*)"/\1/p' Cargo.toml | head -1)
           if curl -sfL -A "molpack-release/1.0" "https://crates.io/api/v1/crates/molcrafts-molpack/$version" >/dev/null; then
             echo "molcrafts-molpack@$version is already on crates.io"
@@ -92,7 +119,7 @@ jobs:
   # One wheel per OS per supported Python; each macOS wheel is universal2.
   wheels:
     name: release / wheels (${{ matrix.os }}, ${{ matrix.python }})
-    needs: guard
+    needs: [context, guard]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -109,7 +136,7 @@ jobs:
       # manylinux container at the same path.
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - name: Partner path
@@ -130,14 +157,14 @@ jobs:
 
   sdist:
     name: release / sdist
-    needs: guard
+    needs: [context, guard]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
         with:
-          repository: MolCrafts/molpy
+          repository: MolCrafts/molrs
           ref: dev
           path: ../molrs
       - uses: PyO3/maturin-action@v1
@@ -152,8 +179,8 @@ jobs:
 
   pypi:
     name: release / pypi
-    needs: [ci, wheels, sdist]
-    if: github.event_name == 'push' && github.repository_owner == 'MolCrafts'
+    needs: [context, ci, wheels, sdist]
+    if: needs.context.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -171,7 +198,8 @@ jobs:
 
   github:
     name: release / github
-    needs: [crate, pypi]
+    needs: [context, publish-crate, pypi]
+    if: needs.context.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -71,7 +71,7 @@ Project invariants (bodies in `law.md` § IX):
 
 - **No "packmol" in public identifiers.** The product is molpack; prose may cite Packmol, symbols may not.
 - **Configuration is `.inp` only.** Never a TOML / YAML / JSON config surface.
-- **molrs refs are manual.** On `dev`, `setup-partners` in `.github/workflows` and `.github/partners.env` both name `MolCrafts/molpy` ref `dev`. Never let a hook or script rewrite a path, a version, or that ref. CI checks out that ref into `../molrs`.
+- **molrs refs are manual.** On `dev`, `setup-partners` in `.github/workflows` and `.github/partners.env` both name `MolCrafts/molrs` ref `dev`. Never let a hook or script rewrite a path, a version, or that ref. CI checks out that ref into `../molrs`.
 - **Local gates are prek.** Commands live only in `.github/workflows/ci.yml`. `.pre-commit-config.yaml` runs actionlint on `.github/workflows` at commit and at push. Python isolation in CI is `uv run --locked --python 3.12 --directory python --group dev tox -e py`. Never `--no-verify`.
 - **Fork → PR.** Never push to `MolCrafts/molpack` master; `origin` = fork, `upstream` = MolCrafts.
 - **Solvers are pure geometry.** Never a force-field or chemistry-perception dependency on the solver seam; priors and chemistry are user data.

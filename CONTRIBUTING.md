@@ -11,12 +11,12 @@ development environment, run tests, and get a PR merged.
 - [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
 - [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
   `python/` dependency-group `dev`, not a separate global install)
-- The [molpy](https://github.com/MolCrafts/molpy) repo checked out as a sibling
+- The [molrs](https://github.com/MolCrafts/molrs) repo checked out as a sibling
   directory named `molrs`:
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molpy
+├── molrs/      ← git clone https://github.com/MolCrafts/molrs
 └── molpack/    ← this repo
 ```
 
@@ -25,7 +25,7 @@ sibling layout above everything resolves automatically.
 
 **Version pins:** a local build uses the sibling checkout `../molrs`. The
 version fields name the **0.20.*** minor line (see `Cargo.toml` and
-`python/pyproject.toml`). CI checks out `MolCrafts/molpy` at ref `dev` into
+`python/pyproject.toml`). CI checks out `MolCrafts/molrs` at ref `dev` into
 `../molrs` (`setup-partners` in `.github/workflows/ci.yml`).
 `.github/partners.env` names the same repository and ref. `Cargo.lock`,
 `python/Cargo.lock` and `python/uv.lock` are committed and every cargo / uv
@@ -86,7 +86,7 @@ if the string is missing they send the whole hook to Slurm.
 
 On `dev`, the partner is tracked, not pinned. `setup-partners` in
 `.github/workflows/ci.yml` and `release.yml` names it: repository
-`MolCrafts/molpy`, ref `dev`, path `../molrs`. It does not look up a branch
+`MolCrafts/molrs`, ref `dev`, path `../molrs`. It does not look up a branch
 of the same name. `.github/partners.env` must name the same repository and
 ref (`MOLRS_REPOSITORY`, `MOLRS_REF`). `scripts/partners.py check` fails when
 a path dependency (`../molrs`, `../../molrs`, ...) lands outside that
