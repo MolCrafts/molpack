@@ -20,8 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/dev","refs/heads/master","refs/heads/main"]'), github.ref) }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/dev","refs/heads/master"]'), github.ref) && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   # uv builds molrs and molpack through maturin's PEP 517 hook.
@@ -32,7 +32,23 @@ defaults:
     shell: bash
 
 jobs:
+  context:
+    name: ci / context
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.context.outputs.tier }}
+      upstream: ${{ steps.context.outputs.upstream }}
+      integration: ${{ steps.context.outputs.integration }}
+      skip-pr: ${{ steps.context.outputs.skip-pr }}
+      publish: ${{ steps.context.outputs.publish }}
+    steps:
+      - id: context
+        uses: MolCrafts/molcrafts-ci/actions/ci-context@master
+
   hygiene:
+    name: ci / hygiene
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -100,6 +116,9 @@ jobs:
           PY
 
   locks:
+    name: ci / locks
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -123,6 +142,9 @@ jobs:
           uv lock --check --directory python
 
   clippy:
+    name: ci / clippy
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -141,6 +163,9 @@ jobs:
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
   ty:
+    name: ci / ty
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -160,6 +185,9 @@ jobs:
         run: uv run --locked --python 3.12 --directory python --group typecheck ty check python tests examples
 
   rust:
+    name: ci / rust
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -186,7 +214,9 @@ jobs:
         run: cargo check --locked --features rayon
 
   python:
-    name: python (${{ matrix.os }})
+    name: ci / python (${{ matrix.os }})
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -216,6 +246,9 @@ jobs:
         run: uv run --locked --python 3.12 --directory python --group dev tox -e py
 
   docs:
+    name: ci / docs
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -234,8 +267,8 @@ jobs:
   # `result`; branch rules require `ci / result`.
   result:
     name: ci / result
-    needs: [hygiene, locks, clippy, ty, rust, python, docs]
-    if: always()
+    needs: [context, hygiene, locks, clippy, ty, rust, python, docs]
+    if: always() && needs.context.outputs.skip-pr != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Every check passed
