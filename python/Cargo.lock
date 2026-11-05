@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "molcrafts-molrs"
-version = "0.20.0"
+version = "0.20.1"
 dependencies = [
  "flate2",
  "getrandom",
@@ -253,7 +253,7 @@ dependencies = [
 
 [[package]]
 name = "molcrafts-molrs-ffi"
-version = "0.20.0"
+version = "0.20.1"
 dependencies = [
  "molcrafts-molrs",
  "slotmap",

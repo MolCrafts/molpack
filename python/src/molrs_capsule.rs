@@ -137,7 +137,8 @@ pub fn stamp_box_bounds(frame: &mut Frame, box_bounds: Option<([F; 3], [F; 3])>)
 pub fn frame_to_py<'py>(py: Python<'py>, frame: &Frame) -> PyResult<Bound<'py, PyAny>> {
     let fref = FrameRef::default();
     fref.arena
-        .borrow_mut()
+        .write()
+        .map_err(ffi_err)?
         .set_frame(fref.id, frame.deep_copy())
         .map_err(ffi_err)?;
     let capsule = export_frame_capsule(py, fref)?;
