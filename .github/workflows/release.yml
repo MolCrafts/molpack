@@ -3,8 +3,8 @@ name: release
 # A `v*` tag on MolCrafts/molpack: guard -> lint + the full test tier ->
 # crates.io (molcrafts-molpack), PyPI (Linux and universal2 macOS wheels for
 # Python 3.12 and 3.13, plus the sdist for every other platform), and the
-# GitHub Release. molrs is checked out at the commit scripts/partners.py
-# resolves: a release commit on master names the molrs release tag of the
+# GitHub Release. molpy is checked out at the commit scripts/partners.py
+# resolves: a release commit on master names the molpy release tag of the
 # line Cargo.toml names in .github/partners.env.
 #
 # A dispatch is the dry run, on any branch, fork or upstream: the same guard,
@@ -119,15 +119,15 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
         with:
           python-version: ${{ matrix.python }}
-      # python/Cargo.toml path-deps ../../molrs/crates/{molrs,molrs-ffi}; maturin
-      # runs `cargo metadata` for every command, so molrs must be there, and
+      # python/Cargo.toml path-deps ../../molpy/crates/{molrs,molrs-ffi}; maturin
+      # runs `cargo metadata` for every command, so molpy must be there, and
       # mounted into the manylinux container at the same path.
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: python
           manylinux: auto
-          docker-options: -v ${{ env.MOLRS_DIR }}:${{ env.MOLRS_DIR }}
+          docker-options: -v ${{ env.MOLPY_DIR }}:${{ env.MOLPY_DIR }}
           command: build
           args: >-
             --release --locked --out dist --interpreter python${{ matrix.python }}

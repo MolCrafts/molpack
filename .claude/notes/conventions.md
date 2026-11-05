@@ -101,18 +101,21 @@ carries no project-local `.claude/skills/` or `.claude/agents/`.
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molrs
+├── molpy/      ← git clone https://github.com/MolCrafts/molpy
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a single path dep on `../molrs/molrs` (the unified
-`molcrafts-molrs` crate); `core` is always-on, while `io` is pulled in
-through the matching molpack feature above.
+The root `Cargo.toml` uses a single path dep on `../molpy/crates/molrs` (the
+unified `molcrafts-molrs` crate); `core` is always-on, while `io` is pulled in
+through the matching molpack feature above. `python/Cargo.toml` adds
+`../../molpy/crates/molrs-ffi`, and `python/pyproject.toml` sources
+`molcrafts-molpy` from `../../molpy/molpy`. In CI the partner is
+`MOLPY_REPOSITORY`/`MOLPY_REF` in `.github/partners.env`, checked out as `../molpy`.
 
 **Build cache:** the committed `.cargo/config.toml` routes every build (root
-workspace and `python/`) into `../molrs/target`, shared with the sibling molrs
-checkout — molrs compiles once per (rustc, features, profile) across both
-repos. `rust-toolchain.toml` matches molrs's so the cache fingerprints one
+workspace and `python/`) into `../molpy/target`, shared with the sibling molpy
+checkout — the molrs crates compile once per (rustc, features, profile) across
+both repos. `rust-toolchain.toml` matches molpy's so the cache fingerprints one
 rustc. CI caches that dir and runs sccache.
 
 **molrs ABI line** (the rule itself is law P10): molpack exchanges `molrs_ffi`

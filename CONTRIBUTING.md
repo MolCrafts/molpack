@@ -12,27 +12,27 @@ development environment, run tests, and get a PR merged.
 - [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
   `python/` dependency-group `dev`, not a separate global install)
 - The [molpy](https://github.com/MolCrafts/molpy) repo checked out as a sibling
-  directory named `molrs`:
+  directory named `molpy`:
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molpy molrs
+├── molpy/      ← git clone https://github.com/MolCrafts/molpy
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a path dependency on `../molrs/crates/molrs`
-(and `../molrs/crates/molrs-ffi` from the Python binding). With the
+The root `Cargo.toml` uses a path dependency on `../molpy/crates/molrs`
+(and `../molpy/crates/molrs-ffi` from the Python binding). With the
 sibling layout above everything resolves automatically.
 
-**Version pins:** a local build uses the sibling checkout `../molrs`. The
+**Version pins:** a local build uses the sibling checkout `../molpy`. The
 version fields name the **0.20.*** minor line (see `Cargo.toml` and
 `python/pyproject.toml`). CI, and the pre-push hooks, build against
 `MolCrafts/molpy` at the commit `scripts/partners.py` resolves (checked out
-as the directory `molrs`; molpy's `dev`, or a release tag; see
+as the directory `molpy`; molpy's `dev`, or a release tag; see
 [Partners](#partners)), in a layout of their own -- not your
 sibling. `Cargo.lock`, `python/Cargo.lock` and `python/uv.lock` are committed
-and every cargo / uv call in the gates is `--locked`; they record molrs's
-package metadata, not a commit, so relock only when molrs's `dev` changes its
+and every cargo / uv call in the gates is `--locked`; they record molpy's
+package metadata, not a commit, so relock only when molpy's `dev` changes its
 version or dependencies (the recipe is in `.github/partners.env`).
 The Python wheel checks this on ``import molpack`` — a molrs minor mismatch is an
 ``ImportError``, not a later FFI segfault.
@@ -83,16 +83,16 @@ command in `.github/workflows/{lint,test,docs}.yml` has a hook. **Never `git com
 - **pre-push**:
   - the pre-commit hooks again on `--all-files` (CI `lint / hooks` runs them so);
   - `scripts/partners.py check` — every partner in `.github/partners.env`
-    resolves, every path dependency (`../molrs`, `../../molrs`, ...)
+    resolves, every path dependency (`../molpy`, `../../molpy`, ...)
     lands in a checkout CI makes, and no workflow spells a partner ref of its
     own;
-  - the three lock files are current against the resolved molrs;
+  - the three lock files are current against the resolved molpy;
   - the docs build (`zensical build --clean --strict` from the `doc` group)
     when docs/ or zensical.toml changed;
   - clippy (`--all-targets --all-features -D warnings`), ty, the rust tests
     and tox -- each in CI's sibling layout (`scripts/partners.py run`: a copy
-    of this tree next to molrs at its resolved commit), `--locked`,
-    on the toolchain `rust-toolchain.toml` names (`stable`, the same file as molrs)
+    of this tree next to molpy at its resolved commit), `--locked`,
+    on the toolchain `rust-toolchain.toml` names (`stable`, the same file as molpy)
     and Python 3.12.
 - **Dispatch on the MolCrafts cluster:** the compiling gates go through
   `scripts/hook-run.sh`, which hands the command to `$MOLCRAFTS_HOOK_RUNNER`
@@ -107,33 +107,33 @@ command in `.github/workflows/{lint,test,docs}.yml` has a hook. **Never `git com
 ## Partners
 
 On `dev`, partners are tracked, not pinned. `.github/partners.env` names
-molrs's branch (`MOLRS_REF=dev`), and `scripts/partners.py` resolves it -- for
-CI (`partners.py fetch`, into `../molrs`) and for the hooks (`partners.py
+molpy's branch (`MOLPY_REF=dev`), and `scripts/partners.py` resolves it -- for
+CI (`partners.py fetch`, into `../molpy`) and for the hooks (`partners.py
 run`) alike -- to the first of:
 
-1. molrs's branch named like the one being built (CI: the pushed branch or a
+1. molpy's branch named like the one being built (CI: the pushed branch or a
    pull request's head branch; locally: the checked-out branch), looked up
    first on the fork the build comes from (`<owner>/molpy`, where `<owner>`
    owns the pull request's head repository or the repository CI runs in; in a
    git hook, the remote being pushed to), then on MolCrafts/molpy;
-2. outside CI only, that branch in your sibling clone `../molrs`, when it has
+2. outside CI only, that branch in your sibling clone `../molpy`, when it has
    one and neither remote does yet;
-3. MolCrafts/molpy at `MOLRS_REF` (`dev` on the dev branch).
+3. MolCrafts/molpy at `MOLPY_REF` (`dev` on the dev branch).
 
-A change that needs a molrs change lands as two same-named branches, never by
+A change that needs a molpy change lands as two same-named branches, never by
 skipping a gate: create the same branch (say `converge/x`) in both checkouts;
-push both to your forks, never to MolCrafts (molpack's gates take molrs's
+push both to your forks, never to MolCrafts (molpack's gates take molpy's
 branch from your fork, or from your sibling before it is pushed); each push
-runs the full CI tier on your fork, and molpack's run resolves molrs's
+runs the full CI tier on your fork, and molpack's run resolves molpy's
 `converge/x` there; only once both forks are
-green, open the pull requests into MolCrafts `dev`, land molrs's, then
+green, open the pull requests into MolCrafts `dev`, land molpy's, then
 molpack's (never a red one), and delete the branches.
 
-**Releasing.** A release builds against a fixed molrs: the release commit on
-`master` sets `MOLRS_REF` to the molrs release tag of the line `Cargo.toml`
-names (`vX.Y.Z`), relocks if that changes molrs's metadata, and is tagged;
+**Releasing.** A release builds against a fixed molpy: the release commit on
+`master` sets `MOLPY_REF` to the molpy release tag of the line `Cargo.toml`
+names (`vX.Y.Z`), relocks if that changes molpy's metadata, and is tagged;
 `release.yml` resolves that tag. When `master` is merged back into `dev`, keep
-`MOLRS_REF=dev` there.
+`MOLPY_REF=dev` there.
 
 ## CI
 

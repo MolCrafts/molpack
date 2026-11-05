@@ -68,15 +68,15 @@ print(molpack.GencanPack)
 
 When you are modifying the crate or Python binding, clone
 [molpy](https://github.com/MolCrafts/molpy) into a sibling directory named
-`molrs`. Path dependencies resolve `../molrs/crates/molrs` and
-`../molrs/crates/molrs-ffi`. molpack 0.8 builds on the molrs **0.20** line:
+`molpy`. Path dependencies resolve `../molpy/crates/molrs` and
+`../molpy/crates/molrs-ffi`. molpack 0.8 builds on the molrs **0.20** line:
 the release tag `v0.20.0`. Both wheels must share that minor line;
 `import molpack` raises `ImportError` when they do not.
 
 ```bash
 # sibling layout
 # workspace/
-# ├── molrs/     ← git clone https://github.com/MolCrafts/molpy molrs
+# ├── molpy/     ← git clone https://github.com/MolCrafts/molpy
 # └── molpack/
 
 git clone https://github.com/MolCrafts/molpack

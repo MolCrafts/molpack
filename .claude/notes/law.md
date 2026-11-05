@@ -366,16 +366,16 @@ language would fork the user base and the parser.
   keyword (engine-entry-split ruling).
 
 <!-- mol:law:id:molrs-pins-manual -->
-## P3. molrs path, version and partner refs are managed manually
+## P3. molpy path, version and partner refs are managed manually
 
-**Principle.** The `../molrs/molrs` path dependency, its version line,
+**Principle.** The `../molpy/crates/molrs` path dependency, its version line,
 and the partner refs in `.github/partners.env` are edited by a human,
-deliberately. On `dev` the ref is molrs's `dev` branch: partners are
+deliberately. On `dev` the ref is molpy's `dev` branch: partners are
 tracked, not pinned (owner ruling 2026-10-07). `scripts/partners.py`
-resolves it -- molrs's same-named branch first, so a coordinated change
+resolves it -- molpy's same-named branch first, so a coordinated change
 lands as same-named branches -- for CI and the hooks alike, and verifies
 it -- the ref resolves, every path dependency lands in a checkout CI
-makes, the lock files match. A release commit names a molrs tag.
+makes, the lock files match. A release commit names a molpy tag.
 
 **Never**
 
@@ -405,7 +405,7 @@ partner commits).
 - Never `git commit --no-verify` / `git push --no-verify`.
 - Never run Python binding tests any way other than
   `uv run --directory python --group dev tox -e py` (non-editable,
-  sibling molrs path install + maturin wheel + pytest).
+  sibling molpy path install + maturin wheel + pytest).
 
 <!-- mol:law:id:fork-pr-workflow -->
 ## P5. Fork → PR

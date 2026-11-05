@@ -399,7 +399,7 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
-    { name = "molcrafts-molpy", editable = "../../molrs/molpy" },
+    { name = "molcrafts-molpy", editable = "../../molpy/molpy" },
     { name = "molcrafts-zensical-theme", marker = "extra == 'doc'", specifier = ">=0.2.5" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "zensical", marker = "extra == 'doc'", specifier = ">=0.0.53" },
@@ -409,7 +409,7 @@ provides-extras = ["doc"]
 [package.metadata.requires-dev]
 dev = [
     { name = "maturin" },
-    { name = "molcrafts-molpy", editable = "../../molrs/molpy" },
+    { name = "molcrafts-molpy", editable = "../../molpy/molpy" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pytest" },
     { name = "ruff" },
@@ -421,12 +421,12 @@ doc = [
     { name = "zensical", specifier = ">=0.0.53" },
 ]
 test = [
-    { name = "molcrafts-molpy", editable = "../../molrs/molpy" },
+    { name = "molcrafts-molpy", editable = "../../molpy/molpy" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pytest" },
 ]
 typecheck = [
-    { name = "molcrafts-molpy", editable = "../../molrs/molpy" },
+    { name = "molcrafts-molpy", editable = "../../molpy/molpy" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pytest" },
     { name = "ruff" },
@@ -435,7 +435,7 @@ typecheck = [
 
 [[package]]
 name = "molcrafts-molpy"
-source = { editable = "../../molrs/molpy" }
+source = { editable = "../../molpy/molpy" }
 dependencies = [
     { name = "molcrafts-molcfg" },
     { name = "molcrafts-mollog" },
