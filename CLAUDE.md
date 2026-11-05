@@ -78,7 +78,7 @@ Project invariants (bodies in `law.md` § IX):
 - **Solvers are peers.** Never call another solver's driver; share lifecycle, context, objective, frozen `State` — the shared objective is the one ruler.
 - **The user picks the method.** Never infer the algorithm from the molecule; never silently degrade; unsupported combinations are named errors.
 - **All-atom and CG alike.** Never hard-code an all-atom assumption; exclusion depth, angles, rotatable bonds are per-target data.
-- **molrs ABI line.** Never hard-code a capsule name; both wheels embed the same molrs major.minor.
+- **molrs capsule names.** Never hard-code a capsule name; take it from `molrs_ffi::abi`. No version numbers or handshakes.
 
 ## Default workflow
 

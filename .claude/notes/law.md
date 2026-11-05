@@ -493,21 +493,19 @@ templates.
   per-target data with all-atom defaults, not constants.
 - Never key behavior on element symbols inside the core (see P6).
 
-<!-- mol:law:id:molrs-abi-line -->
-## P10. molrs ABI line
+<!-- mol:law:id:molrs-capsule-names -->
+## P10. molrs capsule names
 
 **Principle.** molpack exchanges `molrs_ffi` handle capsules with the
-installed `molcrafts-molrs` wheel; both must embed the same molrs
-**major.minor** (the minor line is the ABI version; see molrs
-`docs/interop.md`).
+installed `molcrafts-molpy` wheel. The capsule name, taken from
+`molrs_ffi::abi`, carries the handle-layout fingerprint and is the one gate
+against dereferencing a handle laid out by another build.
 
 **Never**
 
-- Never hard-code a capsule name; take the versioned names
-  (`molrs.FrameRef/<line>`) from `molrs_ffi::abi`.
-- Never bypass the two gates: `molrs_capsule::check_abi` (`molrs._ffi_abi_token()`
-  at extension init — the one import-time version check) and the versioned
-  capsule names. Never add a second, metadata-based version check beside it.
+- Never hard-code a capsule name; take it from `molrs_ffi::abi`.
+- Never bypass the capsule-name check. Never add a version number, version
+  handshake or metadata-based version check beside it.
 
 <!-- add further project invariants below, one `<!-- mol:law:id:<slug> -->` each,
      using the same Principle / Intent / Never / Derived guidance template. -->

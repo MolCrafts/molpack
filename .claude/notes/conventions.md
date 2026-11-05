@@ -114,9 +114,8 @@ checkout — molrs compiles once per (rustc, features, profile) across both
 repos. `rust-toolchain.toml` matches molrs's so the cache fingerprints one
 rustc. CI caches that dir and runs sccache.
 
-**molrs ABI line** (the rule itself is law P10): molpack exchanges `molrs_ffi`
-handle capsules with the installed `molcrafts-molrs` wheel; both must embed the
-same molrs **major.minor** (minor line = ABI version — see molrs
-`docs/interop.md`). Gates: `molrs_capsule::check_abi` (`molrs._ffi_abi_token()`, at
-extension init — the one import-time version check) and the versioned capsule
-names (`molrs.FrameRef/<line>`, `molrs.RegionRef/<line>`) from `molrs_ffi::abi`.
+**molrs capsule names** (the rule itself is law P10): molpack exchanges
+`molrs_ffi` handle capsules with the installed `molcrafts-molpy` wheel. The one
+gate is the capsule name from `molrs_ffi::abi` (`frameref_capsule_name()`,
+`regionref_capsule_name()`), which carries the handle-layout fingerprint, so a
+capsule from another molpy build fails the name check before any dereference.
