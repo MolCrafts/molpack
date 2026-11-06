@@ -8,7 +8,7 @@
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 Packmol-grade molecular packing in pure Rust, with Python bindings.
-Part of the [molrs](https://github.com/MolCrafts/molrs) toolkit.
+Part of the [molpy](https://github.com/MolCrafts/molpy) toolkit.
 
 ## Install
 
@@ -92,15 +92,16 @@ let frame = result.frame;
 **Python**
 
 ```python
-import molrs
+import molpy as mp
 from molpack import GencanPack, Target
+from pathlib import Path
 
-frame = molrs.io.read_pdb("water.pdb")
+frame = mp.io.read_pdb(Path("water.pdb"))
 
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(molrs.core.Cuboid([0, 0, 0], [40, 40, 40]))
+    .with_restraint(mp.core.Cuboid([0, 0, 0], [40, 40, 40]))
 )
 result = GencanPack().run([water], max_loops=200)
 frame = result.frame

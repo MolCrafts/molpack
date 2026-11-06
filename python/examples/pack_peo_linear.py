@@ -1,8 +1,8 @@
 """Open-space linear PEO melt.
 
 Chemistry and architecture are molrs: CGsmiles + conformer for the unit, and
-a CGsmiles topology grown by ``molrs.builder.Assembler`` with
-``molrs.builder.GrowthPlacer``. Packing is molpack: ``LatticeGrow`` at
+a CGsmiles topology grown by ``mp.builder.Assembler`` with
+``mp.builder.GrowthPlacer``. Packing is molpack: ``LatticeGrow`` at
 2.0 Å then ``GencanPack.with_restart`` at 2.0 Å. Hydrogen packing radius
 defaults to 0.2 Å (``PEO_H_RADIUS=off`` restores ``tolerance/2``):
 hydrogens relax away in the first picoseconds of MD, so making them
@@ -20,9 +20,9 @@ import sys
 import time
 from pathlib import Path
 
-import molrs
+import molpy as mp
 import numpy as np
-from molrs.core import Atomistic
+from molpy.core import Atomistic
 
 import molpack
 
@@ -38,16 +38,14 @@ CORE_UNIT = "C(C[>])(C[>])(C[>])C[>]"  # pentaerythritol-like four-arm core
 
 def _unit(name: str, body: str, seed: int) -> Atomistic:
     """One CGsmiles unit with its ports, as a 3D molecule with hydrogens."""
-    template = molrs.io.smiles.SmilesIr.from_fragment(body).to_template()
-    return molrs.conformer.Conformer(seed=seed).generate(template)[0]
+    template = mp.io.smiles.read_smiles_fragment(body).to_template()
+    return mp.conformer.Conformer(seed=seed).generate(template)[0]
 
 
 def _grow(topology: str, library: dict[str, Atomistic]) -> Atomistic:
     """Grow the CGsmiles ``topology`` from ``library`` into one molecule."""
-    sites = molrs.io.cgsmiles.CgSmilesIr(topology).to_coarsegrain()
-    return molrs.builder.Assembler(library, molrs.builder.GrowthPlacer()).assemble(
-        sites, Atomistic
-    )
+    sites = mp.io.cgsmiles.read_cgsmiles(topology).to_coarsegrain()
+    return mp.builder.Assembler(library, mp.builder.GrowthPlacer()).assemble(sites)
 
 
 def linear_topology(n: int) -> str:
@@ -129,23 +127,19 @@ def main(argv: list[str] | None = None) -> None:
     packed = pack_linear(n, n_mol, density, seed).frame
     if packed.box is None:
         a = packed["atoms"]
-        packed.box = molrs.core.Box.from_bounds(
-            np.column_stack(
-                [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
-            ),
-            padding=np.ones(3),
+        points = np.column_stack(
+            [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
         )
+        packed.box = mp.Box.bounding(points, np.ones(3), [False, False, False])
     OUT.mkdir(parents=True, exist_ok=True)
-    molrs.io.write_mrec_frame(str(OUT / "pack_peo_linear.mrec"), packed)
-    molrs.io.write_lammps_dump_trajectory(
-        str(OUT / "pack_peo_linear.lammpstrj"),
-        [packed],
+    mp.io.write_mrec(OUT / "pack_peo_linear.mrec", frame=packed)
+    mp.io.write_lammps_dump(
+        OUT / "pack_peo_linear.lammpstrj",
+        packed,
         columns=["id", "element", "mol", "x", "y", "z"],
     )
     if "bonds" in packed and packed["bonds"].n_rows:
-        molrs.io.write_lammps_dump_local(
-            str(OUT / "pack_peo_linear.dump.local"), [packed]
-        )
+        mp.io.write_lammps_dump_local(OUT / "pack_peo_linear.dump.local", [packed])
     print(f"  wall         : {time.perf_counter() - t0:.3f} s")
 
 

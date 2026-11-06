@@ -6,10 +6,10 @@
 #   pre-push    the commit hooks on --all-files (lint.yml runs them that
 #               way), the partners, the locks, the docs build, and the
 #               gates that compile -- clippy, ty, rust tests, tox -- in CI's
-#               sibling layout with molrs at the commit
-#               scripts/partners.py resolves (molrs's dev, or its branch
+#               sibling layout with molpy at the commit
+#               scripts/partners.py resolves (molpy's dev, or its branch
 #               named like this one; scripts/partners.py run), never
-#               the developer's ../molrs.
+#               the developer's ../molpy.
 #
 # Compiling gates go through scripts/hook-run.sh, which hands them to
 # $MOLCRAFTS_HOOK_RUNNER (a compute node on the MolCrafts cluster) when set and
@@ -69,7 +69,7 @@ repos:
         always_run: true
         stages: [pre-push]
 
-      # The three lock files record the resolved molrs's metadata; every
+      # The three lock files record the resolved molpy's metadata; every
       # cargo and uv call below is --locked, so a stale one fails here first.
       - id: locks
         name: Cargo.lock + python/Cargo.lock + python/uv.lock current (lint.yml)
@@ -106,8 +106,9 @@ repos:
         files: ^(src/|examples/|Cargo\.(toml|lock)|\.cargo/|rust-toolchain\.toml|\.github/partners\.env)
         stages: [pre-push]
 
-      # Builds the molrs extension (editable) into the typecheck env. uv's
-      # maturin builds (molrs, molpack) get --locked through MATURIN_PEP517_ARGS.
+      # Builds the molpy package and its molrs extension (editable) into the
+      # typecheck env. uv's maturin builds (molpy, molpack) get --locked through
+      # MATURIN_PEP517_ARGS.
       - id: ty
         name: ty (Python type check, lint.yml)
         entry: >-

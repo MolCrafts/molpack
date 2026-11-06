@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use molrs::core::Cell;
 use molrs::core::Parallelepiped;
 use molrs::core::SimBox;
 use molrs::op::F;
-use ndarray::array;
 
 use super::{AtomRestraint, RegionRestraint};
 use crate::PackError;
@@ -18,12 +18,17 @@ pub(crate) fn simbox_from_lengths_angles(
     angles_deg: [F; 3],
     pbc: [bool; 3],
 ) -> Result<SimBox, PackError> {
-    let h = SimBox::matrix_from_lengths_angles(lengths, angles_deg).map_err(|_| {
-        PackError::InvalidCell {
-            detail: format!("lengths {lengths:?} and angles {angles_deg:?} do not describe a cell"),
-        }
-    })?;
-    SimBox::new(h, array![0.0, 0.0, 0.0], pbc).map_err(|_| singular_cell())
+    SimBox::new(
+        Cell::LengthsAngles {
+            lengths,
+            angles: angles_deg,
+        },
+        [0.0; 3],
+        pbc,
+    )
+    .map_err(|_| PackError::InvalidCell {
+        detail: format!("lengths {lengths:?} and angles {angles_deg:?} do not describe a cell"),
+    })
 }
 
 /// A cell from a lattice matrix whose columns are the lattice vectors (Å).
@@ -32,7 +37,7 @@ pub(crate) fn simbox_from_matrix(
     origin: [F; 3],
     pbc: [bool; 3],
 ) -> Result<SimBox, PackError> {
-    SimBox::from_matrix(h, origin, pbc).map_err(|_| singular_cell())
+    SimBox::new(Cell::Matrix(h), origin, pbc).map_err(|_| singular_cell())
 }
 
 fn singular_cell() -> PackError {
@@ -109,8 +114,10 @@ impl CellRestraint {
     /// [`PackError::InvalidCell`] when the box's lattice cannot bound a
     /// region (singular or non-finite).
     pub fn from_simbox(bx: SimBox) -> Result<Self, PackError> {
-        let wall = Parallelepiped::new(bx.h_view().to_owned(), bx.origin_view().to_owned())
-            .map_err(|detail| PackError::InvalidCell { detail })?;
+        let wall = Parallelepiped::new(Cell::Matrix(bx.matrix()), ndarray::arr1(&bx.origin()))
+            .map_err(|err| PackError::InvalidCell {
+                detail: err.to_string(),
+            })?;
         Ok(Self {
             bx,
             wall: RegionRestraint(Arc::new(wall)),
@@ -145,6 +152,10 @@ impl AtomRestraint for CellRestraint {
 mod tests {
     use super::*;
 
+    fn cartesian(h: [[F; 3]; 3], frac: [F; 3]) -> [F; 3] {
+        std::array::from_fn(|i| h[i][0] * frac[0] + h[i][1] * frac[1] + h[i][2] * frac[2])
+    }
+
     fn hexagonal() -> CellRestraint {
         CellRestraint::from_lengths_angles([26.0; 3], [90.0, 90.0, 120.0], [true; 3]).expect("cell")
     }
@@ -154,20 +165,16 @@ mod tests {
     #[test]
     fn face_distance_is_perpendicular_angstrom() {
         let cell = hexagonal();
-        let h = cell.cell().h_view();
-        let frac = array![1.1, 0.5, 0.5];
-        let x = h.dot(&frac);
+        let x = cartesian(cell.cell().matrix(), [1.1, 0.5, 0.5]);
         let d = 0.1 * 26.0 * 120.0_f64.to_radians().sin();
-        let f = cell.f(&[x[0], x[1], x[2]], 1.0, 1.0);
+        let f = cell.f(&x, 1.0, 1.0);
         assert!((f - d * d).abs() < 1e-9, "f = {f}, expected {}", d * d);
     }
 
     #[test]
     fn gradient_is_the_unit_outward_normal_scaled_by_the_penalty() {
         let cell = hexagonal();
-        let h = cell.cell().h_view();
-        let frac = array![1.1, 0.5, 0.5];
-        let x = [h.dot(&frac)[0], h.dot(&frac)[1], h.dot(&frac)[2]];
+        let x = cartesian(cell.cell().matrix(), [1.1, 0.5, 0.5]);
         let mut g = [0.0; 3];
         cell.fg(&x, 1.0, 1.0, &mut g);
         for k in 0..3 {
@@ -184,9 +191,8 @@ mod tests {
     #[test]
     fn interior_is_free() {
         let cell = hexagonal();
-        let h = cell.cell().h_view();
-        let x = h.dot(&array![0.3, 0.6, 0.5]);
-        assert_eq!(cell.f(&[x[0], x[1], x[2]], 1.0, 1.0), 0.0);
+        let x = cartesian(cell.cell().matrix(), [0.3, 0.6, 0.5]);
+        assert_eq!(cell.f(&x, 1.0, 1.0), 0.0);
     }
 
     #[test]
@@ -199,10 +205,10 @@ mod tests {
         .expect("cell");
         let bx = cell.declared_cell().expect("declares its cell");
         assert_eq!(
-            bx.h_view(),
-            array![[10.0, 2.0, 0.0], [0.0, 9.0, 1.0], [0.0, 0.0, 8.0]]
+            bx.matrix(),
+            [[10.0, 2.0, 0.0], [0.0, 9.0, 1.0], [0.0, 0.0, 8.0]]
         );
-        assert_eq!(bx.origin_view(), array![1.0, 2.0, 3.0]);
+        assert_eq!(bx.origin(), [1.0, 2.0, 3.0]);
         assert_eq!(bx.pbc(), [true, true, false]);
         assert_eq!(cell.name(), "CellRestraint");
     }

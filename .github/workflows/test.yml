@@ -1,6 +1,6 @@
 name: test
 
-# Rust and Python tests against molrs at the commit scripts/partners.py
+# Rust and Python tests against molpy at the commit scripts/partners.py
 # resolves, in two tiers (`test / context` decides):
 #
 #   fast  a feature-branch push to MolCrafts: the Rust tests, and the Python
@@ -31,7 +31,7 @@ defaults:
     shell: bash
 
 env:
-  # uv builds molrs and molpack through maturin's PEP 517 hook; this makes
+  # uv builds molpy and molpack through maturin's PEP 517 hook; this makes
   # those cargo builds --locked as well.
   MATURIN_PEP517_ARGS: --locked
 
@@ -64,7 +64,7 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: rust
-          workspaces: . -> ../molrs/target
+          workspaces: . -> ../molpy/target
       - run: |
           cargo test --locked --lib --features cli
           cargo test --locked --doc --features cli
@@ -89,5 +89,5 @@ jobs:
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: python
-          workspaces: . -> ../molrs/target
+          workspaces: . -> ../molpy/target
       - run: uv run --locked --python 3.12 --directory python --group dev tox -e py

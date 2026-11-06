@@ -1,0 +1,287 @@
+name: ci
+
+# The only list of molpack checks. prek lints the files under
+# .github/workflows; it does not run these commands.
+#
+# setup-partners checks MolCrafts/molpy out at the release ref v0.20.0 into ../molpy.
+# .github/partners.env names that same repository and ref.
+
+on:
+  # A feature branch is tested by its pull request, once. A second push run
+  # asks for another macOS runner and the one left in the queue is cancelled.
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !contains(fromJSON('["refs/heads/dev","refs/heads/master"]'), github.ref) && !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  # uv builds molrs and molpack through maturin's PEP 517 hook.
+  MATURIN_PEP517_ARGS: "--locked"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  context:
+    name: ci / context
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.context.outputs.tier }}
+      upstream: ${{ steps.context.outputs.upstream }}
+      integration: ${{ steps.context.outputs.integration }}
+      skip-pr: ${{ steps.context.outputs.skip-pr }}
+      publish: ${{ steps.context.outputs.publish }}
+    steps:
+      - id: context
+        uses: MolCrafts/molcrafts-ci/actions/ci-context@master
+
+  hygiene:
+    name: ci / hygiene
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+      - name: rustfmt
+        run: |
+          cargo fmt -- --check
+          cargo fmt --manifest-path python/Cargo.toml -- --check
+      - name: ruff
+        run: |
+          uvx ruff@0.16.0 format --check --config python/pyproject.toml python/python python/tests python/examples
+          uvx ruff@0.16.0 check --config python/pyproject.toml python/python python/tests python/examples
+      - name: trailing whitespace
+        run: |
+          if git grep -nI '[[:blank:]]$'; then
+            echo "trailing whitespace" >&2
+            exit 1
+          fi
+      - name: ignored tests and final newlines
+        run: |
+          uv run --no-project --python 3.12 python -c 'import textwrap,sys; exec(textwrap.dedent(sys.stdin.read()))' <<'PY'
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          ignored = re.compile(r"```[a-z,_]*ignore|#\[ignore")
+          roots = ("src", "docs", "examples", "python/src")
+          bad = []
+          for root in roots:
+              for path in pathlib.Path(root).rglob("*"):
+                  if path.suffix not in {".rs", ".md"} or not path.is_file():
+                      continue
+                  if ignored.search(path.read_text(encoding="utf-8", errors="replace")):
+                      bad.append(str(path))
+          tracked = set(subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"))
+          missing_nl = []
+          for raw in tracked:
+              if not raw:
+                  continue
+              path = pathlib.Path(raw.decode())
+              if not path.is_file() or path.stat().st_size == 0:
+                  continue
+              data = path.read_bytes()
+              if b"\0" in data or data.endswith(b"\n"):
+                  continue
+              missing_nl.append(str(path))
+          if bad or missing_nl:
+              if bad:
+                  print("ignored test:\n" + "\n".join(bad))
+              if missing_nl:
+                  print("missing final newline:\n" + "\n".join(missing_nl))
+              sys.exit(1)
+          PY
+
+  locks:
+    name: ci / locks
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+      - name: locks
+        run: |
+          uv run --no-project --python 3.12 python scripts/partners.py check
+          cargo metadata --locked --format-version 1 >/dev/null
+          cargo metadata --locked --format-version 1 --manifest-path python/Cargo.toml >/dev/null
+          uv lock --check --directory python
+
+  clippy:
+    name: ci / clippy
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - name: clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  ty:
+    name: ci / ty
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+      - name: ty
+        run: uv run --locked --python 3.12 --directory python --group typecheck ty check python tests examples
+
+  rust:
+    name: ci / rust
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - name: test lib
+        run: cargo test --locked --lib --features cli
+      - name: test doc
+        run: cargo test --locked --doc --features cli
+      - name: check all targets
+        run: cargo check --locked --all-targets --features cli
+      - name: check no default features
+        run: cargo check --locked --no-default-features
+      - name: check rayon
+        run: cargo check --locked --features rayon
+
+  python:
+    name: ci / python (${{ matrix.os }})
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
+        with:
+          cache: molpack
+          workspaces: ../molpy -> target
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+        with:
+          python-version: "3.12"
+      # One interpreter, CPython 3.12. The dev profile runs the same tests
+      # without a from-scratch LTO release of molpy and molpack.
+      - name: tox
+        env:
+          MOLPACK_WHEEL_PROFILE: --profile=dev
+        run: uv run --locked --python 3.12 --directory python --group dev tox -e py
+
+  docs:
+    name: ci / docs
+    needs: context
+    if: needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
+        with:
+          repository: MolCrafts/molpy
+          ref: v0.20.0
+          path: ../molpy
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
+      - name: zensical
+        run: uv run --isolated --locked --python 3.12 --project python --only-group doc zensical build --clean --strict
+
+  # The job name is the ruleset context. A bare id `result` is reported as
+  # `result`; branch rules require `ci / result`.
+  result:
+    name: ci / result
+    needs: [context, hygiene, locks, clippy, ty, rust, python, docs]
+    if: always() && needs.context.outputs.skip-pr != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        env:
+          HYGIENE: ${{ needs.hygiene.result }}
+          LOCKS: ${{ needs.locks.result }}
+          CLIPPY: ${{ needs.clippy.result }}
+          TY: ${{ needs.ty.result }}
+          RUST: ${{ needs.rust.result }}
+          PYTHON: ${{ needs.python.result }}
+          DOCS: ${{ needs.docs.result }}
+        run: |
+          echo "hygiene=$HYGIENE locks=$LOCKS clippy=$CLIPPY ty=$TY rust=$RUST python=$PYTHON docs=$DOCS"
+          [ "$HYGIENE" = success ] && [ "$LOCKS" = success ] && [ "$CLIPPY" = success ] \
+            && [ "$TY" = success ] && [ "$RUST" = success ] && [ "$PYTHON" = success ] \
+            && [ "$DOCS" = success ]

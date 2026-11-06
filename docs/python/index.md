@@ -10,15 +10,16 @@ reference output.
 ## At a glance
 
 ```python
-import molrs
+import molpy as mp
 from molpack import GencanPack, Target
+from pathlib import Path
 
-frame = molrs.io.read_pdb("water.pdb")
+frame = mp.io.read_pdb(Path("water.pdb"))
 
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(molrs.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
+    .with_restraint(mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 
 packer = GencanPack().with_tolerance(2.0).with_seed(42)
@@ -71,5 +72,5 @@ print(f"packed {result.frame['atoms'].n_rows} atoms")
 
 - Rust crate: [`molcrafts-molpack`](https://crates.io/crates/molcrafts-molpack) —
   the underlying engine
-- [`molcrafts-molrs`](https://pypi.org/project/molcrafts-molrs/) — frame I/O and
+- [`molcrafts-molpy`](https://pypi.org/project/molcrafts-molpy/) — frame I/O and
   the `Frame` data model (installed as a dependency)

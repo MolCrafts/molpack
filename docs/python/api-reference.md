@@ -78,7 +78,7 @@ instances.
 Target(frame, count: int)
 ```
 
-- `frame` — a `molrs.core.Frame` (`molpy.Frame` is the same class) with atom
+- `frame` — a `mp.Frame` (`molpy.Frame` is the same class) with atom
   columns `"x"`, `"y"`, `"z"`, and `"element"`.
   Resolved zero-copy via its FFI capsule; a plain dict is not accepted.
 - `count` — number of copies to produce.
@@ -342,7 +342,7 @@ object to `GencanPack.with_restart` or `Target.fixed_from` to continue.
 **Properties**
 
 - `.positions : ndarray (N, 3) float64`
-- `.frame : molrs.core.Frame` — topology-complete frame (periodic box stamped if one was declared).
+- `.frame : mp.Frame` — topology-complete frame (periodic box stamped if one was declared).
 - `.elements : list[str]`
 - `.natoms : int`
 - `.converged : bool`
@@ -459,7 +459,7 @@ distribution-matching restraints ([next section](#collective-distribution-matchi
 
 ### molrs regions as restraints
 
-Any molrs region object attaches as a restraint: `molrs.core.Sphere`, `Cuboid`,
+Any molrs region object attaches as a restraint: `mp.core.Sphere`, `Cuboid`,
 `Parallelepiped`, `HalfSpace`, `Cylinder`, `Ellipsoid`, `Polyhedron`,
 `SphereUnion`, or any `&` / `|` / `~` composition of them. The region
 crosses the wheel boundary as a `molrs.RegionRef` capsule (both wheels on
@@ -483,7 +483,9 @@ returns `(n,)` bool; `distance` returns `(n,)` Å, negative inside. Together
 they say what the packer was told to enforce:
 
 ```python
-cavity = molrs.core.Polyhedron(molrs.io.read_stl("dendrite.stl"))
+from pathlib import Path
+
+cavity = mp.core.Polyhedron(mp.io.read_stl(Path("dendrite.stl")))
 depth = cavity.distance(state.positions)
 print(f"{(depth > 0).sum()} atoms outside, worst {depth.max():.2f} Å")
 ```
@@ -551,12 +553,12 @@ the run does not converge and says so — it is never silently relaxed. `d_min`
 and `strength` must be `> 0`; otherwise `ValueError`.
 
 ```python
-import molrs
+import molpy as mp
 from molpack import SelfSeparation, Target
 
 ions = (
     Target(frame, count=27)
-    .with_restraint(molrs.core.Cuboid([0, 0, 0], [40, 40, 40]))
+    .with_restraint(mp.core.Cuboid([0, 0, 0], [40, 40, 40]))
     .with_restraint(SelfSeparation(10.0))
 )
 ```
@@ -568,10 +570,10 @@ ions = (
 ### `load_script(path, *, loader=None) -> ScriptJob`
 
 Parse and lower a Packmol-compatible `.inp` script. Template files are
-read on the Python side (defaulting to the `molrs.io` reader of the format the
+read on the Python side (defaulting to the `molpy.io` reader of the format the
 script's `filetype` or the file name names: `read_pdb`, `read_xyz`, …), so the
 wheel stays free of `molrs-io`. Pass `loader`
-— a callable `(path, filetype) -> molrs.core.Frame` — to plug in another
+— a callable `(path, filetype) -> mp.Frame` — to plug in another
 loader (mdtraj, ASE, …).
 
 ### `ScriptJob`
