@@ -46,7 +46,7 @@ molpack lifts the region to a quadratic exterior penalty,
 `scale · max(0, distance)²`, which is zero inside and on the boundary. The
 test is the **atom centre**, not the van der Waals ball and not the molecule
 COM. A region reaches this wheel as a `molpy.RegionRef` capsule — no data is
-marshalled, and both wheels must share one molrs minor line.
+marshalled, and both wheels must be built from one molpy checkout.
 
 How each packing engine uses a region is **not** inferred from the shape:
 

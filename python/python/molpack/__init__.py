@@ -39,9 +39,7 @@ from .molpack import (
     rayon_enabled,
 )
 
-# The installed wheel's version. The molrs compatibility check is the
-# extension's import-time ABI handshake (`molrs_capsule::check_abi`), which runs
-# when `.molpack` is imported above.
+# The installed wheel's version.
 version: str = _dist_version("molcrafts-molpack")
 
 __all__ = [

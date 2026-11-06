@@ -102,7 +102,7 @@ pub(crate) fn extract_restraint(obj: &Bound<'_, pyo3::types::PyAny>) -> PyResult
 /// The unified [`crate::target::PyTarget::with_restraint`] entry point uses
 /// this to route a region to the per-atom path and everything else (built-in
 /// distribution restraints + duck-typed objects) to the group path. A region
-/// from another molrs minor line is an error here, never a fall-through.
+/// capsule from another molrs build is an error here, never a fall-through.
 pub(crate) fn try_region(
     obj: &Bound<'_, pyo3::types::PyAny>,
 ) -> PyResult<Option<ArcAtomRestraint>> {

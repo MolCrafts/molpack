@@ -57,12 +57,12 @@ _Generated 2026-09-04 by /mol:map; line counts, `src/lib.rs` line refs, prelude 
 - `src/test_fixtures.rs` (81) — `cfg(test)` fixtures shared by the in-module unit tests; `src/grow/tests/` — `mod.rs` (352) fixtures, `refusals.rs` (588), `field.rs` (334), `internal.rs` (189), `prior.rs` (115), `driver.rs` (60); `src/pipeline/tests.rs` (1094)
 - `src/bin/molpack/main.rs` (136) — `cli`-gated CLI front end
 - `docs/getting_started.md` (128), `docs/concepts.md` (558), `docs/architecture.md` (441), `docs/extending.md` (1021) — `include_str!`-mounted rustdoc chapters (`src/lib.rs:166-176`)
-- `python/src/lib.rs` (109) — `#[pymodule]`; ABI handshake then `add_class` / `add_function` / `register_errors`
+- `python/src/lib.rs` (109) — `#[pymodule]`; `add_class` / `add_function` / `register_errors`
 - `python/src/packing_methods.rs` (804) — `PyGencanPack`/`PyCbmcGrow`/`PyLatticeGrow`/`PyPipeline`, `IntoStageFactory`, `packing_method_pymethods!` + `stage_method_registry!`
 - `python/src/state.rs` (140) — `PyState` (`#[pyclass(name = "State")]`) + nested `PyIntraResidual`
 - `python/src/callback.rs` (306) — `PyStageProgress` / `PyStepReport` / `PyPackSystemView`
-- `python/src/restraint.rs` (binds `restraint`), `target.rs`, `molrs_capsule.rs` ABI/capsule bridge (`check_abi` — the one version gate), `script.rs` (default loader: the `molrs.io` reader of the template's `StructureFormat`), `errors.rs` (typed exceptions + error mapping + callback error slot), `grow.rs`, `parallel.rs`
-- `python/python/molpack/__init__.py` — package `__all__` + `version` (wheel metadata); `_protocols.py` `Callback`/`Restraint` protocols; `molpack.pyi` stubs. No Python CLI (the `molpack` command is the Rust binary) and no metadata version check (the ABI handshake is the gate)
+- `python/src/restraint.rs` (binds `restraint`), `target.rs`, `molrs_capsule.rs` capsule bridge (the capsule-name check is the one gate), `script.rs` (default loader: the `molrs.io` reader of the template's `StructureFormat`), `errors.rs` (typed exceptions + error mapping + callback error slot), `grow.rs`, `parallel.rs`
+- `python/python/molpack/__init__.py` — package `__all__` + `version` (wheel metadata); `_protocols.py` `Callback`/`Restraint` protocols; `molpack.pyi` stubs. No Python CLI (the `molpack` command is the Rust binary) and no version check (the capsule name is the gate)
 
 ### Public surface
 
