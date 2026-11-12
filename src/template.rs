@@ -150,19 +150,7 @@ fn bond_class(bonds: &molrs::core::Block, row: usize) -> BondOrder {
             column
                 .get::<u64>()
                 .and_then(|values| values.get(ndarray::IxDyn(&[row])).copied())
-                .map(|value| value as u32)
-        })
-        .or_else(|| {
-            column
-                .get::<i64>()
-                .and_then(|values| values.get(ndarray::IxDyn(&[row])).copied())
-                .map(|value| value as u32)
-        })
-        .or_else(|| {
-            column
-                .get::<f64>()
-                .and_then(|values| values.get(ndarray::IxDyn(&[row])).copied())
-                .map(|value| value.round() as u32)
+                .and_then(|value| u32::try_from(value).ok())
         });
     match code {
         Some(code) => BondOrder::from_code(code),
@@ -273,6 +261,26 @@ mod rotatable_tests {
             !one_double.contains(&stated),
             "bond row 2 is the stated double bond"
         );
+    }
+
+    #[test]
+    fn wide_unsigned_bond_codes_do_not_wrap_into_known_classes() {
+        let mut frame = chain_frame(5, 1.54);
+        frame
+            .get_mut("bonds")
+            .unwrap()
+            .insert(
+                keys::BOND_TYPE,
+                Array1::from_elem(4, u64::from(u32::MAX) + 3).into_dyn(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            super::bond_class(frame.get("bonds").unwrap(), 1),
+            molrs::core::BondOrder::Unknown
+        );
+        let topo = Topology::from_frame(&frame).unwrap();
+        assert_eq!(super::rotatable_pairs(&frame, &topo).unwrap().len(), 2);
     }
 
     /// A ring bond is not a free torsion, whether or not the frame names an
