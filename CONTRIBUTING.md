@@ -1,124 +1,88 @@
 # Contributing to molcrafts-molpack
 
-Thanks for your interest in contributing. This document covers how to set up a
-development environment, run tests, and get a PR merged.
+Use the Rust toolchain in `rust-toolchain.toml`, Python 3.12 and uv. Clone
+`MolCrafts/molpy` next to this repository as `../molpy`, then check out the
+exact `MOLPY_REF` in `.github/partners.env`. The native API requires molpy
+0.20.1 on the 0.20 line. Both wheels must embed that same source and compiler;
+foreign frame or region capsules raise `ValueError` when resolved.
 
-## Development environment
-
-**Prerequisites:**
-- Rust 1.91+ (`rustup update stable`)
-- Python 3.12+ with `maturin` and `pytest` for the Python bindings (the wheel's `requires-python` is `>=3.12`)
-- [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
-- [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
-  `python/` dependency-group `dev`, not a separate global install)
-- The [molpy](https://github.com/MolCrafts/molpy) repo checked out as a sibling
-  directory named `molpy`:
-
-```
+```text
 workspace/
-├── molpy/      ← git clone https://github.com/MolCrafts/molpy
-└── molpack/    ← this repo
+├── molpy/
+└── molpack/
 ```
 
-The root `Cargo.toml` uses a path dependency on `../molpy/crates/molrs`. With the
-sibling layout above everything resolves automatically.
+## Setup and local checks
 
-**Version pins:** a local build uses the sibling checkout `../molpy`.
-The native API requires molpy **0.20.1** or later on the **0.20** line.
-`.github/partners.env` pins the exact molpy commit used by every
-`setup-partners` action, including releases. Check out that revision locally.
-`Cargo.lock`, `python/Cargo.lock` and `python/uv.lock` record package metadata;
-regenerate them when that revision changes package versions or dependencies.
-
-Build both Python wheels from one molpy checkout with the same Rust toolchain.
-The capsule name checks the compiler, source and handle layout when a frame
-or region crosses between extensions; a mismatch raises `ValueError`.
-
-**First-time setup:**
+Run these commands from the repository root:
 
 ```bash
-# Fetch test data used by the regression suite
-bash ../molpy/scripts/fetch-test-data.sh
-
-# Git hooks via prek (reads .pre-commit-config.yaml)
-prek install
-
-# Verify the Rust build
-cargo build -p molcrafts-molpack
+uv sync --project python --locked --group dev --no-install-project --no-install-package molcrafts-molpy
+uv run --project python molci doctor --install-hooks
+uv run --project python molci verify
 ```
 
-## Running tests
-
-`.github/workflows/ci.yml` is the only place these commands are written:
+`molci verify` is the pre-push gate. It reuses successful checks only while
+source, dependencies, tools and built artifacts still match. `--full` reruns
+every applicable check. For an edit loop, select one gate:
 
 ```bash
-# Rust — the `rust` check. Behaviour lives in `#[cfg(test)]` modules next
-# to the code; there is no tests/ directory.
-cargo test --locked --lib --features cli
-cargo test --locked --doc --features cli
-cargo check --locked --all-targets --features cli      # bin + examples must compile
-cargo check --locked --no-default-features && cargo check --locked --features rayon
-
-# Python — tox isolated env (tox itself from python/ dependency-group dev)
-uv run --locked --python 3.12 --directory python --group dev tox -e py
+uv run --project python molci run rust
+uv run --project python molci run python
+uv run --project python molci run types
+uv run --project python molci run docs
 ```
 
-CI checks `../molpy` out at that ref. A local build uses the sibling as it is.
+The shared `molpack` profile in MolCrafts CI owns the commands. The Rust gate
+runs unit tests and doctests, checks examples and feature combinations, and
+compiles the CLI without dev dependencies. The Python gates build one
+non-editable molpy wheel and one molpack wheel from the pinned checkout;
+pytest, typing and documentation use those same wheels. The sibling must be
+clean and at the pinned revision; local checks never move it.
 
-For a quick local edit loop you may still `maturin develop` in a personal
-venv; **do not** rely on that for the gate — CI uses
-`uv run --locked --python 3.12 --directory python --group dev tox -e py`.
+## Hooks and CI
 
-## Hooks
+`.pre-commit-config.yaml` installs only the shared `molci-commit` and
+`molci-push` hooks from the immutable `CI_REF`. Pre-commit runs format, Ruff,
+hygiene and workflow checks. Pre-push runs the complete native verification.
+Never bypass hooks with `--no-verify`, and never merge a red pull request.
+Push each committed snapshot from its own clean worktree.
 
-`prek install` installs both hook types from `.pre-commit-config.yaml`.
-The hook is actionlint on `.github/workflows`, on commit and on push. It
-does not run the test or lint commands; those exist only as jobs in
-`.github/workflows/ci.yml`. **Never `git commit --no-verify` or
-`git push --no-verify`, and never merge a red pull request.**
+`test.yml` calls the shared context, runs native verification and the platform
+lanes, and ends in the required `test / result` check. Linux verifies all gates;
+macOS and Windows verify the built Python wheels. A fork push does not repeat
+the upstream PR matrix. `release.yml` requires successful verification of the
+exact upstream master commit before publishing. Preparing a change creates
+no release tag and publishes no package.
 
-`scripts/hook-run.sh` stays so the shared git hooks on this cluster keep
-prek on the login node. They look for `MOLCRAFTS_HOOK_RUNNER` in that file;
-if the string is missing they send the whole hook to Slurm.
+`MOLCRAFTS_HOOK_RUNNER`, when configured, must synchronously verify the exact
+source snapshot on the execution node. No repository-local hook launcher or
+shell test script is needed.
 
-## Partners
+## Dependency pins
 
-`.github/partners.env` names `MolCrafts/molpy` and the exact commit to check
-out as `../molpy`. Every workflow calls `setup-partners` without overriding
-that file. `scripts/partners.py check` verifies that the revision exists and
-that path dependencies resolve inside the partner checkout.
+`.github/partners.env` pins molpy and the shared CI implementation. Cargo and
+uv lock files record package metadata. To update molpy, use a matching sibling
+worktree, change `MOLPY_REF`, and regenerate the locks:
 
-A local build does not move `../molpy`. To update the dependency, check out
-the intended revision there, change `MOLPY_REF`, and regenerate the locks
-with the commands in `.github/partners.env`. Build and test both wheels
-against that source before opening a PR. A release tag is created only after
-the changes reach `master`; preparing an API update does not publish it.
+```bash
+cargo update -w
+cargo update --manifest-path python/Cargo.toml -w
+uv lock --directory python
+```
 
-## CI
+Publish a shared CI revision before updating consumers. The existing command
+updates Actions, hooks, the CI pin and the locked Python dependency together:
 
-`.github/workflows/ci.yml` is the workflow. Its jobs call
-`MolCrafts/molcrafts-ci` `setup-rust`, `setup-python` and `setup-partners`.
-A pull request, a push to `dev` or `master`, and a manual run execute every
-job. `python` is CPython 3.12 on Linux, macOS and Windows, and the test wheel
-is a dev build. The other checks run on Linux. The job `result`
-is the check `ci / result`, and it passes when every other job did.
-`release.yml` calls this same file.
-
-`release.yml` is the tag (and the manual dry run). It runs that CI, then
-publishes. A dispatch builds and runs `cargo publish --dry-run` and uploads
-nothing. A `v*` tag on MolCrafts publishes the crate, the wheels, the sdist
-and the GitHub Release. The tag must be `v` plus the `Cargo.toml` version and
-an ancestor of `master`. Trusted publishing names `release.yml` and the
-`crates-io` and `pypi` environments. Cloudflare Pages deploys the site from
-MolCrafts; CI only builds it (`docs`, `zensical build --clean --strict`).
+```bash
+uv run --project python molci partners pin-ci <full-published-commit-sha>
+```
 
 ## Code style
 
-- `cargo fmt` / `ruff` / `clippy` / `ty` — the `hygiene`, `clippy` and `ty` jobs in `.github/workflows/ci.yml`
-- CI: clippy, ty, rust tests + `uv run … tox -e py` (see [Running tests](#running-tests))
-- Follow the immutability rule: return new values, never mutate in place
-- Keep files under ~400 lines; split at ~200 if the module grows beyond one concern
-- New public types must implement `Debug` and, where appropriate, `Clone`
+Rust behavior is tested next to its implementation. New public types implement
+`Debug` and, where appropriate, `Clone`. Run the shared format, Clippy, Ruff and
+type gates before pushing. Keep new units focused and reuse existing APIs.
 
 ## Adding a new restraint type
 

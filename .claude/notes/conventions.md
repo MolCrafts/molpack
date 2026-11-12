@@ -68,15 +68,14 @@ frame (the PyO3 `target_from_frame` helper) and lowers scripts with
   needs `io` or `ff` is a plain `no_run` block, with any setup on hidden `#`
   lines.
 - An ignored test is a failing test. No `ignore` doctest fence, no `#[ignore]`:
-  the `hygiene` job in `.github/workflows/ci.yml` rejects both. Uncompiled
+  the `hygiene` job in `.github/workflows/test.yml` rejects both. Uncompiled
   illustration is a `text` fence.
-- `uv run --locked --python 3.12 --directory python --group dev tox -e py` — Python wheel, isolated and non-editable (`maturin develop` is not the gate).
-- The check commands live only in `.github/workflows/ci.yml`: locks, docs,
-  clippy, ty, lib tests, doc tests, `--all-targets` check (bin + examples
-  must compile), `--no-default-features` / `rayon` checks, then tox, all
-  `--locked`, plus `python` on Linux, macOS and Windows. prek runs actionlint
-  on `.github/workflows` at commit and at push. CONTRIBUTING.md "Hooks" has
-  the login-node rule.
+- `uv run --project python molci verify` — the complete native gate.
+- The `molpack` profile in the pinned MolCrafts CI owns all check commands.
+  Hooks call the same runner as `test.yml`; one tested pair of non-editable
+  wheels serves pytest, typing and docs. `molci run <gate>` selects a gate.
+- Pushes require clean committed snapshots; the shared hook handles synchronous
+  execution runners without a repository-local shell launcher.
 
 ## Repo layout
 

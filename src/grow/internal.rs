@@ -247,7 +247,7 @@ impl InternalTree {
     /// Same-molecule partners of `atom` within this tree's exclusion depth,
     /// ascending and **including `atom` itself** — the skip set the overlap
     /// field expects, since an atom must not be scored against its own
-    /// position. Produced by [`molrs::core::Topology::exclusions`].
+    /// position. Produced by [`crate::bond_weights::excluded_partners`].
     pub fn exclusions(&self, atom: usize) -> &[u32] {
         &self.exclusions[atom]
     }

@@ -366,45 +366,31 @@ language would fork the user base and the parser.
   keyword (engine-entry-split ruling).
 
 <!-- mol:law:id:molrs-pins-manual -->
-## P3. molrs path, version and partner refs are managed manually
+## P3. Dependency pins are deliberate and immutable
 
-**Principle.** The `../molrs` path dependency, its version line, and the
-partner ref are edited by a human, deliberately. On `dev` the ref is
-molrs's `dev` branch: the partner is tracked, not pinned (owner ruling
-2026-10-07). The pin is `setup-partners` (`repository` / `ref`) in
-`.github/workflows/ci.yml` and `release.yml`. `.github/partners.env` names
-the same repository and ref. `scripts/partners.py check` fails when a path
-dependency lands outside that checkout, or when a workflow spells a
-partner commit. CI checks the named ref out with `setup-partners`
-(`../molrs`). A release commit names a molrs tag in the workflow `ref` and
-in `partners.env`.
-
-**Never**
-
-- Never let a hook or script rewrite `Cargo.toml` / `pyproject.toml` /
-  `.github/workflows/ci.yml` / `.github/workflows/release.yml` /
-  `.github/partners.env`.
-- Never point the workflow `ref` at a different ref than `.github/partners.env`.
+`.github/partners.env` names the exact molpy and MolCrafts CI commits.
+Cargo/uv sources use the sibling molpy checkout. Publish infrastructure first;
+then update consumers with `molci partners pin-ci <sha>`, which updates Actions,
+hooks and the locked CI dependency together. Dependency changes are explicit
+operator-authorized work, never an automatic hook rewrite. Local verification
+refuses a mismatched or dirty sibling rather than checking it out in place.
 
 <!-- mol:law:id:local-gates-prek-tox -->
-## P4. Local gates are prek + tox
+## P4. Hooks and CI share the molpack gate registry
 
-**Principle.** Hooks use prek. Both hooks run actionlint on
-`.github/workflows`. The gate commands are spelled only in
-`.github/workflows/ci.yml`. Python isolation there is tox from the
-`python/` `dev` dependency group. `scripts/hook-run.sh` stays so the
-shared git hooks keep prek on the login node (they look for
-`MOLCRAFTS_HOOK_RUNNER` in that file). `scripts/partners.py` checks the
-partner layout and is the relock recipe.
+The pinned MolCrafts CI `molpack` profile owns every gate command. The remote
+`molci-commit` and `molci-push` hooks invoke the same runner as `test.yml`.
+`molci verify` is required before push; only matching successful receipts and
+artifacts may be reused. One non-editable molpy wheel and one molpack wheel
+serve pytest, typing and documentation. There is no repository-local shell
+launcher or tox pipeline. A configured `MOLCRAFTS_HOOK_RUNNER` must complete
+verification synchronously on the exact submitted source snapshot.
 
 **Never**
 
-- Never add a project `scripts/` test wrapper, or move a gate's command
-  into `scripts/`.
+- Never add project-local test wrappers that duplicate shared gate commands.
 - Never `git commit --no-verify` / `git push --no-verify`.
-- Never run Python binding tests any way other than
-  `uv run --locked --python 3.12 --directory python --group dev tox -e py`
-  (non-editable, sibling molrs path install + maturin wheel + pytest).
+- Never push an uncommitted or different source snapshot.
 
 <!-- mol:law:id:fork-pr-workflow -->
 ## P5. Fork → PR

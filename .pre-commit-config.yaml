@@ -1,12 +1,7 @@
-# prek runs this on commit and on push. It lints .github/workflows.
-# The checks themselves are the jobs in .github/workflows/ci.yml.
 default_install_hook_types: [pre-commit, pre-push]
-default_stages: [pre-commit, pre-push]
-
 repos:
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+  - repo: https://github.com/MolCrafts/molcrafts-ci
+    rev: 48869e06449f68931f35ef05b8de98795a4faff6
     hooks:
-      - id: actionlint
-        pass_filenames: false
-        always_run: true
+      - id: molci-commit
+      - id: molci-push

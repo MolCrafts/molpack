@@ -1,7 +1,7 @@
 //! Zero-copy interop between molrs Python objects and molrs-ffi handles.
 //!
-//! molrs and molpack are **separate** PyO3 extensions, so a `molpy.core.Frame`
-//! pyclass cannot be `.extract()`d into a Rust value here. Instead molrs-python
+//! molpy and molpack are **separate** PyO3 extensions, so a `molpy.core.Frame`
+//! pyclass cannot be `.extract()`d into a Rust value here. Instead molpy
 //! exposes a stable-FFI capsule — `Frame._ffi_frameref_capsule()` — and molpack
 //! resolves it to the shared `molrs_ffi::FrameRef` handle. This is the exact
 //! pattern molrs-cxxapi uses (`frame_clone_from_addr`): **no dict marshalling,
@@ -9,7 +9,7 @@
 //!
 //! Soundness: both wheels link the same `molcrafts-molrs-ffi` and the same
 //! always-on `molcrafts-molrs` core, whose `Frame` / `Block` / `SimBox` layout
-//! is feature-independent. So a handle minted by molrs-python (built with the
+//! is feature-independent. So a handle minted by molpy (built with the
 //! `full` feature set) and the `molrs::core::Frame` it lends are layout-identical to
 //! what molpack (built on molrs's always-on core alone) sees across the
 //! extension boundary.
@@ -44,7 +44,7 @@ fn ffi_err(e: FfiError) -> PyErr {
 
 /// Resolve a `molpy.core.Frame` (which `molpy.Frame` is) to a shared [`FrameRef`] (zero-copy).
 ///
-/// Clones the handle the capsule carries (two `Rc` bumps) onto the same store,
+/// Clones the handle the capsule carries (one `Arc` bump) onto the same store,
 /// so reads/writes through the returned handle are visible in the originating
 /// Python frame. The object must expose `_ffi_frameref_capsule()` — i.e. be a
 /// real `molpy.core.Frame` (a plain `dict` is refused).
@@ -60,7 +60,7 @@ pub fn frame_from_py(obj: &Bound<'_, PyAny>) -> PyResult<FrameRef> {
     let pp = ptr.as_ptr() as *const *const FrameRef;
     // SAFETY: the named capsule's void* is `*mut *mut FrameRef` (the
     // exporter boxes a `*mut FrameRef`); deref twice to reach the cloned handle
-    // and `.clone()` it (Rc bumps). The capsule is only touched under the GIL.
+    // and `.clone()` it (one Arc bump). The capsule is only touched under the GIL.
     let fref = unsafe { (**pp).clone() };
     Ok(fref)
 }
@@ -114,10 +114,7 @@ pub fn stamp_box_bounds(frame: &mut Frame, box_bounds: Option<([F; 3], [F; 3])>)
 /// ``FrameRef`` capsule. Do it once and keep the Python object.
 pub fn frame_to_py<'py>(py: Python<'py>, frame: &Frame) -> PyResult<Bound<'py, PyAny>> {
     let fref = FrameRef::default();
-    fref.arena
-        .write()
-        .map_err(ffi_err)?
-        .set_frame(fref.id, frame.deep_copy())
+    fref.with_mut(|slot| *slot = frame.deep_copy())
         .map_err(ffi_err)?;
     let capsule = export_frame_capsule(py, fref)?;
     PyModule::import(py, "molpy.core")?
@@ -126,10 +123,10 @@ pub fn frame_to_py<'py>(py: Python<'py>, frame: &Frame) -> PyResult<Bound<'py, P
 }
 
 /// Box a `FrameRef` into a `molrs_ffi::abi::frameref_capsule_name()` PyCapsule
-/// — the exporter side of the return path, mirroring molrs-python's
+/// — the exporter side of the return path, mirroring molpy's
 /// `Frame._ffi_frameref_capsule`.
 fn export_frame_capsule<'py>(py: Python<'py>, fref: FrameRef) -> PyResult<Bound<'py, PyCapsule>> {
-    // Same constructor and pointer shape as molrs-python's
+    // Same constructor and pointer shape as molpy's
     // ``Frame._ffi_frameref_capsule``: PyO3 boxes the ``FrameRefPtr`` payload,
     // so the capsule void* is ``*mut *mut FrameRef``. The shared abi module is
     // the single source of the (``&'static CStr``) name — never hard-code it.
@@ -153,16 +150,16 @@ fn foreign_capsule_error(err: PyErr, expected: &std::ffi::CStr) -> PyErr {
 }
 
 /// `Send` wrapper around a `*mut FrameRef` for the capsule payload (mirrors
-/// molrs-python's `FrameRefPtr`).
+/// molpy's `FrameRefPtr`).
 ///
-/// `FrameRef` is `!Send` (holds an `Rc`); the capsule is only ever created, read,
-/// and destroyed under the Python GIL, so the single-threaded discipline holds.
+/// The boxed `FrameRef` is `Send + Sync` (its store is `Arc<RwLock<_>>`) and
+/// owned by the capsule alone; its destructor may reclaim it on any thread.
 /// `#[repr(transparent)]` makes the capsule's `void*` a `*mut *mut FrameRef`,
 /// the shape `Frame._from_ffi_frameref_capsule` resolves.
 #[repr(transparent)]
 struct FrameRefPtr(*mut FrameRef);
 
-// SAFETY: GIL-guarded, single-threaded use only — see the type-level doc.
+// SAFETY: the pointee is Send + Sync and uniquely owned — see the type-level doc.
 unsafe impl Send for FrameRefPtr {}
 
 /// Call `obj.<method>()` and downcast the result to a `PyCapsule`, with a clear

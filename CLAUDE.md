@@ -16,7 +16,7 @@ mol_project:
   science:
     required: true
   ci:
-    workflow: .github/workflows/ci.yml
+    workflow: .github/workflows/test.yml
     local: "prek run --all-files"
   notes_path: .claude/notes/notes.md
   specs_path: .claude/specs/
@@ -72,7 +72,7 @@ Project invariants (bodies in `law.md` § IX):
 - **No "packmol" in public identifiers.** The product is molpack; prose may cite Packmol, symbols may not.
 - **Configuration is `.inp` only.** Never a TOML / YAML / JSON config surface.
 - **molrs refs are manual.** On `dev`, `setup-partners` in `.github/workflows` and `.github/partners.env` both name `MolCrafts/molpy` ref `dev`. Never let a hook or script rewrite a path, a version, or that ref. CI checks out that ref into `../molpy`.
-- **Local gates are prek.** Commands live only in `.github/workflows/ci.yml`. `.pre-commit-config.yaml` runs actionlint on `.github/workflows` at commit and at push. Python isolation in CI is `uv run --locked --python 3.12 --directory python --group dev tox -e py`. Never `--no-verify`.
+- **Shared gates.** The pinned MolCrafts CI `molpack` profile owns checks; both hook stages and `test.yml` invoke it. Run `molci verify` before push. Never `--no-verify`.
 - **Fork → PR.** Never push to `MolCrafts/molpack` master; `origin` = fork, `upstream` = MolCrafts.
 - **Solvers are pure geometry.** Never a force-field or chemistry-perception dependency on the solver seam; priors and chemistry are user data.
 - **Solvers are peers.** Never call another solver's driver; share lifecycle, context, objective, frozen `State` — the shared objective is the one ruler.
