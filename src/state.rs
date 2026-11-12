@@ -33,8 +33,8 @@ pub(crate) struct Placements {
 ///
 /// An empty class is `+∞` ([`F::INFINITY`]). There is no [`Default`] — a
 /// residual is classified from coordinates and a skip table, not from a
-/// placeholder. Distances are Euclidean lengths of
-/// [`SimBox::shortest_vector_impl`].
+/// placeholder. Distances are Euclidean lengths of the minimum-image
+/// displacement ([`molrs::core::Mic::apply`]).
 ///
 /// Classification is driven by each target's
 /// [`Target::special_bonds`]. This type does not pick an exclusion depth.
@@ -53,8 +53,8 @@ enum IntraSkip {
     Identity,
     /// `Topology::from_frame` `NotFound` / `Validation`: omit the target.
     Omit,
-    /// Per-atom skip lists from [`molrs::core::Topology::exclusions`] (sorted,
-    /// root-inclusive).
+    /// Per-atom skip lists from [`crate::bond_weights::excluded_partners`]
+    /// (sorted, root-inclusive).
     Partners(Vec<Vec<usize>>),
 }
 
@@ -84,7 +84,9 @@ impl IntraResidual {
                 None => IntraSkip::Identity,
                 Some(frame) => match molrs::core::Topology::from_frame(frame) {
                     Ok(topo) if topo.n_bonds() == 0 => IntraSkip::Identity,
-                    Ok(topo) => IntraSkip::Partners(crate::special_bonds::exclusions(&topo, table)),
+                    Ok(topo) => {
+                        IntraSkip::Partners(crate::bond_weights::excluded_partners(&topo, table))
+                    }
                     Err(_) => IntraSkip::Omit,
                 },
             };
@@ -93,13 +95,14 @@ impl IntraResidual {
                 continue;
             }
             let tail_scored = table.weight(usize::MAX) != 0.0;
+            let mic = simbox.mic();
             for c in 0..ncopy {
                 let base = offset + c * n;
                 for i in 0..n {
                     for j in (i + 1)..n {
                         let a = positions[base + i];
                         let b = positions[base + j];
-                        let dr = simbox.mic().apply([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+                        let dr = mic.apply([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
                         let dist = (dr[0] * dr[0] + dr[1] * dr[1] + dr[2] * dr[2]).sqrt();
                         let pair_exempted = match &skip {
                             IntraSkip::Identity => false,

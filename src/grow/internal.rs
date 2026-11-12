@@ -210,7 +210,7 @@ impl InternalTree {
         steps.push((start, sites.len()));
         step_var.push(current);
 
-        let exclusions = crate::special_bonds::exclusions(&topo, weights)
+        let exclusions = crate::bond_weights::excluded_partners(&topo, weights)
             .into_iter()
             .map(|row| row.into_iter().map(|i| i as u32).collect())
             .collect();

@@ -287,7 +287,7 @@ fn metropolis_accept(f_trial: F, f_current: F, temperature: F, rng: &mut dyn Rng
 /// Unordered `(i, j)`, `i < j`, pairs the table exempts, from molrs's
 /// bond-distance walk.
 fn excluded_pairs(topology: &Topology, weights: &BondDistanceWeights) -> HashSet<(usize, usize)> {
-    crate::special_bonds::exclusions(topology, weights)
+    crate::bond_weights::excluded_partners(topology, weights)
         .into_iter()
         .enumerate()
         .flat_map(|(i, partners)| {

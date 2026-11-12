@@ -100,22 +100,22 @@ carries no project-local `.claude/skills/` or `.claude/agents/`.
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molrs
+├── molpy/      ← git clone https://github.com/MolCrafts/molpy
 └── molpack/    ← this repo
 ```
 
-The root `Cargo.toml` uses a single path dep on `../molrs/molrs` (the unified
+The root `Cargo.toml` uses a single path dep on `../molpy/crates/molrs` (the unified
 `molcrafts-molrs` crate); `core` is always-on, while `io` is pulled in
 through the matching molpack feature above.
 
 **Build cache:** the committed `.cargo/config.toml` routes every build (root
-workspace and `python/`) into `../molrs/target`, shared with the sibling molrs
+workspace and `python/`) into `../molpy/target`, shared with the sibling molrs
 checkout — molrs compiles once per (rustc, features, profile) across both
-repos. `rust-toolchain.toml` matches molrs's so the cache fingerprints one
+repos. `rust-toolchain.toml` matches molpy's so the cache fingerprints one
 rustc. CI caches that dir and runs sccache.
 
 **molrs capsule names** (the rule itself is law P10): molpack exchanges
 `molrs_ffi` handle capsules with the installed `molcrafts-molpy` wheel. The one
 gate is the capsule name from `molrs_ffi::abi` (`frameref_capsule_name()`,
-`regionref_capsule_name()`), which carries the handle-layout fingerprint, so a
+`regionref_capsule_name()`), which carries the compiler, source and handle-layout fingerprint, so a
 capsule from another molpy build fails the name check before any dereference.

@@ -99,10 +99,10 @@ pub(crate) fn topology_for_growth(
                 n: n_atoms,
             });
         }
-        Err(molrs::core::TopologyError::MissingEndpoint { column, .. }) => {
-            return Err(GrowError::MissingBondEndpoint { column });
-        }
-        Err(molrs::core::TopologyError::NullEndpoint { column, .. }) => {
+        Err(
+            molrs::core::TopologyError::MissingEndpoint { column, .. }
+            | molrs::core::TopologyError::NullEndpoint { column, .. },
+        ) => {
             return Err(GrowError::MissingBondEndpoint { column });
         }
         Err(

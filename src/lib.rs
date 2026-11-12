@@ -86,7 +86,8 @@
 //! | Callback trait + built-ins | [`Callback`], [`LammpsLogCallback`], [`ProgressCallback`], [`EarlyStopCallback`], `XyzTrajectoryCallback` (feature `io`), [`StepReport`], [`StageProgress`], [`PhaseProgress`], [`PhaseReport`] |
 //! | Objective | [`Objective`], [`EvalMode`], [`EvalOutput`] |
 //! | In-loop optimizer | [`OptimizeSelect`], [`OptimizeMode`], [`GencanPack::with_optimizer`], [`TorsionMcOptimizer`], over molrs's [`molrs::optimize::Optimizer`] trait |
-//! | Errors | [`PackError`] |
+//! | Errors | [`PackError`], [`BondWeightsError`] |
+//! | Intramolecular scale | [`BondDistanceWeights`] |
 //!
 //! ## Feature flags
 //!
@@ -108,6 +109,7 @@
 //! Precision is fixed at `f64` via `molrs::op::F`.
 
 mod assemble;
+mod bond_weights;
 mod callback;
 mod error;
 mod euler;
@@ -124,7 +126,6 @@ mod random;
 mod restraint;
 pub mod script;
 mod settings;
-mod special_bonds;
 mod stage;
 mod state;
 pub mod system;
@@ -133,6 +134,7 @@ mod template;
 #[cfg(test)]
 mod test_fixtures;
 
+pub use bond_weights::{BondDistanceWeights, BondWeightsError};
 #[cfg(feature = "io")]
 pub use callback::XyzTrajectoryCallback;
 pub use callback::{
@@ -153,7 +155,6 @@ pub use restraint::{
     GroupEvaluation, RegionRestraint, Restraint, SelfSeparation, TabulatedPlane, TabulatedPoint,
 };
 pub use settings::PackSettings;
-pub use special_bonds::BondDistanceWeights;
 pub use stage::{Budget, Guarantees, Requires, Stage, StageOutcome};
 pub use state::{IntraResidual, State};
 pub use system::pack_state::{PackState, Placed};

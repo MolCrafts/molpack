@@ -23,15 +23,13 @@ workspace/
 The root `Cargo.toml` uses a path dependency on `../molpy/crates/molrs`. With the
 sibling layout above everything resolves automatically.
 
-**Version pins:** a local build uses the sibling checkout `../molpy`. The
-version fields name the **0.20.*** minor line (see `Cargo.toml` and
-`python/pyproject.toml`). CI checks out `MolCrafts/molpy` at ref `dev` into
-`../molpy` (`setup-partners` in `.github/workflows/ci.yml`).
-`.github/partners.env` names the same repository and ref. `Cargo.lock`,
-`python/Cargo.lock` and `python/uv.lock` are committed and every cargo / uv
-call in the workflow is `--locked`; they record molpy's package metadata, not a
-commit, so relock only when molpy's `dev` changes its version or dependencies
-(the recipe is in `.github/partners.env`).
+**Version pins:** a local build uses the sibling checkout `../molpy`.
+The native API requires molpy **0.20.1** or later on the **0.20** line.
+`.github/partners.env` pins the exact molpy commit used by every
+`setup-partners` action, including releases. Check out that revision locally.
+`Cargo.lock`, `python/Cargo.lock` and `python/uv.lock` record package metadata;
+regenerate them when that revision changes package versions or dependencies.
+
 Build both Python wheels from one molpy checkout with the same Rust toolchain.
 The capsule name checks the compiler, source and handle layout when a frame
 or region crosses between extensions; a mismatch raises `ValueError`.
@@ -85,27 +83,16 @@ if the string is missing they send the whole hook to Slurm.
 
 ## Partners
 
-On `dev`, the partner is tracked, not pinned. `setup-partners` in
-`.github/workflows/ci.yml` and `release.yml` names it: repository
-`MolCrafts/molpy`, ref `dev`, path `../molpy`. It does not look up a branch
-of the same name. `.github/partners.env` must name the same repository and
-ref (`MOLPY_REPOSITORY`, `MOLPY_REF`). `scripts/partners.py check` fails when
-a path dependency (`../molpy`, `../../molpy`, ...) lands outside that
-checkout, or when a workflow spells a partner commit of its own. The relock
-recipe in `partners.env` still uses `scripts/partners.py run`.
+`.github/partners.env` names `MolCrafts/molpy` and the exact commit to check
+out as `../molpy`. Every workflow calls `setup-partners` without overriding
+that file. `scripts/partners.py check` verifies that the revision exists and
+that path dependencies resolve inside the partner checkout.
 
-A local build does not move `../molpy`.
-
-A change that needs a molrs change lands by updating the workflow `ref` and
-`MOLPY_REF` to the molrs commit you built against, in a commit of its own,
-after molrs's change is on the ref you name. Do not expect CI to follow a
-same-named branch.
-
-**Releasing.** A release builds against a fixed molrs: the release commit on
-`master` sets the workflow `ref` and `MOLPY_REF` to the molrs release tag
-of the line `Cargo.toml` names (`vX.Y.Z`), relocks if that changes molrs's
-metadata, and is tagged. When `master` is merged back into `dev`, both name
-`dev` again.
+A local build does not move `../molpy`. To update the dependency, check out
+the intended revision there, change `MOLPY_REF`, and regenerate the locks
+with the commands in `.github/partners.env`. Build and test both wheels
+against that source before opening a PR. A release tag is created only after
+the changes reach `master`; preparing an API update does not publish it.
 
 ## CI
 

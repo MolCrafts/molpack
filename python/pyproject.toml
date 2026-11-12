@@ -4,15 +4,15 @@ build-backend = "maturin"
 
 [project]
 name = "molcrafts-molpack"
-version = "0.6.0"
+version = "0.8.0"
 description = "Python bindings for molpack molecular packing (Packmol port)"
 requires-python = ">=3.12"
 readme = "README.md"
 license = "BSD-3-Clause"
-# Minor-line pin — same major.minor as molrs; patch may drift.
+# The native API needs molpy 0.20.1; capsules also require matching source builds.
 dependencies = [
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
 ]
 
 # Installable "extra" carrying the docs-build deps. Unlike the [dependency-groups]
@@ -35,14 +35,14 @@ typecheck = [
   "ruff",
   "ty",
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
   # `ty check` walks tests/ which imports pytest.
   "pytest",
 ]
 test = [
   "pytest",
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
 ]
 dev = [
   {include-group = "typecheck"},
@@ -130,7 +130,7 @@ extra-paths = ["examples"]
 #   uv run --locked --python 3.12 --directory python --group dev tox -e py
 # Non-editable only: sibling molrs path install + maturin wheel + pytest.
 # Requires ../../molpy (the molpy checkout) on the 0.20.* minor line. CI
-# checks out MolCrafts/molpy ref dev (setup-partners); a local build uses the sibling.
+# checks out the exact molpy revision in .github/partners.env; local builds use the sibling.
 # Both builds are --locked (MATURIN_PEP517_ARGS reaches the molpy wheel).
 [tool.tox]
 requires = ["tox>=4.23"]

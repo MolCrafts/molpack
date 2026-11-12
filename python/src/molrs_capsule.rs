@@ -31,7 +31,6 @@ use molrs::core::Frame;
 use molrs::core::Region;
 use molrs::core::SimBox;
 use molrs_ffi::{FfiError, FrameRef, RegionRef};
-use ndarray::Array1;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyCapsule, PyModule};
@@ -102,14 +101,9 @@ pub fn stamp_box_bounds(frame: &mut Frame, box_bounds: Option<([F; 3], [F; 3])>)
     let Some((lo, hi)) = box_bounds else {
         return Ok(());
     };
-    let lengths = Array1::from_vec(vec![hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]]);
-    let origin = Array1::from_vec(lo.to_vec());
-    let simbox = SimBox::new(
-        molrs::core::Cell::Lengths([lengths[0], lengths[1], lengths[2]]),
-        [origin[0], origin[1], origin[2]],
-        [true, true, true],
-    )
-    .map_err(|e| PyValueError::new_err(format!("building periodic box: {e:?}")))?;
+    let lengths = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+    let simbox = SimBox::new(molrs::core::Cell::Lengths(lengths), lo, [true, true, true])
+        .map_err(|e| PyValueError::new_err(format!("building periodic box: {e}")))?;
     frame.simbox = Some(simbox);
     Ok(())
 }

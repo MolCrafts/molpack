@@ -29,10 +29,10 @@ pub enum GrowError {
     TemplateTooSmall(usize),
     /// The template frame has no readable `atoms` block (`x` / `y` / `z` in Å).
     NoAtomsBlock,
-    /// A non-empty bonds block has no `atomi` or `atomj` column.
-    /// `column` is the missing endpoint name.
+    /// A bonds block is missing `atomi` or `atomj`, or a cell in that column
+    /// is null. `column` is the endpoint name.
     MissingBondEndpoint {
-        /// The absent endpoint column (`atomi` or `atomj`).
+        /// The endpoint column (`atomi` or `atomj`).
         column: &'static str,
     },
     /// A bond row names an atom outside the template. The fields are

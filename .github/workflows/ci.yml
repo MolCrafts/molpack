@@ -3,7 +3,7 @@ name: ci
 # The only list of molpack checks. prek lints the files under
 # .github/workflows; it does not run these commands.
 #
-# setup-partners checks MolCrafts/molpy out at ref dev into ../molpy.
+# setup-partners checks out the revision in .github/partners.env into ../molpy.
 # .github/partners.env names that same repository and ref.
 
 on:
@@ -55,10 +55,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -125,10 +121,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -151,10 +143,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -172,10 +160,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -194,10 +178,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -227,10 +207,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-rust@master
         with:
           cache: molpack
@@ -255,10 +231,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: MolCrafts/molcrafts-ci/actions/setup-partners@master
-        with:
-          repository: MolCrafts/molpy
-          ref: dev
-          path: ../molpy
       - uses: MolCrafts/molcrafts-ci/actions/setup-python@master
       - name: zensical
         run: uv run --isolated --locked --python 3.12 --project python --only-group doc zensical build --clean --strict
