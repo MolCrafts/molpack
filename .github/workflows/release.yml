@@ -35,7 +35,7 @@ defaults:
 jobs:
   context:
     name: release
-    uses: MolCrafts/molcrafts-ci/.github/workflows/context.yml@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+    uses: MolCrafts/molcrafts-ci/.github/workflows/context.yml@7644b440c0c5c400a35ba4e91a59089c09a7cc50
     with:
       profile: molpack
 
@@ -58,7 +58,7 @@ jobs:
           [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "::error::tag $GITHUB_REF_NAME is not v$version"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "::error::tag is not on master"; exit 1; }
       - name: Exact upstream master verification
-        uses: MolCrafts/molcrafts-ci/actions/release-verify@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+        uses: MolCrafts/molcrafts-ci/actions/release-verify@7644b440c0c5c400a35ba4e91a59089c09a7cc50
         env:
           GH_TOKEN: ${{ github.token }}
         with:
@@ -72,8 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@37946f34c4ca8f4fd7fd37761b1d3182444c72da
-      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@7644b440c0c5c400a35ba4e91a59089c09a7cc50
         with:
           cache: molpack-release
           workspaces: ../molpy -> target
@@ -89,8 +89,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@37946f34c4ca8f4fd7fd37761b1d3182444c72da
-      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+      - uses: MolCrafts/molcrafts-ci/actions/setup-rust@7644b440c0c5c400a35ba4e91a59089c09a7cc50
         with:
           cache: molpack-release
           workspaces: ../molpy -> target
@@ -119,13 +119,13 @@ jobs:
         python: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: MolCrafts/molcrafts-ci/actions/setup-python@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@7644b440c0c5c400a35ba4e91a59089c09a7cc50
         with:
           python-version: ${{ matrix.python }}
       # python/Cargo.toml path-deps ../../molpy; maturin runs cargo metadata
       # for every command, so molrs must be there and mounted into the
       # manylinux container at the same path.
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
       - name: Partner path
         run: echo "MOLPY_DIR=$(cd "$GITHUB_WORKSPACE/../molpy" && pwd)" >> "$GITHUB_ENV"
       - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
@@ -149,8 +149,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: MolCrafts/molcrafts-ci/actions/setup-python@37946f34c4ca8f4fd7fd37761b1d3182444c72da
-      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@37946f34c4ca8f4fd7fd37761b1d3182444c72da
+      - uses: MolCrafts/molcrafts-ci/actions/setup-python@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+      - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
       - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
         with:
           working-directory: python

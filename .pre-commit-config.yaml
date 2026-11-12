@@ -1,7 +1,7 @@
 default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: https://github.com/MolCrafts/molcrafts-ci
-    rev: 37946f34c4ca8f4fd7fd37761b1d3182444c72da
+    rev: 7644b440c0c5c400a35ba4e91a59089c09a7cc50
     hooks:
       - id: molci-commit
       - id: molci-push
