@@ -116,7 +116,7 @@ indent-style = "space"
 
 [tool.uv.sources]
 molcrafts-molpy = { path = "../../molpy/molpy", editable = true }
-molcrafts-ci = { git = "https://github.com/MolCrafts/molcrafts-ci", rev = "48869e06449f68931f35ef05b8de98795a4faff6" }
+molcrafts-ci = { git = "https://github.com/MolCrafts/molcrafts-ci", rev = "37946f34c4ca8f4fd7fd37761b1d3182444c72da" }
 
 [tool.ty]
 [tool.ty.environment]

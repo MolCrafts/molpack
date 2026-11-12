@@ -372,7 +372,7 @@ worse. The seam is molrs's `Optimizer` trait — one method, which relaxes a
 
 ```text
 pub trait Optimizer: Send + Sync {
-    fn minimize(&mut self, frame: &mut Frame) -> Result<OptimizationReport, String>;
+    fn minimize(&mut self, frame: &mut Frame) -> Result<OptimizationReport, OptimizeError>;
 }
 ```
 
