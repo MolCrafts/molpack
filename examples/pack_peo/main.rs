@@ -600,7 +600,7 @@ fn report(
         .frame
         .get("atoms")
         .and_then(|a| a.get("element"))
-        .and_then(molrs::core::Column::get::<String>)
+        .and_then(|c| c.get::<String>())
     {
         let names: Vec<String> = elem.iter().take(na).map(|s| s.to_string()).collect();
         print_closest_scored(&pos[..na], bonds, &names, na);
@@ -682,11 +682,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let b = frame.get("bonds").expect("template bonds");
         let i = b
             .get("atomi")
-            .and_then(molrs::core::Column::get::<u64>)
+            .and_then(|c| c.get::<molrs::op::Idx>())
             .expect("bonds.atomi");
         let j = b
             .get("atomj")
-            .and_then(molrs::core::Column::get::<u64>)
+            .and_then(|c| c.get::<molrs::op::Idx>())
             .expect("bonds.atomj");
         i.iter()
             .zip(j.iter())
@@ -696,7 +696,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let m_chain: F = frame
         .get("atoms")
         .and_then(|a| a.get("element"))
-        .and_then(molrs::core::Column::get::<String>)
+        .and_then(|c| c.get::<String>())
         .map(|e| {
             e.iter()
                 .filter_map(|s| {
@@ -712,7 +712,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmpl_elem: Vec<String> = frame
         .get("atoms")
         .and_then(|a| a.get("element"))
-        .and_then(molrs::core::Column::get::<String>)
+        .and_then(|c| c.get::<String>())
         .map(|e| e.iter().map(|s| s.to_string()).collect())
         .unwrap_or_default();
     let tmpl_pos: Vec<[F; 3]> = frame
@@ -739,7 +739,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let h_idx: Vec<usize> = frame
         .get("atoms")
         .and_then(|a| a.get("element"))
-        .and_then(molrs::core::Column::get::<String>)
+        .and_then(|c| c.get::<String>())
         .map(|e| {
             e.iter()
                 .enumerate()

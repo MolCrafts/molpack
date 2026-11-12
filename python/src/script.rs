@@ -10,7 +10,7 @@
 //! ``molpy.io`` reader of its [`StructureFormat`] (the script's ``filetype``,
 //! else the file name: ``molpy.io.read_pdb``, ``read_xyz``, …) but pluggable
 //! via the ``loader`` argument. This keeps the PyO3 wheel free of
-//! ``molrs/io`` and lets users plug in their own loader (mdtraj, ASE, …) as
+//! molrs ``io`` and lets users plug in their own loader (mdtraj, ASE, …) as
 //! long as it returns a ``molpy.core.Frame``.
 
 use std::path::PathBuf;
@@ -115,7 +115,7 @@ pub fn load_script(
 
     let loader = match loader {
         Some(callable) => TemplateLoader::Callable(callable),
-        None => TemplateLoader::Molrs(import_molpy_io(py)?),
+        None => TemplateLoader::Molrs(import_molrs_io(py)?),
     };
 
     let targets: Vec<PyTarget> = plan
@@ -156,7 +156,7 @@ fn build_target<'py>(
         TemplateLoader::Molrs(io) => {
             let format =
                 StructureFormat::resolve(&sp.filepath, filetype).map_err(script_error_to_pyerr)?;
-            read_with_molrs(py, io, format, &path_str)?
+            read_with_molrs(io, format, &path_str)?
         }
     };
 
@@ -170,7 +170,7 @@ fn build_target<'py>(
 ///
 /// Failures (e.g. ``molpy`` not installed) surface as :class:`ImportError`
 /// from the script-loading site.
-fn import_molpy_io(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
+fn import_molrs_io(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     py.import("molpy.io").map_err(|e| {
         PyImportError::new_err(format!(
             "loading template files needs `molcrafts-molpy` (or pass loader=...): {e}"
@@ -181,7 +181,6 @@ fn import_molpy_io(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
 /// Read the first structure of `path` through the ``molpy.io`` reader of
 /// `format` — the Python twin of `StructureFormat::read`.
 fn read_with_molrs<'py>(
-    py: Python<'py>,
     io: &Bound<'py, PyModule>,
     format: StructureFormat,
     path: &str,
@@ -200,7 +199,8 @@ fn read_with_molrs<'py>(
         StructureFormat::LammpsData => "read_lammps_data",
         StructureFormat::LammpsDump => "read_lammps_dump",
     };
-    // A bare str is refused: it is ambiguous between a path and file text.
-    let path = py.import("pathlib")?.getattr("Path")?.call1((path,))?;
+    let path = pyo3::types::PyModule::import(io.py(), "pathlib")?
+        .getattr("Path")?
+        .call1((path,))?;
     io.getattr(reader)?.call1((path,))
 }

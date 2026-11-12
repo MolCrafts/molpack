@@ -90,14 +90,14 @@ pub fn chain(n_beads: usize, bond_len: F, sticky_every: usize) -> (Frame, Atomis
     bonds
         .insert(
             "atomi",
-            Array1::from_vec((0..n_beads as u32 - 1).collect::<Vec<u32>>()).into_dyn(),
+            Array1::from_vec((0..n_beads as u64 - 1).collect::<Vec<u64>>()).into_dyn(),
             None,
         )
         .expect("atomi column");
     bonds
         .insert(
             "atomj",
-            Array1::from_vec((1..n_beads as u32).collect::<Vec<u32>>()).into_dyn(),
+            Array1::from_vec((1..n_beads as u64).collect::<Vec<u64>>()).into_dyn(),
             None,
         )
         .expect("atomj column");
@@ -105,7 +105,7 @@ pub fn chain(n_beads: usize, bond_len: F, sticky_every: usize) -> (Frame, Atomis
     let mut frame = frame_of(atoms_block(elements, xs, ys, zs));
     frame.insert("bonds", bonds);
 
-    molrs::core::Element::fill_atomic_numbers(&mut frame).expect("element symbols");
+    molrs::core::Element::fill_atomic_numbers(&mut frame).expect("elements");
     let graph = Atomistic::from_frame(&frame).expect("chain graph");
     (frame, graph, sticky)
 }

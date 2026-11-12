@@ -17,24 +17,25 @@ type plus PDB/XYZ I/O.
 
 A **template** is one copy of the molecule you want many of — its atom
 positions and element symbols, in any orientation. molpack takes the template
-as a `mp.Frame`, the shared MolCrafts container for atomic data, so any
+as a `molpy.core.Frame`, the shared MolCrafts container for atomic data, so any
 loader molrs supports will do. Read one from a Protein Data Bank (PDB) file:
 
 ```python
-import molpy as mp
 from pathlib import Path
 
-frame = mp.io.read_pdb(Path("water.pdb"))
+import molpy
+
+frame = molpy.io.read_pdb(Path("water.pdb"))
 ```
 
 Or build one in memory, with no file involved — here a water molecule with the
 oxygen at the origin:
 
 ```python
-import molpy as mp
+import molpy
 import numpy as np
 
-frame = mp.Frame({
+frame = molpy.core.Frame({
     "atoms": {
         "x": np.array([0.00, 0.96, -0.24]),
         "y": np.array([0.00, 0.00, 0.93]),
@@ -52,10 +53,10 @@ A `Target` is one molecule species plus the number of copies to place. Every
 mobile target needs a spatial restraint:
 
 ```python
-import molpy as mp
+import molpy
 from molpack import Target
 
-box = mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])  # a molrs region
+box = molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])  # a molrs region
 water = (
     Target(frame, count=100)
     .with_name("water")
@@ -88,7 +89,7 @@ packed = result.frame
 | `converged` | Both objectives fell below the packer precision threshold |
 | `fdist` | Pair-distance (overlap) violations |
 | `frest` | Restraint violations |
-| `frame` | Topology-complete packed `mp.Frame` |
+| `frame` | Topology-complete packed `molpy.core.Frame` |
 
 `GencanPack` is the rigid-body engine; `CbmcGrow` grows chains instead. Each
 engine runs once — `run()` consumes it, so build a new one per pack. If you
@@ -97,11 +98,10 @@ only want the frame, take `result.frame`.
 ## 5. Save
 
 ```python
-import molpy as mp
-from pathlib import Path
+import molpy
 
-mp.io.write_pdb(Path("water_box.pdb"), packed)
-# or: mp.io.write_xyz(Path("water_box.xyz"), packed)
+molpy.io.write_pdb("water_box.pdb", packed)
+# or: molpy.io.write_xyz("water_box.xyz", packed)
 ```
 
 ## Where next

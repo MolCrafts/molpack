@@ -1,8 +1,7 @@
-# Share the sibling molpy repo's build cache. The sibling checkout is already
-# mandatory (Cargo.toml path deps on ../molpy/crates/molrs), and CI checks out
-# molpy at the same relative location (molcrafts-ci's actions/setup-partners), so
-# one cache serves both repos and the molrs crates compile once per (rustc,
-# features, profile).
+# Share the sibling molrs repo's build cache. The sibling checkout is already
+# mandatory (Cargo.toml path deps on ../molpy/crates/molrs), and CI checks out molrs
+# at the same relative location (molcrafts-ci's actions/setup-partners), so one cache
+# serves both repos and molrs compiles once per (rustc, features, profile).
 # Covers both the root workspace and python/ (its own workspace root) via
 # cargo's upward config discovery. CARGO_TARGET_DIR (env) still overrides.
 [build]

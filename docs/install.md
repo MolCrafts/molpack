@@ -39,7 +39,7 @@ needs molrs's `ff` feature; enable it on your own `molcrafts-molrs` dependency.
 
 ```toml
 # Cargo.toml — common combinations
-molcrafts-molpack = { version = "0.8", features = ["io", "rayon"] }
+molcrafts-molpack = { version = "0.5", features = ["io", "rayon"] }
 ```
 
 ## Python binding
@@ -50,9 +50,9 @@ For notebooks and pipelines (Python 3.12+):
 pip install molcrafts-molpack
 ```
 
-`molcrafts-molpy` is installed as a dependency and provides `mp.Frame` plus
-PDB / XYZ readers (`import molpy as mp`). The wheel itself is I/O-free — pass
-frames in, get frames out.
+`molcrafts-molpy` is installed as a dependency and provides `molpy.core.Frame` plus
+PDB / XYZ readers. The wheel itself is I/O-free — pass frames in, get frames
+out.
 
 ```python
 import molpack
@@ -66,19 +66,19 @@ print(molpack.GencanPack)
 
 ## Build from source
 
-When you are modifying the crate or Python binding, clone
-[molpy](https://github.com/MolCrafts/molpy) into a sibling directory named
-`molpy`. Path dependencies resolve `../molpy/crates/molrs` and
-`../molpy/crates/molrs-ffi`. molpack 0.8 builds on the molrs **0.20** line:
-the release tag `v0.20.0`. Both wheels must share that minor line;
-`import molpack` raises `ImportError` when they do not.
+When you are modifying the crate or Python binding, check out **molpy** as a
+sibling (path deps resolve `../molpy/crates/molrs`). The partner revision is
+recorded in `.github/partners.env`. Build both wheels from that molpy checkout
+with the same Rust toolchain: a frame or region capsule from another source,
+compiler or handle layout is rejected with `ValueError`.
 
 ```bash
 # sibling layout
 # workspace/
-# ├── molpy/     ← git clone https://github.com/MolCrafts/molpy
+# ├── molpy/
 # └── molpack/
 
+git clone https://github.com/MolCrafts/molpy
 git clone https://github.com/MolCrafts/molpack
 cd molpack
 

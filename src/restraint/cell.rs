@@ -26,8 +26,10 @@ pub(crate) fn simbox_from_lengths_angles(
         [0.0; 3],
         pbc,
     )
-    .map_err(|_| PackError::InvalidCell {
-        detail: format!("lengths {lengths:?} and angles {angles_deg:?} do not describe a cell"),
+    .map_err(|e| PackError::InvalidCell {
+        detail: format!(
+            "lengths {lengths:?} and angles {angles_deg:?} do not describe a cell: {e}"
+        ),
     })
 }
 
@@ -37,13 +39,9 @@ pub(crate) fn simbox_from_matrix(
     origin: [F; 3],
     pbc: [bool; 3],
 ) -> Result<SimBox, PackError> {
-    SimBox::new(Cell::Matrix(h), origin, pbc).map_err(|_| singular_cell())
-}
-
-fn singular_cell() -> PackError {
-    PackError::InvalidCell {
-        detail: "lattice matrix is singular".to_string(),
-    }
+    SimBox::new(Cell::Matrix(h), origin, pbc).map_err(|e| PackError::InvalidCell {
+        detail: format!("lattice matrix is singular: {e}"),
+    })
 }
 
 /// Confine every atom to a primitive cell and declare that cell as the
@@ -115,8 +113,8 @@ impl CellRestraint {
     /// region (singular or non-finite).
     pub fn from_simbox(bx: SimBox) -> Result<Self, PackError> {
         let wall = Parallelepiped::new(Cell::Matrix(bx.matrix()), ndarray::arr1(&bx.origin()))
-            .map_err(|err| PackError::InvalidCell {
-                detail: err.to_string(),
+            .map_err(|e| PackError::InvalidCell {
+                detail: e.to_string(),
             })?;
         Ok(Self {
             bx,
@@ -151,10 +149,7 @@ impl AtomRestraint for CellRestraint {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn cartesian(h: [[F; 3]; 3], frac: [F; 3]) -> [F; 3] {
-        std::array::from_fn(|i| h[i][0] * frac[0] + h[i][1] * frac[1] + h[i][2] * frac[2])
-    }
+    use ndarray::array;
 
     fn hexagonal() -> CellRestraint {
         CellRestraint::from_lengths_angles([26.0; 3], [90.0, 90.0, 120.0], [true; 3]).expect("cell")
@@ -165,16 +160,21 @@ mod tests {
     #[test]
     fn face_distance_is_perpendicular_angstrom() {
         let cell = hexagonal();
-        let x = cartesian(cell.cell().matrix(), [1.1, 0.5, 0.5]);
+        let h = ndarray::arr2(&cell.cell().matrix());
+        let frac = array![1.1, 0.5, 0.5];
+        let x = h.dot(&frac);
         let d = 0.1 * 26.0 * 120.0_f64.to_radians().sin();
-        let f = cell.f(&x, 1.0, 1.0);
+        let f = cell.f(&[x[0], x[1], x[2]], 1.0, 1.0);
         assert!((f - d * d).abs() < 1e-9, "f = {f}, expected {}", d * d);
     }
 
     #[test]
     fn gradient_is_the_unit_outward_normal_scaled_by_the_penalty() {
         let cell = hexagonal();
-        let x = cartesian(cell.cell().matrix(), [1.1, 0.5, 0.5]);
+        let h = ndarray::arr2(&cell.cell().matrix());
+        let frac = array![1.1, 0.5, 0.5];
+        let cart = h.dot(&frac);
+        let x = [cart[0], cart[1], cart[2]];
         let mut g = [0.0; 3];
         cell.fg(&x, 1.0, 1.0, &mut g);
         for k in 0..3 {
@@ -191,8 +191,9 @@ mod tests {
     #[test]
     fn interior_is_free() {
         let cell = hexagonal();
-        let x = cartesian(cell.cell().matrix(), [0.3, 0.6, 0.5]);
-        assert_eq!(cell.f(&x, 1.0, 1.0), 0.0);
+        let h = ndarray::arr2(&cell.cell().matrix());
+        let x = h.dot(&array![0.3, 0.6, 0.5]);
+        assert_eq!(cell.f(&[x[0], x[1], x[2]], 1.0, 1.0), 0.0);
     }
 
     #[test]

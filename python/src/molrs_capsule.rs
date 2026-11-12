@@ -1,7 +1,7 @@
 //! Zero-copy interop between molrs Python objects and molrs-ffi handles.
 //!
-//! molrs and molpack are **separate** PyO3 extensions, so a `molrs.core.Frame`
-//! pyclass cannot be `.extract()`d into a Rust value here. Instead molrs-python
+//! molpy and molpack are **separate** PyO3 extensions, so a `molpy.core.Frame`
+//! pyclass cannot be `.extract()`d into a Rust value here. Instead molpy
 //! exposes a stable-FFI capsule — `Frame._ffi_frameref_capsule()` — and molpack
 //! resolves it to the shared `molrs_ffi::FrameRef` handle. This is the exact
 //! pattern molrs-cxxapi uses (`frame_clone_from_addr`): **no dict marshalling,
@@ -9,22 +9,18 @@
 //!
 //! Soundness: both wheels link the same `molcrafts-molrs-ffi` and the same
 //! always-on `molcrafts-molrs` core, whose `Frame` / `Block` / `SimBox` layout
-//! is feature-independent. So a handle minted by molrs-python (built with the
+//! is feature-independent. So a handle minted by molpy (built with the
 //! `full` feature set) and the `molrs::core::Frame` it lends are layout-identical to
 //! what molpack (built on molrs's always-on core alone) sees across the
 //! extension boundary.
 //!
-//! The version contract is **minor-line = ABI version** (`molrs_ffi::abi`):
-//! layout is frozen within a molrs minor line (enforced by molrs-ffi's layout
-//! snapshot gate), so both wheels must embed the same `major.minor` — patch
-//! may drift. Two gates enforce it here: [`check_abi`] compares
-//! `molrs._ffi_abi_token()` against the embedded line at import (clear
-//! `ImportError`), and the capsule names carry the line
-//! (`molrs.FrameRef/<major.minor>`), so even a stale consumer fails the name
-//! check instead of dereferencing a drifted layout.
+//! The capsule names come from `molrs_ffi::abi` and carry the handle-layout
+//! fingerprint of the molrs build that minted them, so a capsule from a wheel
+//! built from another molpy source or Rust toolchain fails the name check
+//! instead of dereferencing a drifted layout.
 //!
 //! The same pattern carries regions: every molrs region object exports
-//! `_ffi_regionref_capsule()` (`molrs.RegionRef/<major.minor>`), and
+//! `_ffi_regionref_capsule()`, and
 //! [`region_from_py`] resolves it to the shared `Arc<dyn Region>` that
 //! `RegionRestraint` evaluates. Unlike a frame, a region is `Send + Sync` and
 //! is shared straight into the rayon evaluator.
@@ -46,31 +42,25 @@ fn ffi_err(e: FfiError) -> PyErr {
     PyTypeError::new_err(format!("molrs FFI error: {e}"))
 }
 
-/// Resolve a `molrs.core.Frame` (which `molpy.Frame` is) to a shared [`FrameRef`] (zero-copy).
+/// Resolve a `molpy.core.Frame` (which `molpy.Frame` is) to a shared [`FrameRef`] (zero-copy).
 ///
-/// Clones the handle the capsule carries (two `Rc` bumps) onto the same store,
+/// Clones the handle the capsule carries (one `Arc` bump) onto the same store,
 /// so reads/writes through the returned handle are visible in the originating
 /// Python frame. The object must expose `_ffi_frameref_capsule()` — i.e. be a
 /// real `molpy.core.Frame` (a plain `dict` is refused).
 pub fn frame_from_py(obj: &Bound<'_, PyAny>) -> PyResult<FrameRef> {
     let capsule = capsule_from(obj, "_ffi_frameref_capsule")?;
-    // The expected name carries the ABI line of the molrs this wheel embeds
-    // (`molrs.FrameRef/<major.minor>`), so a producer on another minor line
-    // fails here cleanly instead of being dereferenced.
+    // The expected name carries the handle-layout fingerprint of the molrs
+    // this wheel embeds, so a producer with another layout fails here cleanly
+    // instead of being dereferenced.
     let expected = molrs_ffi::abi::frameref_capsule_name();
-    let ptr = capsule.pointer_checked(Some(expected)).map_err(|err| {
-        PyValueError::new_err(format!(
-            "{err} — molpack embeds molrs ABI line {line} (capsule name \
-             {expected:?}); the producing molrs wheel is on a different \
-             minor line. Align molcrafts-molpy and molcrafts-molpack on one \
-             minor line. / molpack 与 molpy 的 minor 版本线不一致，请对齐后重装。",
-            line = molrs_ffi::abi::abi_line(),
-        ))
-    })?;
+    let ptr = capsule
+        .pointer_checked(Some(expected))
+        .map_err(|err| foreign_capsule_error(err, expected))?;
     let pp = ptr.as_ptr() as *const *const FrameRef;
-    // SAFETY: the versioned capsule's void* is `*mut *mut FrameRef` (the
+    // SAFETY: the named capsule's void* is `*mut *mut FrameRef` (the
     // exporter boxes a `*mut FrameRef`); deref twice to reach the cloned handle
-    // and `.clone()` it (Rc bumps). The capsule is only touched under the GIL.
+    // and `.clone()` it (one Arc bump). The capsule is only touched under the GIL.
     let fref = unsafe { (**pp).clone() };
     Ok(fref)
 }
@@ -78,23 +68,17 @@ pub fn frame_from_py(obj: &Bound<'_, PyAny>) -> PyResult<FrameRef> {
 /// Resolve any molrs region object (one exposing `_ffi_regionref_capsule()`)
 /// to the shared region behind it.
 ///
-/// The capsule name carries the molrs ABI line, so a region produced by a
-/// wheel on another minor line fails here with a clear `ValueError` instead
-/// of being dereferenced.
+/// The capsule name carries the molrs handle-layout fingerprint, so a region
+/// produced by a wheel with another layout fails here with a clear
+/// `ValueError` instead of being dereferenced.
 pub fn region_from_py(obj: &Bound<'_, PyAny>) -> PyResult<Arc<dyn Region + Send + Sync>> {
     let capsule = capsule_from(obj, "_ffi_regionref_capsule")?;
     let expected = molrs_ffi::abi::regionref_capsule_name();
-    let ptr = capsule.pointer_checked(Some(expected)).map_err(|err| {
-        PyValueError::new_err(format!(
-            "{err} — molpack embeds molrs ABI line {line} (capsule name \
-             {expected:?}); the producing molrs wheel is on a different \
-             minor line. Align molcrafts-molpy and molcrafts-molpack on one \
-             minor line. / molpack 与 molpy 的 minor 版本线不一致，请对齐后重装。",
-            line = molrs_ffi::abi::abi_line(),
-        ))
-    })?;
+    let ptr = capsule
+        .pointer_checked(Some(expected))
+        .map_err(|err| foreign_capsule_error(err, expected))?;
     let pp = ptr.as_ptr() as *const *const RegionRef;
-    // SAFETY: the versioned capsule's void* is `*mut *mut RegionRef` (the
+    // SAFETY: the named capsule's void* is `*mut *mut RegionRef` (the
     // exporter boxes a `*mut RegionRef`); deref twice to reach the handle and
     // clone it (one `Arc` bump). The capsule is only touched under the GIL.
     let handle = unsafe { (**pp).clone() };
@@ -126,11 +110,11 @@ pub fn stamp_box_bounds(frame: &mut Frame, box_bounds: Option<([F; 3], [F; 3])>)
 
 /// One-shot Rust ``Frame`` → Python ``molpy.core.Frame``.
 ///
-/// Two cdylibs cannot share a pyclass, so this clones into a fresh
+/// Two cdylibs cannot share a pyclass, so this clones into a standalone
 /// ``FrameRef`` capsule. Do it once and keep the Python object.
 pub fn frame_to_py<'py>(py: Python<'py>, frame: &Frame) -> PyResult<Bound<'py, PyAny>> {
     let fref = FrameRef::default();
-    fref.with_mut(|slot| *slot = frame.clone())
+    fref.with_mut(|slot| *slot = frame.deep_copy())
         .map_err(ffi_err)?;
     let capsule = export_frame_capsule(py, fref)?;
     PyModule::import(py, "molpy.core")?
@@ -138,11 +122,11 @@ pub fn frame_to_py<'py>(py: Python<'py>, frame: &Frame) -> PyResult<Bound<'py, P
         .call_method1("_from_ffi_frameref_capsule", (capsule,))
 }
 
-/// Box a `FrameRef` into a versioned `molrs.FrameRef/<major.minor>` PyCapsule
-/// — the exporter side of the return path, mirroring molrs-python's
+/// Box a `FrameRef` into a `molrs_ffi::abi::frameref_capsule_name()` PyCapsule
+/// — the exporter side of the return path, mirroring molpy's
 /// `Frame._ffi_frameref_capsule`.
 fn export_frame_capsule<'py>(py: Python<'py>, fref: FrameRef) -> PyResult<Bound<'py, PyCapsule>> {
-    // Same constructor and pointer shape as molrs-python's
+    // Same constructor and pointer shape as molpy's
     // ``Frame._ffi_frameref_capsule``: PyO3 boxes the ``FrameRefPtr`` payload,
     // so the capsule void* is ``*mut *mut FrameRef``. The shared abi module is
     // the single source of the (``&'static CStr``) name — never hard-code it.
@@ -155,66 +139,27 @@ fn export_frame_capsule<'py>(py: Python<'py>, fref: FrameRef) -> PyResult<Bound<
     })
 }
 
-/// Import-time ABI handshake against the installed `molcrafts-molpy` wheel.
-///
-/// Calls `molpy._ffi_abi_token()` and compares its ABI line against the line
-/// molpack embeds. Runs once from the `#[pymodule]` init so a minor-line
-/// mismatch is a clear `ImportError` naming both versions, not a later
-/// capsule-name `ValueError` deep inside a pack run.
-pub fn check_abi(py: Python<'_>) -> PyResult<()> {
-    let embedded = molrs_ffi::abi::abi_line();
-    let molpy = PyModule::import(py, "molpy")?;
-    let token = match molpy.getattr("_ffi_abi_token") {
-        Ok(f) => f.call0()?,
-        Err(_) => {
-            // A molrs without the token cannot be on molpack's line.
-            return Err(pyo3::exceptions::PyImportError::new_err(format!(
-                "molpack embeds molrs ABI line {embedded}, but the installed \
-                 molcrafts-molpy has no ABI token. Install a matching wheel: \
-                 pip install 'molcrafts-molpy>={embedded}.0,<{next}' / \
-                 已安装的 molcrafts-molpy 与 molpack 不匹配，请安装 {embedded}.* 版本。",
-                next = next_minor(embedded),
-            )));
-        }
-    };
-    let (line, version): (String, String) = token
-        .cast::<pyo3::types::PyTuple>()
-        .map_err(|_| {
-            pyo3::exceptions::PyImportError::new_err("molpy._ffi_abi_token() returned a non-tuple")
-        })
-        .and_then(|t| Ok((t.get_item(0)?.extract()?, t.get_item(1)?.extract()?)))?;
-    if line != embedded {
-        return Err(pyo3::exceptions::PyImportError::new_err(format!(
-            "Minor-line mismatch: molpack embeds molrs ABI line {embedded}, \
-             but the installed molcrafts-molpy is {version} (line {line}). \
-             Handles cannot cross minor lines — install a matching wheel: \
-             pip install 'molcrafts-molpy>={embedded}.0,<{next}' / molpack \
-             与已安装的 molcrafts-molpy({version}) minor 版本线不一致，请对齐。",
-            next = next_minor(embedded),
-        )));
-    }
-    Ok(())
-}
-
-/// `"0.14"` → `"0.15"` — the exclusive upper bound of a minor line, for pip
-/// range hints in handshake errors.
-fn next_minor(line: &str) -> String {
-    let (major, minor) = line.split_once('.').unwrap_or((line, "0"));
-    let bumped = minor.parse::<u64>().map(|m| m + 1).unwrap_or(0);
-    format!("{major}.{bumped}")
+/// The `ValueError` for a capsule whose name is not the one this wheel's
+/// molrs build accepts.
+fn foreign_capsule_error(err: PyErr, expected: &std::ffi::CStr) -> PyErr {
+    PyValueError::new_err(format!(
+        "{err} — molpack accepts capsule name {expected:?}; the producing wheel \
+         was built from another molpy source or Rust toolchain. Rebuild \
+         molcrafts-molpy and molcrafts-molpack from one molpy checkout."
+    ))
 }
 
 /// `Send` wrapper around a `*mut FrameRef` for the capsule payload (mirrors
-/// molrs-python's `FrameRefPtr`).
+/// molpy's `FrameRefPtr`).
 ///
-/// `FrameRef` is `!Send` (holds an `Rc`); the capsule is only ever created, read,
-/// and destroyed under the Python GIL, so the single-threaded discipline holds.
+/// The boxed `FrameRef` is `Send + Sync` (its store is `Arc<RwLock<_>>`) and
+/// owned by the capsule alone; its destructor may reclaim it on any thread.
 /// `#[repr(transparent)]` makes the capsule's `void*` a `*mut *mut FrameRef`,
 /// the shape `Frame._from_ffi_frameref_capsule` resolves.
 #[repr(transparent)]
 struct FrameRefPtr(*mut FrameRef);
 
-// SAFETY: GIL-guarded, single-threaded use only — see the type-level doc.
+// SAFETY: the pointee is Send + Sync and uniquely owned — see the type-level doc.
 unsafe impl Send for FrameRefPtr {}
 
 /// Call `obj.<method>()` and downcast the result to a `PyCapsule`, with a clear

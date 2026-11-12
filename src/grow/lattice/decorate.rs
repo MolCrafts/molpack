@@ -434,7 +434,7 @@ mod tests {
         frame
             .get("atoms")
             .and_then(|b| b.get("element"))
-            .and_then(molrs::core::Column::get::<String>)
+            .and_then(|c| c.get::<String>())
             .map(|c| c.iter().map(|e| e.eq_ignore_ascii_case("H")).collect())
             .unwrap_or_default()
     }

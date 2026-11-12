@@ -2,7 +2,7 @@
 
 Chemistry and architecture are molrs: SMILES + conformer (hydrogens
 included) for each unit, and CGsmiles topologies grown by
-``mp.builder.Assembler`` with ``mp.builder.GrowthPlacer``. Packing is
+``molpy.builder.Assembler`` with ``molpy.builder.GrowthPlacer``. Packing is
 molpack. No hand-placed coordinates.
 
 A 4-arm star needs a tetrafunctional core. An EO unit only has two ports,
@@ -28,7 +28,7 @@ import sys
 import time
 from pathlib import Path
 
-import molpy as mp
+import molpy
 import numpy as np
 from molpy.core import Atomistic
 
@@ -47,14 +47,16 @@ CORE_UNIT = "C(C[>])(C[>])(C[>])C[>]"  # pentaerythritol-like four-arm core
 
 def _unit(name: str, body: str, seed: int) -> Atomistic:
     """One CGsmiles unit with its ports, as a 3D molecule with hydrogens."""
-    template = mp.io.smiles.read_smiles_fragment(body).to_template()
-    return mp.conformer.Conformer(seed=seed).generate(template)[0]
+    template = molpy.io.smiles.read_smiles_fragment(body).to_template()
+    return molpy.conformer.Conformer(seed=seed).generate(template)[0]
 
 
 def _grow(topology: str, library: dict[str, Atomistic]) -> Atomistic:
     """Grow the CGsmiles ``topology`` from ``library`` into one molecule."""
-    sites = mp.io.cgsmiles.read_cgsmiles(topology).to_coarsegrain()
-    return mp.builder.Assembler(library, mp.builder.GrowthPlacer()).assemble(sites)
+    sites = molpy.io.cgsmiles.read_cgsmiles(topology).to_coarsegrain()
+    return molpy.builder.Assembler(library, molpy.builder.GrowthPlacer()).assemble(
+        sites
+    )
 
 
 def linear_topology(n: int) -> str:
@@ -229,20 +231,23 @@ def main(argv: list[str] | None = None) -> None:
     packed = state.frame
     if packed.box is None:
         a = packed["atoms"]
-        points = np.column_stack(
-            [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+        packed.box = molpy.core.Box.bounding(
+            np.column_stack(
+                [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+            ),
+            np.ones(3),
+            np.array([False, False, False]),
         )
-        packed.box = mp.Box.bounding(points, np.ones(3), [False, False, False])
     stem = f"pack_peo_topo_{kind}"
     OUT.mkdir(parents=True, exist_ok=True)
-    mp.io.write_mrec(OUT / f"{stem}.mrec", frame=packed)
-    mp.io.write_lammps_dump(
+    molpy.io.write_mrec(OUT / f"{stem}.mrec", frame=packed)
+    molpy.io.write_lammps_dump(
         OUT / f"{stem}.lammpstrj",
         packed,
         columns=["id", "element", "mol", "x", "y", "z"],
     )
     if "bonds" in packed and packed["bonds"].n_rows:
-        mp.io.write_lammps_dump_local(OUT / f"{stem}.dump.local", [packed])
+        molpy.io.write_lammps_dump_local(OUT / f"{stem}.dump.local", [packed])
     print(f"  wall         : {time.perf_counter() - t0:.3f} s")
 
 

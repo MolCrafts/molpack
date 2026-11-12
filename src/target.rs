@@ -641,7 +641,7 @@ fn radii_and_elements(frame: &molrs::core::Frame, n: usize) -> (Vec<F>, Vec<Stri
     let column = frame
         .get("atoms")
         .and_then(|atoms| atoms.get(molrs::core::keys::ELEMENT))
-        .and_then(molrs::core::Column::get::<String>);
+        .and_then(|c| c.get::<String>());
     let Some(symbols) = column else {
         return (vec![1.5; n], vec!["X".to_string(); n]);
     };

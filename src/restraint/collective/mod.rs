@@ -86,7 +86,7 @@ pub struct GroupEvaluation<'a> {
     /// [`CellGrid`]: molrs::core::CellGrid
     pub cell: &'a SimBox,
     /// Minimum-image convention in force, derived from [`cell`](Self::cell).
-    /// [`Mic::free`] when no axis wraps.
+    /// A free cell's minimum image is the raw displacement.
     ///
     /// Redundant with `cell` on purpose: it is computed once per objective
     /// evaluation and shared, because deriving it costs two array builds on a
@@ -163,7 +163,7 @@ pub use tabulated::{TabulatedPlane, TabulatedPoint};
 #[cfg(test)]
 pub(super) mod test_fixtures {
     use super::{GroupEvaluation, Restraint};
-    use molrs::core::{Mic, SimBox};
+    use molrs::core::SimBox;
     use molrs::op::F;
 
     /// Deterministic xorshift64* uniform in `[lo, hi)` — no external dep.
@@ -190,7 +190,7 @@ pub(super) mod test_fixtures {
             scale2: 1.0,
             natoms_per_copy,
             cell,
-            mic: Mic::free(),
+            mic: cell.mic(),
         }
     }
 

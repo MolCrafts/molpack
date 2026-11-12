@@ -607,7 +607,7 @@ fn pipeline_two_stages_sum_degraded_and_count_hooks() {
 /// The combinators are about *how often* and *under what condition* a stage
 /// runs, so the body they wrap only has to be countable — a real algorithm
 /// would add arithmetic that hides the count. When asked, the stage also
-/// emits one `on_phase_start` per run: that is how a callback learns the body
+/// emits one phase-start and one step per run: callbacks learn the body
 /// did a unit of work from *inside* a combinator.
 struct CountingStage {
     runs: Arc<AtomicUsize>,
@@ -631,9 +631,9 @@ impl Stage for CountingStage {
 
     fn run(
         &mut self,
-        _state: &mut PackState,
+        state: &mut PackState,
         _targets: &[Target],
-        _budget: &Budget,
+        budget: &Budget,
         callbacks: &mut [Box<dyn Callback>],
     ) -> Result<StageOutcome, PackError> {
         self.runs.fetch_add(1, Ordering::Relaxed);
@@ -644,6 +644,29 @@ impl Stage for CountingStage {
                     total_phases: 1,
                     molecule_type: None,
                 });
+                h.on_step(
+                    &StepReport {
+                        stage: StageProgress {
+                            index: 0,
+                            total: 1,
+                            name: self.name(),
+                        },
+                        loop_idx: 0,
+                        max_loops: budget.max_loops,
+                        phase: PhaseProgress {
+                            phase: 0,
+                            total_phases: 1,
+                            molecule_type: None,
+                        },
+                        fdist: 0.0,
+                        frest: 0.0,
+                        f: 0.0,
+                        improvement_pct: 0.0,
+                        radscale: 1.0,
+                        precision: 0.0,
+                    },
+                    state.sys(),
+                );
             }
         }
         Ok(StageOutcome::new(self.converged, self.degraded))
@@ -683,7 +706,7 @@ impl CountingFactory {
         self
     }
 
-    /// The produced stage emits one `on_phase_start` per run.
+    /// The produced stage emits one phase-start and one step event per run.
     fn signalling(mut self) -> Self {
         self.signal = true;
         self
@@ -954,23 +977,35 @@ fn guarded_rerun_max_two_reruns_twice_then_unconverged() {
 /// that (ac-006).
 #[test]
 fn combinators_keep_stage_index_monotone() {
+    let runs = Arc::new(AtomicUsize::new(0));
     let flat = new_tally();
-    dense_settings(
+    boxfree_settings(
         Pipeline::new()
             .with_callback(observer(&flat))
-            .with_stage(GencanPack::new())
-            .with_repeat(body(GencanPack::new()), Until::Passes(2)),
+            .with_stage(CountingFactory::new(&runs).signalling())
+            .with_repeat(
+                body(CountingFactory::new(&runs).signalling()),
+                Until::Passes(2),
+            ),
     )
-    .run(&dense_targets(), DENSE_LOOPS)
-    .expect("a [gencan, repeat] pipeline runs");
+    .run(&boxfree_targets(), 1)
+    .expect("a [counting, repeat] pipeline runs");
 
     {
         let t = flat.lock().expect("observer mutex");
         let names: Vec<&'static str> = t.stage_starts.iter().map(|&(_, _, n)| n).collect();
         assert_eq!(
             names,
-            vec!["gencan", "repeat"],
+            vec!["counting", "repeat"],
             "a combinator reports itself as ONE stage, under its own name"
+        );
+        assert_eq!(
+            t.steps
+                .iter()
+                .map(|&(index, _, _)| index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 1],
+            "one direct step and two repeated steps retain their top-level identity"
         );
         for &(index, total, _) in t.steps.iter() {
             assert_eq!(
@@ -994,13 +1029,16 @@ fn combinators_keep_stage_index_monotone() {
     // purpose — this test is about stage identity, and the guard's own
     // verdict is pinned by the two tests above.
     let nested = new_tally();
-    let inner = Pipeline::new().with_repeat(body(GencanPack::new()), Until::Passes(2));
-    dense_settings(
+    let inner = Pipeline::new().with_repeat(
+        body(CountingFactory::new(&runs).signalling()),
+        Until::Passes(2),
+    );
+    boxfree_settings(
         Pipeline::new()
             .with_callback(observer(&nested))
             .with_guarded(inner, Vec::new(), OnViolation::Fail),
     )
-    .run(&dense_targets(), DENSE_LOOPS)
+    .run(&boxfree_targets(), 1)
     .expect("a Guarded(Repeat([gencan])) pipeline runs");
 
     let t = nested.lock().expect("observer mutex");
@@ -1010,6 +1048,12 @@ fn combinators_keep_stage_index_monotone() {
         vec!["guarded"],
         "the outer combinator is the only top-level stage"
     );
+    assert_eq!(
+        t.steps.len(),
+        2,
+        "both nested body steps must reach the observer"
+    );
+    assert_eq!(runs.load(Ordering::Relaxed), 5);
     for &(index, total, _) in t.steps.iter() {
         assert_eq!(total, 1, "one top-level stage means total == 1");
         assert_eq!(index, 0, "…and index 0, however deep the nesting goes");

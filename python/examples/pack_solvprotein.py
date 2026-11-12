@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import molpy as mp
+import molpy
 import numpy as np
 
 import molpack
@@ -22,12 +22,12 @@ OUT = HERE / "out"
 
 
 def main() -> None:
-    protein_frame = mp.io.read_pdb(DATA / "protein.pdb")
-    water_frame = mp.io.read_pdb(DATA / "water.pdb")
-    sodium_frame = mp.io.read_pdb(DATA / "sodium.pdb")
-    chloride_frame = mp.io.read_pdb(DATA / "chloride.pdb")
+    protein_frame = molpy.io.read_pdb(DATA / "protein.pdb")
+    water_frame = molpy.io.read_pdb(DATA / "water.pdb")
+    sodium_frame = molpy.io.read_pdb(DATA / "sodium.pdb")
+    chloride_frame = molpy.io.read_pdb(DATA / "chloride.pdb")
 
-    sphere = mp.core.Sphere([0.0, 0.0, 0.0], 50.0)
+    sphere = molpy.core.Sphere([0.0, 0.0, 0.0], 50.0)
 
     protein = (
         molpack.Target(protein_frame, count=1)
@@ -70,19 +70,22 @@ def main() -> None:
     packed = result.frame
     if packed.box is None:
         a = packed["atoms"]
-        points = np.column_stack(
-            [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+        packed.box = molpy.core.Box.bounding(
+            np.column_stack(
+                [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+            ),
+            np.ones(3),
+            np.array([False, False, False]),
         )
-        packed.box = mp.Box.bounding(points, np.ones(3), [False, False, False])
     OUT.mkdir(parents=True, exist_ok=True)
-    mp.io.write_mrec(OUT / "pack_solvprotein.mrec", frame=packed)
-    mp.io.write_lammps_dump(
+    molpy.io.write_mrec(OUT / "pack_solvprotein.mrec", frame=packed)
+    molpy.io.write_lammps_dump(
         OUT / "pack_solvprotein.lammpstrj",
         packed,
         columns=["id", "element", "mol", "x", "y", "z"],
     )
     if "bonds" in packed and packed["bonds"].n_rows:
-        mp.io.write_lammps_dump_local(OUT / "pack_solvprotein.dump.local", [packed])
+        molpy.io.write_lammps_dump_local(OUT / "pack_solvprotein.dump.local", [packed])
 
 
 if __name__ == "__main__":

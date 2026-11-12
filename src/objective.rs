@@ -38,12 +38,16 @@ enum ExpandMode {
 #[derive(Clone, Copy)]
 struct PbcConstants {
     mic: Mic,
+    /// At least one axis is periodic. A free cell's minimum image is the
+    /// raw displacement, so a same-molecule pair is the direct one.
+    periodic: bool,
 }
 
 #[inline(always)]
 fn pbc_constants(sys: &PackSystem) -> PbcConstants {
     PbcConstants {
         mic: sys.simbox.mic(),
+        periodic: !sys.simbox.is_free(),
     }
 }
 
@@ -256,7 +260,7 @@ fn pair_term<const GRAD: bool, const VIOLATION: bool>(
     let same_molecule = hot.props.ibmol == props_j.ibmol && hot.props.ibtype == props_j.ibtype;
     // Without a periodic axis the only view of the same molecule is the direct
     // one. State.intra is the intramolecular residual reporter.
-    if same_molecule && pbc.mic == Mic::free() {
+    if same_molecule && !pbc.periodic {
         return None;
     }
     // Skip two fixed atoms (only matters if the system has any at all).

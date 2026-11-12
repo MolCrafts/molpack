@@ -1,9 +1,9 @@
 //! Python wrappers for molecular packing restraints.
 //!
-//! Geometry is a molrs region object (``molrs.core.Sphere``, ``Cuboid``,
+//! Geometry is a molrs region object (``molpy.core.Sphere``, ``Cuboid``,
 //! ``Parallelepiped``, ``HalfSpace``, ``Cylinder``, ``Ellipsoid``,
 //! ``Polyhedron``, ``SphereUnion``, or any ``&`` / ``|`` / ``~`` composition);
-//! it reaches this wheel as a ``molrs.RegionRef/<line>`` capsule and is lifted
+//! it reaches this wheel as a ``molrs.RegionRef/<fingerprint>`` capsule and is lifted
 //! through [`RegionRestraint`]. molpack defines no geometric restraint class of
 //! its own. Custom Python-defined restraints are supported via **duck typing**:
 //! any object exposing callable ``f(coords, scale, scale2)`` and
@@ -90,7 +90,7 @@ pub(crate) fn extract_restraint(obj: &Bound<'_, pyo3::types::PyAny>) -> PyResult
 
     Err(PyTypeError::new_err(
         "expected a restraint: a molrs region (any object exposing \
-         `_ffi_regionref_capsule()` — molrs.core.Sphere / Cuboid / Parallelepiped / HalfSpace / \
+         `_ffi_regionref_capsule()` — molpy.core.Sphere / Cuboid / Parallelepiped / HalfSpace / \
          Cylinder / Ellipsoid / Polyhedron / SphereUnion or a `&` / `|` / `~` composition), \
          or an object with callable `f(x, scale, scale2)` and `fg(x, scale, scale2)` methods",
     ))
@@ -102,7 +102,7 @@ pub(crate) fn extract_restraint(obj: &Bound<'_, pyo3::types::PyAny>) -> PyResult
 /// The unified [`crate::target::PyTarget::with_restraint`] entry point uses
 /// this to route a region to the per-atom path and everything else (built-in
 /// distribution restraints + duck-typed objects) to the group path. A region
-/// from another molrs minor line is an error here, never a fall-through.
+/// capsule from another molrs build is an error here, never a fall-through.
 pub(crate) fn try_region(
     obj: &Bound<'_, pyo3::types::PyAny>,
 ) -> PyResult<Option<ArcAtomRestraint>> {

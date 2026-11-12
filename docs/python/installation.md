@@ -18,28 +18,29 @@ sdist and need a Rust toolchain to build locally.
 
 ## Frame I/O
 
-`molcrafts-molpack` installs `molcrafts-molpy` as a dependency. Import it as
-`molpy`; it provides the frame type plus PDB and XYZ readers:
+`molcrafts-molpack` installs `molcrafts-molpy` as a dependency. The
+importable `molpy` module provides the frame type plus PDB and XYZ readers:
 
 ```bash
 pip install molcrafts-molpack
 ```
 
 ```python
-import molpy as mp
-from molpack import GencanPack, Target
 from pathlib import Path
 
-frame = mp.io.read_pdb(Path("water.pdb"))
+import molpy
+from molpack import GencanPack, Target
+
+frame = molpy.io.read_pdb(Path("water.pdb"))
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
+    .with_restraint(molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 frame = GencanPack().with_seed(42).run([water], max_loops=200).frame
 ```
 
-`Target` takes a `mp.Frame` (`molpy.Frame` is the same class), resolved zero-copy through
+`Target` takes a `molpy.core.Frame` (`molpy.Frame` is the same class), resolved zero-copy through
 its FFI capsule.
 
 ## Building from source
@@ -47,22 +48,29 @@ its FFI capsule.
 Requires a Rust toolchain (1.91+) and `maturin`:
 
 ```bash
+git clone https://github.com/MolCrafts/molpy
 git clone https://github.com/MolCrafts/molpack
 cd molpack/python
 pip install maturin
 maturin develop --release
 ```
 
-This builds against the local `molpack` Rust crate under `../`.
+This builds against the local `molpack` Rust crate under `../` and the sibling
+`molpy` checkout. Use the revision in `.github/partners.env` and build both
+wheels with the same Rust toolchain so their capsule fingerprints agree.
 
 ## Verification
 
 ```python
-import molpy as mp
+import molpy
+import numpy as np
 from molpack import Target
 
-frame = mp.Frame(
-    {"atoms": {"x": [0.0], "y": [0.0], "z": [0.0], "element": ["O"]}}
+frame = molpy.core.Frame(
+    {"atoms": {
+        "x": np.array([0.0]), "y": np.array([0.0]), "z": np.array([0.0]),
+        "element": np.array(["O"]),
+    }}
 )
 target = Target(frame, count=1).with_name("mol")
 print(target)  # Target(natoms=1, count=1, name=Some("mol"))

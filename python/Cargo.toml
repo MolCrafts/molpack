@@ -21,14 +21,12 @@ molpack = { path = "..", package = "molcrafts-molpack", version = "0.8.0" }
 # Same crate (and version) molpack links, so frame types unify across the wheel.
 # Defaults off (molrs's default turns on `rayon`); the wheel's own `rayon`
 # feature turns it back on through molpack.
-molrs = { path = "../../molpy/crates/molrs", package = "molcrafts-molrs", version = "0.20", default-features = false }
+molrs = { path = "../../molpy/crates/molrs", package = "molcrafts-molrs", version = "0.20.1", default-features = false }
 # Stable FFI handle layer. molpack resolves molpy objects (`Frame`, regions)
 # to `molrs_ffi::{FrameRef, RegionRef}` capsules (zero-copy) instead of dict
-# marshalling — see `src/molrs_capsule.rs`. The `ff` feature stays on: molpy
-# builds this crate with `features = ["ff"]`, and the capsule fingerprint
-# includes `ForceFieldRef` only then. A wheel built without it refuses
-# molpy's capsules.
-molrs-ffi = { path = "../../molpy/crates/molrs-ffi", package = "molcrafts-molrs-ffi", version = "0.20", default-features = false, features = ["ff"] }
+# marshalling — see `src/molrs_capsule.rs`. `ff` is on so this build's ABI
+# fingerprint matches the molpy wheel (`molpy` builds `molrs-ffi` with `ff`).
+molrs-ffi = { path = "../../molpy/crates/molrs-ffi", package = "molcrafts-molrs-ffi", version = "0.20.1", default-features = false, features = ["ff"] }
 # Direct rayon dep so the binding can introspect/configure the global pool
 # (`num_threads`, `init_thread_pool`); shares the same process-global pool
 # molpack's parallel evaluator runs on. Gated behind the `rayon` feature.

@@ -15,10 +15,10 @@
 //! | `StageProgress`  | [`PyStageProgress`]  | Which stage a callback came from   |
 //! | `PackSystemView` | [`PyPackSystemView`] | Callback-scoped live-system guard  |
 //!
-//! Geometric restraints are molrs region objects (`molrs.core.Sphere`, `Cuboid`,
+//! Geometric restraints are molrs region objects (`molpy.core.Sphere`, `Cuboid`,
 //! `Parallelepiped`, `HalfSpace`, `Cylinder`, `Ellipsoid`, `Polyhedron`,
 //! `SphereUnion`, or a `&` / `|` / `~` composition), resolved through their
-//! `molrs.RegionRef/<line>` capsule and lifted by `RegionRestraint` — this
+//! `molrs.RegionRef/<fingerprint>` capsule and lifted by `RegionRestraint` — this
 //! wheel defines no geometry class. Custom Python restraints are attached by
 //! passing any object with callable `f(x, scale, scale2)` and
 //! `fg(x, scale, scale2)` methods to `Target.with_restraint` — no dedicated
@@ -61,12 +61,6 @@ use script::{PyScriptJob, load_script};
 
 #[pymodule]
 fn molpack(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // ABI handshake first: this extension exchanges molrs_ffi handle capsules
-    // with the installed molcrafts-molpy wheel, so both must embed the same
-    // molrs minor line (minor-line = ABI version). A mismatch must be a clear
-    // ImportError here, not a capsule ValueError (or worse) mid-run.
-    molrs_capsule::check_abi(m.py())?;
-
     m.add_class::<PyAngle>()?;
     m.add_class::<PyAxis>()?;
     m.add_class::<PyCenteringMode>()?;

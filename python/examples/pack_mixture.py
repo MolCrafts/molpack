@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import molpy as mp
+import molpy
 import numpy as np
 
 import molpack
@@ -20,10 +20,10 @@ OUT = HERE / "out"
 
 
 def main() -> None:
-    water_frame = mp.io.read_pdb(DATA / "water.pdb")
-    urea_frame = mp.io.read_pdb(DATA / "urea.pdb")
+    water_frame = molpy.io.read_pdb(DATA / "water.pdb")
+    urea_frame = molpy.io.read_pdb(DATA / "urea.pdb")
 
-    box = mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])
+    box = molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])
 
     water = (
         molpack.Target(water_frame, count=1000).with_name("water").with_restraint(box)
@@ -46,19 +46,22 @@ def main() -> None:
     packed = result.frame
     if packed.box is None:
         a = packed["atoms"]
-        points = np.column_stack(
-            [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+        packed.box = molpy.core.Box.bounding(
+            np.column_stack(
+                [np.asarray(a["x"]), np.asarray(a["y"]), np.asarray(a["z"])]
+            ),
+            np.ones(3),
+            np.array([False, False, False]),
         )
-        packed.box = mp.Box.bounding(points, np.ones(3), [False, False, False])
     OUT.mkdir(parents=True, exist_ok=True)
-    mp.io.write_mrec(OUT / "pack_mixture.mrec", frame=packed)
-    mp.io.write_lammps_dump(
+    molpy.io.write_mrec(OUT / "pack_mixture.mrec", frame=packed)
+    molpy.io.write_lammps_dump(
         OUT / "pack_mixture.lammpstrj",
         packed,
         columns=["id", "element", "mol", "x", "y", "z"],
     )
     if "bonds" in packed and packed["bonds"].n_rows:
-        mp.io.write_lammps_dump_local(OUT / "pack_mixture.dump.local", [packed])
+        molpy.io.write_lammps_dump_local(OUT / "pack_mixture.dump.local", [packed])
 
 
 if __name__ == "__main__":

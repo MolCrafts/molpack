@@ -4,23 +4,24 @@ A minimal end-to-end pack: 100 water molecules inside a 40 Å cube.
 
 ## 1. Load a molecule
 
-Use `mp.io.read_pdb` to load a template PDB file — the returned
+Use `molpy.io.read_pdb` to load a template PDB file — the returned
 `Frame` can be passed directly to `Target`:
 
 ```python
-import molpy as mp
 from pathlib import Path
 
-frame = mp.io.read_pdb(Path("water.pdb"))
+import molpy
+
+frame = molpy.io.read_pdb(Path("water.pdb"))
 ```
 
-No PDB file? Build a `mp.Frame` from arrays:
+No PDB file? Build a `molpy.core.Frame` from arrays:
 
 ```python
-import molpy as mp
+import molpy
 import numpy as np
 
-frame = mp.Frame({
+frame = molpy.core.Frame({
     "atoms": {
         "x": np.array([0.00,  0.96, -0.24]),
         "y": np.array([0.00,  0.00,  0.93]),
@@ -43,7 +44,7 @@ water = Target(frame, count=100).with_name("water")
 
 Arguments:
 
-- `frame` — a `mp.Frame` (`molpy.Frame` is the same class) with columns
+- `frame` — a `molpy.core.Frame` (`molpy.Frame` is the same class) with columns
   `"x"`, `"y"`, `"z"`, and `"element"`.
 - `count` — number of copies to produce.
 
@@ -57,10 +58,10 @@ Every target needs at least one restraint — the geometric region it
 should be packed into.
 
 ```python
-import molpy as mp
+import molpy
 
 water = water.with_restraint(
-    mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])   # origin, lengths
+    molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0])   # origin, lengths
 )
 ```
 
@@ -96,10 +97,9 @@ new one for each pack.
 output. Hand the returned frame to a writer:
 
 ```python
-import molpy as mp
-from pathlib import Path
+import molpy
 
-mp.io.write_xyz(Path("packed.xyz"), frame)
+molpy.io.write_xyz("packed.xyz", frame)
 ```
 
 `result.frame` is the same object — keep the `State` around when you
@@ -109,16 +109,15 @@ need the diagnostic fields, or to continue with
 ## Full script
 
 ```python
-import molpy as mp
+import molpy
 from molpack import GencanPack, Target
-from pathlib import Path
 
-frame = mp.io.read_pdb(Path("water.pdb"))
+frame = molpy.io.read_pdb(Path("water.pdb"))
 
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
+    .with_restraint(molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 
 result = (

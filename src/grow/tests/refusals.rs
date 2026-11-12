@@ -542,8 +542,12 @@ fn grow_stage_two_targets_keep_distinct_tables() {
         "GrowStage must not min-fold two tables into one skip set"
     );
 
-    let cell = SimBox::new(molrs::core::Cell::Lengths([100.0; 3]), [0.0; 3], [false; 3])
-        .expect("orthorhombic box");
+    let cell = SimBox::new(
+        molrs::core::Cell::Lengths([100.0, 100.0, 100.0]),
+        [0.0, 0.0, 0.0],
+        [false; 3],
+    )
+    .expect("orthorhombic box");
     let r1 = IntraResidual::from_targets(std::slice::from_ref(&shallow), &coords, &cell);
     let r3 = IntraResidual::from_targets(std::slice::from_ref(&deep), &coords, &cell);
     assert_eq!(

@@ -417,7 +417,7 @@ Two conventions the packer relies on:
 
 ```rust
 use molrs::core::Frame;
-use molrs::optimize::{OptimizationReport, OptimizeError, Optimizer};
+use molrs::optimize::{OptimizationReport, OptimizeError, Optimizer, StopReason};
 use molrs::op::{F, Fnx3};
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
@@ -462,7 +462,6 @@ impl Optimizer for JiggleOptimizer {
 
         let max_delta = self.max_delta;
         let mut best_score = score(&best, &free);
-        let mut accepted = 0usize;
 
         for _ in 0..self.steps {
             let d = [
@@ -483,14 +482,15 @@ impl Optimizer for JiggleOptimizer {
             if trial_score < best_score {
                 best = trial;
                 best_score = trial_score;
-                accepted += 1;
             }
         }
 
         frame.set_coords(best.view())?;
         Ok(OptimizationReport {
-            converged: accepted > 0,
+            converged: StopReason::MaxIterations.converged(),
+            stop_reason: StopReason::MaxIterations,
             n_steps: self.steps,
+            n_evals: self.steps + 1,
             final_energy: best_score,
             final_fmax: 0.0,
             final_grad_rms: 0.0,

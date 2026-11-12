@@ -78,7 +78,7 @@ instances.
 Target(frame, count: int)
 ```
 
-- `frame` — a `mp.Frame` (`molpy.Frame` is the same class) with atom
+- `frame` — a `molpy.core.Frame` (`molpy.Frame` is the same class) with atom
   columns `"x"`, `"y"`, `"z"`, and `"element"`.
   Resolved zero-copy via its FFI capsule; a plain dict is not accepted.
 - `count` — number of copies to produce.
@@ -342,7 +342,7 @@ object to `GencanPack.with_restart` or `Target.fixed_from` to continue.
 **Properties**
 
 - `.positions : ndarray (N, 3) float64`
-- `.frame : mp.Frame` — topology-complete frame (periodic box stamped if one was declared).
+- `.frame : molpy.core.Frame` — topology-complete frame (periodic box stamped if one was declared).
 - `.elements : list[str]`
 - `.natoms : int`
 - `.converged : bool`
@@ -459,15 +459,15 @@ distribution-matching restraints ([next section](#collective-distribution-matchi
 
 ### molrs regions as restraints
 
-Any molrs region object attaches as a restraint: `mp.core.Sphere`, `Cuboid`,
+Any molrs region object attaches as a restraint: `molpy.core.Sphere`, `Cuboid`,
 `Parallelepiped`, `HalfSpace`, `Cylinder`, `Ellipsoid`, `Polyhedron`,
 `SphereUnion`, or any `&` / `|` / `~` composition of them. The region
-crosses the wheel boundary as a `molrs.RegionRef` capsule (both wheels on
-one molrs minor line) and is lifted to `scale · max(0, distance)²` — a
+crosses the wheel boundary as a `molrs.RegionRef/<fingerprint>` capsule (both wheels built
+from one molpy checkout) and is lifted to `scale · max(0, distance)²` — a
 soft quadratic penalty on the **atom centre** that is zero inside the
 region and on its boundary. molpack defines no geometric restraint class;
 the shapes, their constructors and their `contains` / `distance` /
-`bounds` queries are documented with molrs. Solver split (the same for
+`bounds` queries are documented with molpy. Solver split (the same for
 every region, not inferred from the shape):
 
 - `GencanPack` — soft exterior penalty.
@@ -483,9 +483,7 @@ returns `(n,)` bool; `distance` returns `(n,)` Å, negative inside. Together
 they say what the packer was told to enforce:
 
 ```python
-from pathlib import Path
-
-cavity = mp.core.Polyhedron(mp.io.read_stl(Path("dendrite.stl")))
+cavity = molpy.core.Polyhedron(molpy.io.read_stl("dendrite.stl"))
 depth = cavity.distance(state.positions)
 print(f"{(depth > 0).sum()} atoms outside, worst {depth.max():.2f} Å")
 ```
@@ -553,12 +551,12 @@ the run does not converge and says so — it is never silently relaxed. `d_min`
 and `strength` must be `> 0`; otherwise `ValueError`.
 
 ```python
-import molpy as mp
+import molpy
 from molpack import SelfSeparation, Target
 
 ions = (
     Target(frame, count=27)
-    .with_restraint(mp.core.Cuboid([0, 0, 0], [40, 40, 40]))
+    .with_restraint(molpy.core.Cuboid([0, 0, 0], [40, 40, 40]))
     .with_restraint(SelfSeparation(10.0))
 )
 ```
@@ -573,7 +571,7 @@ Parse and lower a Packmol-compatible `.inp` script. Template files are
 read on the Python side (defaulting to the `molpy.io` reader of the format the
 script's `filetype` or the file name names: `read_pdb`, `read_xyz`, …), so the
 wheel stays free of `molrs-io`. Pass `loader`
-— a callable `(path, filetype) -> mp.Frame` — to plug in another
+— a callable `(path, filetype) -> molpy.core.Frame` — to plug in another
 loader (mdtraj, ASE, …).
 
 ### `ScriptJob`

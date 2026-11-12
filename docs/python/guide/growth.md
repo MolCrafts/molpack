@@ -30,13 +30,14 @@ see [Staging a mixed pack](#staging-a-mixed-pack) below.
 ## A complete growth pack
 
 ```python
-import molpy as mp
-from molpack import CbmcGrow, Target, TorsionPrior
 from pathlib import Path
+
+import molpy
+from molpack import CbmcGrow, Target, TorsionPrior
 
 # The template must carry its bond graph — growth consumes the
 # template's chemistry, not its shape.
-chain = mp.io.read_pdb(Path("peo_chain.pdb"))
+chain = molpy.io.read_pdb(Path("peo_chain.pdb"))
 
 prior = TorsionPrior.three_state_from_c_inf(5.5, 1.9106)   # PEO C∞, tetrahedral θ
 peo = Target(chain, count=25)
@@ -67,14 +68,14 @@ order, and turn the first result into a single fixed obstacle for the
 second:
 
 ```python
-import molpy as mp
+import molpy
 from molpack import CbmcGrow, GencanPack, Target
 
 grown = CbmcGrow(prior).with_density(0.5).with_seed(42).run([peo], max_loops=60)
 
 # Same cell for stage two — read it off the grown frame, or declare the
 # lengths you sized the melt to.
-cell = mp.core.Cuboid([0.0, 0.0, 0.0], [l, l, l])
+cell = molpy.core.Cuboid([0.0, 0.0, 0.0], [l, l, l])
 
 result = (
     GencanPack()
@@ -91,7 +92,7 @@ only the new species and never disturbs the grown chains.
 ## Branched trees and rings
 
 Build the chemistry with molrs (SMILES + conformer) and grow the
-architecture with `mp.builder.Assembler` — do not invent coordinates. A
+architecture with `molpy.builder.Assembler` — do not invent coordinates. A
 4-arm star is a tetrafunctional core plus EO arms (`make_star`); a
 macrocycle is `make_ring`. Both `CbmcGrow` and `LatticeGrow` consume the **bond
 graph**: a tree is legal for either grower; a cycle raises
@@ -115,10 +116,10 @@ python python/examples/pack_peo_void.py frame.data 4 4 42
 
 `pack_peo_mix.py` puts two topologies in **one** `LatticeGrow.run` (linear
 `Target` + 4-arm star `Target`, density-sized box). `pack_peo_mesh.py` is
-the mesh-cavity scene: attach a `mp.core.Polyhedron` read from STL and grow
+the mesh-cavity scene: attach a `molpy.core.Polyhedron` read from STL and grow
 with `LatticeGrow` — diamond sites outside the mesh are blocked
 (Region ∩ lattice). `pack_peo_void.py` is the same grow through
-`~mp.core.SphereUnion`, the solvent-accessible void of a bead-spring frame.
+`~molpy.core.SphereUnion`, the solvent-accessible void of a bead-spring frame.
 
 ## The torsion prior is load-bearing
 

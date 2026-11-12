@@ -352,8 +352,8 @@ mod tests {
     #[test]
     fn environment_wraps_only_periodic_axes() {
         let bx = SimBox::new(
-            molrs::core::Cell::Lengths([10.0; 3]),
-            [0.0; 3],
+            molrs::core::Cell::Lengths([10.0, 10.0, 10.0]),
+            [0.0, 0.0, 0.0],
             [true, true, false],
         )
         .unwrap();
@@ -369,7 +369,8 @@ mod tests {
     fn environment_without_pbc_does_not_wrap() {
         let xcart = [[0.5, 5.0, 0.5], [9.5, 5.0, 0.5], [0.5, 5.0, 9.5]];
         let movable = [true, false, false];
-        let near = environment_atoms(&xcart, &movable, &xcart[..1], 2.0, &Mic::free());
+        let free = SimBox::new(molrs::core::Cell::Undefined, [0.0; 3], [false; 3]).expect("free");
+        let near = environment_atoms(&xcart, &movable, &xcart[..1], 2.0, &free.mic());
         assert!(near.is_empty());
     }
 
@@ -387,7 +388,9 @@ mod tests {
             self.0.lock().unwrap().push(n);
             Ok(molrs::optimize::OptimizationReport {
                 converged: true,
+                stop_reason: molrs::optimize::StopReason::Empty,
                 n_steps: 0,
+                n_evals: 0,
                 final_energy: 0.0,
                 final_fmax: 0.0,
                 final_grad_rms: 0.0,
@@ -457,14 +460,10 @@ mod tests {
         use crate::{GencanPack, PackEngine, Target};
 
         /// Counts the calls it forwards to the wrapped optimizer.
-        struct Counted<P>(Lbfgs<P>, std::sync::Arc<std::sync::atomic::AtomicUsize>)
-        where
-            P: std::ops::Deref + Send + Sync,
-            P::Target: molrs::ff::potential::Potential;
+        struct Counted<P>(Lbfgs<P>, std::sync::Arc<std::sync::atomic::AtomicUsize>);
         impl<P> Optimizer for Counted<P>
         where
-            P: std::ops::Deref + Send + Sync,
-            P::Target: molrs::ff::potential::Potential,
+            Lbfgs<P>: Optimizer,
         {
             fn minimize(
                 &mut self,

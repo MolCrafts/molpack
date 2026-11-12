@@ -9,10 +9,10 @@ description = "Python bindings for molpack molecular packing (Packmol port)"
 requires-python = ">=3.12"
 readme = "README.md"
 license = "BSD-3-Clause"
-# Minor-line pin — same major.minor as molrs; patch may drift.
+# The native API needs molpy 0.20.1; capsules also require matching source builds.
 dependencies = [
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
 ]
 
 # Installable "extra" carrying the docs-build deps. Unlike the [dependency-groups]
@@ -27,7 +27,7 @@ doc = [
 ]
 
 # PEP 735 dependency groups — the single source of truth for dev-time
-# deps used by both CI jobs and local pre-commit hooks.
+# deps used by .github/workflows/test.yml.
 #
 # Install with `pip install --group <name>` (pip 25.1+) from this directory.
 [dependency-groups]
@@ -35,23 +35,20 @@ typecheck = [
   "ruff",
   "ty",
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
   # `ty check` walks tests/ which imports pytest.
   "pytest",
 ]
 test = [
   "pytest",
   "numpy>=2.0",
-  "molcrafts-molpy>=0.20.0,<0.21",
+  "molcrafts-molpy>=0.20.1,<0.21",
 ]
 dev = [
   {include-group = "typecheck"},
   {include-group = "test"},
   "maturin",
-  # Gate driver (prek pre-push / CI): install with `uv sync --group dev`
-  # then `uv run --group dev tox -c python -e py` from repo root, or
-  # `uv run --group dev tox -e py` from python/.
-  "tox>=4.23",
+  "molcrafts-ci",
 ]
 # Documentation build: `zensical build` reads zensical.toml (docs → site).
 # Theme: `theme.name = "molcrafts"` (molcrafts-zensical-theme on PyPI).
@@ -119,6 +116,7 @@ indent-style = "space"
 
 [tool.uv.sources]
 molcrafts-molpy = { path = "../../molpy/molpy", editable = true }
+molcrafts-ci = { git = "https://github.com/MolCrafts/molcrafts-ci", rev = "7644b440c0c5c400a35ba4e91a59089c09a7cc50" }
 
 [tool.ty]
 [tool.ty.environment]
@@ -126,82 +124,3 @@ python-version = "3.12"
 # tests import example scripts via sys.path.insert at runtime; ty cannot follow
 # dynamic path manipulation, so we declare the examples dir as an extra source root.
 extra-paths = ["examples"]
-
-# Isolated binding tests — prek pre-push + CI call: `tox -c python -e py`
-# Non-editable only: sibling molpy path install + maturin wheel + pytest.
-# Requires ../../molpy (the molpy checkout) on the 0.20.* minor line. The hooks
-# and CI both run it in a layout whose ../../molpy is the commit
-# scripts/partners.py resolves.
-# Both builds are --locked (MATURIN_PEP517_ARGS reaches the molrs wheel).
-[tool.tox]
-requires = ["tox>=4.23"]
-env_list = ["py"]
-no_package = true
-
-[tool.tox.env.py]
-description = "throwaway env: non-editable molpy + molpack wheel + pytest"
-base_python = ["python3.12"]
-deps = [
-  "maturin>=1.0,<2.0",
-  "pytest",
-  "numpy>=2.0",
-]
-pass_env = [
-  "HOME",
-  "PATH",
-  "CARGO_HOME",
-  "CARGO_TARGET_DIR",
-  "RUSTUP_HOME",
-  # Standard cargo variable, none of ours: passed through so a developer's own
-  # flags (e.g. `-C target-cpu=native` for a bench build) survive tox's clean
-  # env. Nothing in this repo sets it; `lto` lives in `[profile.release]` in
-  # the manifests, where tox cannot strip it.
-  "RUSTFLAGS",
-  # sccache (CI compile cache) — harmless when unset locally.
-  "RUSTC_WRAPPER",
-  "SCCACHE_GHA_ENABLED",
-  "SCCACHE_PATH",
-  "ACTIONS_RESULTS_URL",
-  "ACTIONS_RUNTIME_TOKEN",
-  "MACOSX_DEPLOYMENT_TARGET",
-  "SSH_AUTH_SOCK",
-  "TERM",
-]
-set_env = { MATURIN_PEP517_ARGS = "--locked" }
-allowlist_externals = ["maturin"]
-# toxinidir is python/ when config lives here; the sibling molpy checkout is
-# ../../molpy, and the Python package inside it is ../../molpy/molpy.
-# Minor-line only: 0.20.* (patch may differ).
-commands_pre = [
-  [
-    "{envpython}",
-    "-c",
-    "import tomllib; from pathlib import Path; p=Path(r'{toxinidir}')/'..'/'..'/'molpy'/'Cargo.toml'; v=tomllib.loads(p.read_text(encoding='utf-8'))['workspace']['package']['version']; assert tuple(map(int, v.split('.')[:2]))==(0,20), f'sibling molpy {{v}} not on 0.20.*'",
-  ],
-  [
-    "{envpython}",
-    "-m",
-    "pip",
-    "install",
-    "{toxinidir}/../../molpy/molpy",
-  ],
-  [
-    "{envpython}",
-    "-c",
-    "import importlib.metadata as m; v=m.version('molcrafts-molpy'); assert tuple(map(int, v.split('.')[:2]))==(0,20), v",
-  ],
-  ["maturin", "build", "--release", "--locked", "-o", "{env_tmp_dir}/wheels"],
-  [
-    "{envpython}",
-    "-c",
-    "from pathlib import Path; import subprocess, sys; w=next(Path(r'{env_tmp_dir}/wheels').glob('molcrafts_molpack-*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', '--no-deps', str(w)])",
-  ],
-  [
-    "{envpython}",
-    "-c",
-    "import molpack, pathlib; r=pathlib.Path(molpack.__file__).resolve(); assert 'site-packages' in str(r), r",
-  ],
-]
-commands = [
-  ["{envpython}", "-X", "warn_default_encoding", "-m", "pytest", "-v"],
-]

@@ -236,8 +236,12 @@ mod tests {
     }
 
     fn open_box() -> SimBox {
-        SimBox::new(molrs::core::Cell::Lengths([100.0; 3]), [0.0; 3], [false; 3])
-            .expect("orthorhombic box")
+        SimBox::new(
+            molrs::core::Cell::Lengths([100.0, 100.0, 100.0]),
+            [0.0, 0.0, 0.0],
+            [false; 3],
+        )
+        .expect("orthorhombic box")
     }
 
     fn assert_angstrom(got: F, want: F, what: &str) {
@@ -358,7 +362,7 @@ mod tests {
             .with_special_bonds(BondDistanceWeights::from_exclusion_depth(3));
         let cell = SimBox::new(
             molrs::core::Cell::Lengths([10.0, 20.0, 20.0]),
-            [0.0; 3],
+            [0.0, 0.0, 0.0],
             [true, false, false],
         )
         .expect("orthorhombic box");

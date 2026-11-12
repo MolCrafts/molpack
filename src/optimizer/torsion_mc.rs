@@ -3,17 +3,18 @@
 //! Lives in molpack (not molrs): uses packer-local geometry helpers and
 //! self-avoidance scoring on a Frame assembled by the packer.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
 
-use crate::BondDistanceWeights;
-use molrs::core::Atomistic;
 use molrs::core::Frame;
 use molrs::core::Topology;
+use molrs::core::{Atomistic, NodeId};
+
+use crate::BondDistanceWeights;
 use molrs::op::F;
 use molrs::op::centroid;
 use molrs::op::{axis_angle, rotation_about, transform_point, vec3};
-use molrs::optimize::{OptimizationReport, OptimizeError, Optimizer};
+use molrs::optimize::{OptimizationReport, OptimizeError, Optimizer, StopReason};
 use molrs::perceive::RotatableBond;
 use rand::Rng;
 use rand::SeedableRng;
@@ -52,9 +53,19 @@ impl TorsionMcOptimizer {
     /// coarse-grained model states its own table with
     /// [`with_special_bonds`](Self::with_special_bonds).
     pub fn new(graph: &Atomistic) -> Self {
-        // Row order of `Atomistic::topology`, the same indices rotatable
-        // bonds use.
-        let topology = graph.topology();
+        // Atoms by their position in `Atomistic::atoms`, the order the
+        // rotatable bonds' indices use.
+        let id_to_idx: HashMap<NodeId, usize> = graph
+            .atoms()
+            .enumerate()
+            .map(|(idx, (id, _))| (id, idx))
+            .collect();
+        let edges: Vec<[usize; 2]> = graph
+            .bonds()
+            .map(|(_, b)| [id_to_idx[&b.nodes[0]], id_to_idx[&b.nodes[1]]])
+            .collect();
+        let mut topology = Topology::with_atoms(id_to_idx.len());
+        topology.add_bonds(&edges);
         Self {
             bonds: crate::template::rotatable_bonds(graph),
             steps: 10,
@@ -110,7 +121,9 @@ impl Optimizer for TorsionMcOptimizer {
         if self.bonds.is_empty() {
             return Ok(OptimizationReport {
                 converged: true,
+                stop_reason: StopReason::Empty,
                 n_steps: 0,
+                n_evals: 0,
                 final_energy: 0.0,
                 final_fmax: 0.0,
                 final_grad_rms: 0.0,
@@ -124,7 +137,7 @@ impl Optimizer for TorsionMcOptimizer {
         let free: Vec<bool> = match frame
             .get("atoms")
             .and_then(|a| a.get("free"))
-            .and_then(molrs::core::Column::get::<bool>)
+            .and_then(|c| c.get::<bool>())
         {
             Some(col) if col.len() == n => col.iter().copied().collect(),
             _ => vec![true; n],
@@ -142,12 +155,9 @@ impl Optimizer for TorsionMcOptimizer {
             &self.excluded_pairs,
         );
         let mut trial = best.clone();
-        let mut accepts = 0usize;
+        let mut n_evals = 1;
 
         for _ in 0..self.steps {
-            if self.bonds.is_empty() {
-                break;
-            }
             let bond_idx = (rng.next_u32() as usize) % self.bonds.len();
             let bond = &self.bonds[bond_idx];
             // Skip moves that would rotate only fixed atoms.
@@ -175,18 +185,20 @@ impl Optimizer for TorsionMcOptimizer {
                 self.self_avoidance_radius,
                 &self.excluded_pairs,
             );
+            n_evals += 1;
             if metropolis_accept(e, best_e, self.temperature, &mut rng) {
                 std::mem::swap(&mut best, &mut trial);
                 best_e = e;
-                accepts += 1;
             }
         }
 
         let out = ndarray::Array2::from(best);
         frame.set_coords(out.view())?;
         Ok(OptimizationReport {
-            converged: accepts > 0 || self.steps == 0,
+            converged: StopReason::MaxIterations.converged(),
+            stop_reason: StopReason::MaxIterations,
             n_steps: self.steps,
+            n_evals,
             final_energy: best_e,
             final_fmax: 0.0,
             final_grad_rms: 0.0,
@@ -290,7 +302,45 @@ fn excluded_pairs(topology: &Topology, weights: &BondDistanceWeights) -> HashSet
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::chain_graph;
+    use crate::test_fixtures::{chain_frame, chain_graph};
+
+    #[test]
+    fn report_counts_energy_evaluations_and_budget_exhaustion() {
+        for steps in [0, 4] {
+            for fixed in [false, true] {
+                let mut frame = chain_frame(5, 1.5);
+                frame
+                    .get_mut("atoms")
+                    .unwrap()
+                    .insert(
+                        "free",
+                        ndarray::Array1::from_elem(5, !fixed).into_dyn(),
+                        None,
+                    )
+                    .unwrap();
+                let report = TorsionMcOptimizer::new(&chain_graph(5))
+                    .with_steps(steps)
+                    .with_self_avoidance(1.0)
+                    .minimize(&mut frame)
+                    .unwrap();
+                assert_eq!(report.stop_reason, StopReason::MaxIterations);
+                assert_eq!(report.converged, report.stop_reason.converged());
+                assert_eq!(report.n_steps, steps);
+                assert_eq!(report.n_evals, 1 + if fixed { 0 } else { steps });
+                assert!(report.final_energy.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn report_without_rotatable_bonds_has_no_evaluations() {
+        let report = TorsionMcOptimizer::new(&chain_graph(1))
+            .minimize(&mut chain_frame(1, 1.5))
+            .unwrap();
+        assert_eq!(report.stop_reason, StopReason::Empty);
+        assert!(report.converged);
+        assert_eq!((report.n_steps, report.n_evals), (0, 0));
+    }
 
     /// The all-atom default skips 1-2, 1-3 and 1-4 pairs and scores 1-5.
     #[test]

@@ -233,7 +233,6 @@ fn column_error(err: impl std::fmt::Display) -> PackError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use molrs::core::Column;
     use ndarray::ArrayD;
 
     fn col_uint(frame: &molrs::core::Frame, block: &str, key: &str) -> Vec<Idx> {
@@ -241,7 +240,7 @@ mod tests {
             .get(block)
             .unwrap()
             .get(key)
-            .and_then(Column::get::<u64>)
+            .and_then(|c| c.get::<Idx>())
             .unwrap()
             .iter()
             .copied()
@@ -253,7 +252,7 @@ mod tests {
             .get(block)
             .unwrap()
             .get(key)
-            .and_then(Column::get::<String>)
+            .and_then(|c| c.get::<String>())
             .unwrap()
             .iter()
             .cloned()
@@ -345,7 +344,7 @@ mod tests {
             .get("atoms")
             .unwrap()
             .get("x")
-            .and_then(Column::get::<f64>)
+            .and_then(|c| c.get::<F>())
             .unwrap()
             .iter()
             .copied()
@@ -400,11 +399,15 @@ mod tests {
     }
 
     fn col_i16(frame: &molrs::core::Frame, block: &str, key: &str) -> Vec<i16> {
-        let column = frame.get(block).unwrap().get(key).unwrap();
-        match column {
-            Column::I16(h) => h.array().iter().copied().collect(),
-            other => panic!("expected i16, got {}", other.dtype()),
-        }
+        frame
+            .get(block)
+            .unwrap()
+            .get(key)
+            .and_then(|c| c.get::<i16>())
+            .unwrap()
+            .iter()
+            .copied()
+            .collect()
     }
 
     /// A column in a narrow width tiles like any other; the hand-rolled

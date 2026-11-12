@@ -100,8 +100,12 @@ impl OverlapField {
         let slots = radius.len();
         debug_assert_eq!(slots, mol_of.len());
         debug_assert_eq!(slots, atom_of.len());
-        let bx = SimBox::new(molrs::core::Cell::Lengths(length), origin, pbc)
-            .expect("the growth box is validated by the engine before a field is built");
+        let bx = SimBox::new(
+            molrs::core::Cell::Lengths([length[0], length[1], length[2]]),
+            [origin[0], origin[1], origin[2]],
+            pbc,
+        )
+        .expect("the growth box is validated by the engine before a field is built");
         let mic = bx.mic();
         let grid = CellGrid::for_cutoff(&bx, cutoff);
         let ncells = grid.n_cells();
@@ -140,14 +144,12 @@ impl OverlapField {
         self.cell_of[slot] >= 0
     }
 
-    /// Wrap a point into the box along every periodic axis.
-    ///
-    /// molrs keeps the single-point kernel crate-private, so this calls the
-    /// public one-row [`SimBox::wrap`](molrs::core::SimBox::wrap).
+    /// Wrap a point into the box along every periodic axis
+    /// ([`SimBox::wrap`]).
     #[inline]
     pub fn wrap(&self, p: [F; 3]) -> [F; 3] {
-        let coords = [[p[0], p[1], p[2]]];
-        let (wrapped, _) = self.bx.wrap(ndarray::aview2(&coords));
+        let view = ndarray::ArrayView2::from_shape((1, 3), &p).expect("one point");
+        let (wrapped, _) = self.bx.wrap(view);
         [wrapped[[0, 0]], wrapped[[0, 1]], wrapped[[0, 2]]]
     }
 

@@ -13,10 +13,10 @@ from molpack import Target
 target = Target(frame, count)
 ```
 
-- `frame` — a `mp.Frame` (`molpy.Frame` is the same class), resolved
+- `frame` — a `molpy.core.Frame` (`molpy.Frame` is the same class), resolved
   zero-copy via its FFI capsule. Element symbols come from the `"element"`
-  atom column, which every molrs reader (`mp.io.read_pdb`,
-  `mp.io.read_xyz`, …) writes; a frame built in memory must carry it too.
+  atom column, which every molrs reader (`molpy.io.read_pdb`,
+  `molpy.io.read_xyz`, …) writes; a frame built in memory must carry it too.
 
 - `count` — number of copies to produce.
 
@@ -26,13 +26,13 @@ A display label is optional:
 target = Target(frame, count).with_name("water")
 ```
 
-Build a frame in memory (no PDB file) with `mp.Frame`:
+Build a frame in memory (no PDB file) with `molpy.core.Frame`:
 
 ```python
-import molpy as mp
+import molpy
 import numpy as np
 
-frame = mp.Frame({
+frame = molpy.core.Frame({
     "atoms": {
         "x": np.array([0.00,  0.96, -0.24]),
         "y": np.array([0.00,  0.00,  0.93]),
@@ -117,10 +117,10 @@ target = (
 ### All atoms of the target
 
 ```python
-import molpy as mp
+import molpy
 
 target = target.with_restraint(
-    mp.core.Cuboid([0, 0, 0], [40, 40, 40])   # a molrs region: origin, lengths
+    molpy.core.Cuboid([0, 0, 0], [40, 40, 40])   # a molrs region: origin, lengths
 )
 ```
 
@@ -129,8 +129,8 @@ Stack multiple restraints by calling `.with_restraint()` again:
 ```python
 target = (
     target
-    .with_restraint(mp.core.Cuboid([0, 0, 0], [40, 40, 40]))
-    .with_restraint(~mp.core.Sphere([20, 20, 20], 5.0))
+    .with_restraint(molpy.core.Cuboid([0, 0, 0], [40, 40, 40]))
+    .with_restraint(~molpy.core.Sphere([20, 20, 20], 5.0))
 )
 ```
 
@@ -139,7 +139,7 @@ target = (
 ```python
 target = target.with_atom_restraint(
     [30, 31],                                     # 0-based Rust-native indices
-    mp.core.HalfSpace([0.0, 0.0, 1.0], [0.0, 0.0, 2.0]),   # z <= 2
+    molpy.core.HalfSpace([0.0, 0.0, 1.0], [0.0, 0.0, 2.0]),   # z <= 2
 )
 ```
 
@@ -175,7 +175,7 @@ target = target.with_hydrogens(h_indices)
 
 `molpy.builder.PackingTemplate` reads those indices off an assembled
 `Atomistic` (element `H` on `mol.to_frame()`). `template.frame` is a
-`molpy.Frame`, the same class as `mp.Frame`:
+`molpy.Frame`, the same class as `molpy.core.Frame`:
 
 ```python
 import molpy as mp

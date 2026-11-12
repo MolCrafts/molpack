@@ -6,11 +6,9 @@ use std::sync::Arc;
 use molrs::core::Atomistic;
 use molrs::core::Block;
 use molrs::core::Cuboid;
-use molrs::core::Element;
 use molrs::core::Frame;
 use molrs::core::keys;
-use molrs::op::F;
-use molrs::props;
+use molrs::op::{F, Idx};
 use ndarray::{Array1, Array2, array};
 
 use crate::RegionRestraint;
@@ -45,8 +43,9 @@ pub(crate) fn chain_bonds(n: usize) -> Vec<(u32, u32)> {
 
 /// Coordinates + explicit bond list as a `molrs::core::Frame`: an atoms block with
 /// `x`/`y`/`z` and, unless `bonds` is empty, a bonds block with `atomi`/`atomj`.
-/// Deliberately no `bond_type` column — the shape a PDB CONECT list or a
-/// hand-built coarse-grain frame has.
+/// Deliberately no `bond_type` and no `atomic_number` — the shape of a PDB
+/// `CONECT` list or a hand-built coarse-grain frame. Packing uses the columns
+/// that are present.
 pub(crate) fn frame_from_parts(coords: &[[F; 3]], bonds: &[(u32, u32)]) -> Frame {
     let mut frame = Frame::new();
     frame
@@ -54,13 +53,13 @@ pub(crate) fn frame_from_parts(coords: &[[F; 3]], bonds: &[(u32, u32)]) -> Frame
         .expect("an N x 3 array always fits a fresh frame");
     if !bonds.is_empty() {
         let mut block = Block::new();
-        let ai: Vec<u32> = bonds.iter().map(|&(i, _)| i).collect();
-        let aj: Vec<u32> = bonds.iter().map(|&(_, j)| j).collect();
+        let ai: Vec<Idx> = bonds.iter().map(|&(i, _)| Idx::from(i)).collect();
+        let aj: Vec<Idx> = bonds.iter().map(|&(_, j)| Idx::from(j)).collect();
         block
-            .insert("atomi", Array1::from_vec(ai).into_dyn(), None)
+            .insert(keys::ATOMI, Array1::from_vec(ai).into_dyn(), None)
             .expect("atomi column");
         block
-            .insert("atomj", Array1::from_vec(aj).into_dyn(), None)
+            .insert(keys::ATOMJ, Array1::from_vec(aj).into_dyn(), None)
             .expect("atomj column");
         frame.insert("bonds", block);
     }
@@ -77,12 +76,13 @@ pub(crate) fn chain_graph(n: usize) -> Atomistic {
     let mut g = Atomistic::new();
     let ids: Vec<_> = (0..n)
         .map(|_| {
-            g.add_atom(props! { keys::ATOMIC_NUMBER => Element::C })
+            g.add_atom(molrs::props! { molrs::core::keys::ATOMIC_NUMBER => 0u8 })
                 .expect("atom")
         })
         .collect();
     for pair in ids.windows(2) {
-        g.add_bond(pair[0], pair[1], props! {}).expect("bond");
+        g.add_bond(pair[0], pair[1], molrs::props! {})
+            .expect("bond");
     }
     g
 }

@@ -10,16 +10,17 @@ reference output.
 ## At a glance
 
 ```python
-import molpy as mp
-from molpack import GencanPack, Target
 from pathlib import Path
 
-frame = mp.io.read_pdb(Path("water.pdb"))
+import molpy
+from molpack import GencanPack, Target
+
+frame = molpy.io.read_pdb(Path("water.pdb"))
 
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(mp.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
+    .with_restraint(molpy.core.Cuboid([0.0, 0.0, 0.0], [40.0, 40.0, 40.0]))
 )
 
 packer = GencanPack().with_tolerance(2.0).with_seed(42)
