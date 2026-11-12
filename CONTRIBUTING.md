@@ -11,12 +11,12 @@ development environment, run tests, and get a PR merged.
 - [prek](https://github.com/j178/prek) for git hooks (drop-in for pre-commit)
 - [uv](https://docs.astral.sh/uv/) (hooks run `uv run --group dev tox …`; tox is in
   `python/` dependency-group `dev`, not a separate global install)
-- The [molrs](https://github.com/MolCrafts/molpy) repo checked out as a sibling
-  directory named `molrs`:
+- The [molpy](https://github.com/MolCrafts/molpy) repo checked out as a sibling
+  directory named `molpy`:
 
 ```
 workspace/
-├── molrs/      ← git clone https://github.com/MolCrafts/molpy
+├── molpy/      ← git clone https://github.com/MolCrafts/molpy
 └── molpack/    ← this repo
 ```
 
@@ -32,8 +32,9 @@ version fields name the **0.20.*** minor line (see `Cargo.toml` and
 call in the workflow is `--locked`; they record molpy's package metadata, not a
 commit, so relock only when molpy's `dev` changes its version or dependencies
 (the recipe is in `.github/partners.env`).
-The Python wheel checks this on ``import molpack`` — a molpy minor mismatch is an
-``ImportError``, not a later FFI segfault.
+Build both Python wheels from one molpy checkout with the same Rust toolchain.
+The capsule name checks the compiler, source and handle layout when a frame
+or region crosses between extensions; a mismatch raises `ValueError`.
 
 **First-time setup:**
 

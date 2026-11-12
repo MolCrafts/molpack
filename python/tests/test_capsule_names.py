@@ -41,7 +41,7 @@ class TestFrameCapsuleGate:
         block.insert("x", np.array([0.0, 1.0]))
         block.insert("y", np.array([0.0, 0.0]))
         block.insert("z", np.array([0.0, 0.0]))
-        block.insert("id", np.array([1, 2], dtype=np.uint32))
+        block.insert("id", np.array([1, 2], dtype=np.uint64))
         frame["atoms"] = block
         assert molpack.Target(frame, 1) is not None
 
@@ -70,7 +70,7 @@ class TestRegionCapsuleGate:
         block.insert("x", np.array([0.0]))
         block.insert("y", np.array([0.0]))
         block.insert("z", np.array([0.0]))
-        block.insert("id", np.array([1], dtype=np.uint32))
+        block.insert("id", np.array([1], dtype=np.uint64))
         frame["atoms"] = block
         return molpack.Target(frame, 1)
 

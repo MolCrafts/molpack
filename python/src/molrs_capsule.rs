@@ -1,6 +1,6 @@
 //! Zero-copy interop between molrs Python objects and molrs-ffi handles.
 //!
-//! molrs and molpack are **separate** PyO3 extensions, so a `molrs.core.Frame`
+//! molrs and molpack are **separate** PyO3 extensions, so a `molpy.core.Frame`
 //! pyclass cannot be `.extract()`d into a Rust value here. Instead molrs-python
 //! exposes a stable-FFI capsule — `Frame._ffi_frameref_capsule()` — and molpack
 //! resolves it to the shared `molrs_ffi::FrameRef` handle. This is the exact
@@ -43,12 +43,12 @@ fn ffi_err(e: FfiError) -> PyErr {
     PyTypeError::new_err(format!("molrs FFI error: {e}"))
 }
 
-/// Resolve a `molrs.core.Frame` (which `molpy.Frame` is) to a shared [`FrameRef`] (zero-copy).
+/// Resolve a `molpy.core.Frame` (which `molpy.Frame` is) to a shared [`FrameRef`] (zero-copy).
 ///
 /// Clones the handle the capsule carries (two `Rc` bumps) onto the same store,
 /// so reads/writes through the returned handle are visible in the originating
 /// Python frame. The object must expose `_ffi_frameref_capsule()` — i.e. be a
-/// real `molrs.core.Frame` (a plain `dict` is refused).
+/// real `molpy.core.Frame` (a plain `dict` is refused).
 pub fn frame_from_py(obj: &Bound<'_, PyAny>) -> PyResult<FrameRef> {
     let capsule = capsule_from(obj, "_ffi_frameref_capsule")?;
     // The expected name carries the handle-layout fingerprint of the molrs
@@ -114,7 +114,7 @@ pub fn stamp_box_bounds(frame: &mut Frame, box_bounds: Option<([F; 3], [F; 3])>)
     Ok(())
 }
 
-/// One-shot Rust ``Frame`` → Python ``molrs.core.Frame``.
+/// One-shot Rust ``Frame`` → Python ``molpy.core.Frame``.
 ///
 /// Two cdylibs cannot share a pyclass, so this clones into a standalone
 /// ``FrameRef`` capsule. Do it once and keep the Python object.

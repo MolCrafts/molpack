@@ -92,15 +92,17 @@ let frame = result.frame;
 **Python**
 
 ```python
-import molrs
+from pathlib import Path
+
+import molpy
 from molpack import GencanPack, Target
 
-frame = molrs.io.read_pdb("water.pdb")
+frame = molpy.io.read_pdb(Path("water.pdb"))
 
 water = (
     Target(frame, count=100)
     .with_name("water")
-    .with_restraint(molrs.core.Cuboid([0, 0, 0], [40, 40, 40]))
+    .with_restraint(molpy.core.Cuboid([0, 0, 0], [40, 40, 40]))
 )
 result = GencanPack().run([water], max_loops=200)
 frame = result.frame
