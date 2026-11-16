@@ -1137,3 +1137,24 @@ fn repeat_should_stop_yields_immediately() {
         "a run abandoned mid-combinator must never be reported as converged"
     );
 }
+
+/// A periodic pack hands back every free copy with its centroid inside the
+/// declared cell: the solver may leave copy centres any number of cells away
+/// (periodic distances cannot tell), the frame must not.
+#[test]
+fn periodic_pack_returns_copies_inside_the_cell() {
+    let state = chain_settings(GencanPack::new())
+        .run(&chain_targets(), CHAIN_LOOPS)
+        .expect("chain pack");
+    let positions = state.positions();
+    let per_copy = positions.len() / chain_targets()[0].count;
+    for (k, copy) in positions.chunks(per_copy).enumerate() {
+        for d in 0..3 {
+            let c = copy.iter().map(|p| p[d]).sum::<F>() / copy.len() as F;
+            assert!(
+                (0.0..CHAIN_BOX).contains(&c),
+                "copy {k}: centroid axis {d} = {c} Å, outside [0, {CHAIN_BOX})"
+            );
+        }
+    }
+}

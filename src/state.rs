@@ -217,6 +217,53 @@ pub(crate) fn positions_in_target_order(
     out
 }
 
+/// Move every free copy, as a whole, by lattice vectors so its centroid lies
+/// in `cell` along each periodic axis.
+///
+/// The packer optimises copy centres without bounds on a periodic axis, so a
+/// converged copy may sit any number of cells away; periodic distances do not
+/// see that, but a reader of the frame does. Folding whole copies (not atoms)
+/// keeps every molecule intact. Fixed targets are left where they were
+/// placed, and a copy already in the cell is not touched at all. `positions`
+/// is in target-declared order (see [`positions_in_target_order`]).
+pub(crate) fn fold_copies_into_cell(
+    targets: &[Target],
+    positions: &[[F; 3]],
+    cell: &SimBox,
+) -> Vec<[F; 3]> {
+    let mut out = Vec::with_capacity(positions.len());
+    let mut cursor = 0usize;
+    for target in targets {
+        let n = target.natoms();
+        let copies = if target.fixed_at.is_some() {
+            1
+        } else {
+            target.count
+        };
+        for _ in 0..copies {
+            let copy = &positions[cursor..cursor + n];
+            cursor += n;
+            if target.fixed_at.is_some() || n == 0 {
+                out.extend_from_slice(copy);
+                continue;
+            }
+            let centre: [F; 3] =
+                std::array::from_fn(|d| copy.iter().map(|p| p[d]).sum::<F>() / n as F);
+            let (folded, images) = cell.wrap(ndarray::arr2(&[centre]).view());
+            if images.iter().all(|&m| m == 0) {
+                out.extend_from_slice(copy);
+                continue;
+            }
+            let shift: [F; 3] = std::array::from_fn(|d| folded[[0, d]] - centre[d]);
+            out.extend(
+                copy.iter()
+                    .map(|p| std::array::from_fn(|d| p[d] + shift[d])),
+            );
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::IntraResidual;
@@ -428,5 +475,83 @@ mod tests {
             degraded: 0,
         };
         assert_eq!(state.natoms(), 2);
+    }
+
+    // ── fold_copies_into_cell ────────────────────────────────────────────
+
+    fn cell10(pbc: [bool; 3]) -> SimBox {
+        SimBox::new(
+            molrs::core::Cell::Lengths([10.0, 10.0, 10.0]),
+            [0.0; 3],
+            pbc,
+        )
+        .expect("cubic cell")
+    }
+
+    fn centroid(points: &[[F; 3]]) -> [F; 3] {
+        let n = points.len() as F;
+        std::array::from_fn(|d| points.iter().map(|p| p[d]).sum::<F>() / n)
+    }
+
+    /// A dimer at x ≈ -25.5 Å in a 10 Å periodic cell comes back whole, by
+    /// whole cells, with its centroid inside the cell.
+    #[test]
+    fn a_copy_cells_away_is_folded_whole() {
+        let target = bonded_target(&along_x(2), 1);
+        let far = vec![[-26.0, 3.0, 4.0], [-25.0, 3.0, 4.0]];
+        let out = super::fold_copies_into_cell(&[target], &far, &cell10([true; 3]));
+        let c = centroid(&out);
+        assert!(
+            (0.0..10.0).contains(&c[0]),
+            "centroid x {} not in [0, 10)",
+            c[0]
+        );
+        assert!(
+            (out[1][0] - out[0][0] - 1.0).abs() < 1e-12,
+            "the dimer was split"
+        );
+        assert!(
+            (out[0][0] - (-26.0 + 30.0)).abs() < 1e-12,
+            "moved by other than three cells"
+        );
+        assert_eq!(
+            out[0][1].to_bits(),
+            3.0f64.to_bits(),
+            "y moved although inside"
+        );
+    }
+
+    /// A non-periodic axis is not folded: a copy above the cell stays there.
+    #[test]
+    fn a_non_periodic_axis_is_not_folded() {
+        let target = bonded_target(&along_x(2), 1);
+        let above = vec![[2.0, 2.0, 35.0], [3.0, 2.0, 35.0]];
+        let out = super::fold_copies_into_cell(&[target], &above, &cell10([true, true, false]));
+        assert_eq!(out[0][2].to_bits(), 35.0f64.to_bits());
+    }
+
+    /// Each copy is folded on its own centroid; one already in the cell is
+    /// returned bit for bit.
+    #[test]
+    fn copies_fold_independently() {
+        let target = bonded_target(&along_x(2), 2);
+        let positions = vec![
+            [1.0, 1.0, 1.0],
+            [2.0, 1.0, 1.0],
+            [41.0, 1.0, 1.0],
+            [42.0, 1.0, 1.0],
+        ];
+        let out = super::fold_copies_into_cell(&[target], &positions, &cell10([true; 3]));
+        assert_eq!(&out[..2], &positions[..2], "the copy in the cell moved");
+        assert!((out[2][0] - 1.0).abs() < 1e-12 && (out[3][0] - 2.0).abs() < 1e-12);
+    }
+
+    /// A fixed target keeps its placement, wherever it is.
+    #[test]
+    fn a_fixed_target_is_not_folded() {
+        let fixed = bonded_target(&along_x(2), 1).fixed_at([0.0; 3]);
+        let positions = vec![[-30.0, 0.0, 0.0], [-29.0, 0.0, 0.0]];
+        let out = super::fold_copies_into_cell(&[fixed], &positions, &cell10([true; 3]));
+        assert_eq!(out, positions);
     }
 }
