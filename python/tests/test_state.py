@@ -174,3 +174,23 @@ class TestFrameTopology:
         result.frame.box = molpy.core.Box.cube(20.0)
         assert result.frame.box is not None
         assert np.allclose(np.asarray(result.frame.box.lengths), [20.0, 20.0, 20.0])
+
+
+class TestPeriodicFrame:
+    def test_every_copy_centroid_lies_in_the_cell(self):
+        # A rod packed in a periodic cell: the solver may leave copy centres
+        # cells away; the frame must hand each copy back inside the cell, whole.
+        rod = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [3.0, 0.0, 0.0]])
+        edge = 12.0
+        state = (
+            molpack.GencanPack()
+            .with_seed(3)
+            .with_tolerance(2.0)
+            .with_periodic_box([0.0, 0.0, 0.0], [edge] * 3)
+            .run([molpack.Target(_make_frame(rod, ["C", "C", "C"]), 20)], max_loops=200)
+        )
+        xyz = np.column_stack([_col(state.frame, "atoms", k) for k in "xyz"])
+        centres = xyz.reshape(20, 3, 3).mean(axis=1)
+        assert ((centres >= 0.0) & (centres < edge)).all(), centres
+        bonds = np.linalg.norm(np.diff(xyz.reshape(20, 3, 3), axis=1), axis=2)
+        assert np.allclose(bonds, 1.5), "a copy was split by the fold"

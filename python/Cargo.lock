@@ -221,7 +221,7 @@ dependencies = [
 
 [[package]]
 name = "molcrafts-molpack"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "log",
  "molcrafts-molrs",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "molpack-python"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "molcrafts-molpack",
  "molcrafts-molrs",

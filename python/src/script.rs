@@ -87,8 +87,8 @@ impl PyScriptJob {
 ///     Callable ``(path: str, filetype: str | None) -> Frame`` used to
 ///     load each ``structure`` template. The returned object only needs
 ///     a ``frame["atoms"]`` block exposing ``x`` / ``y`` / ``z`` and an
-///     ``element`` column. Must be a :class:`molrs.core.Frame` (``molpy.Frame``
-///     is the same class). Defaults to the ``molrs.io`` reader of the
+///     ``element`` column. Must be a :class:`molpy.core.Frame` (``molpy.Frame``
+///     is the same class). Defaults to the ``molpy.io`` reader of the
 ///     format ``filetype`` or the file name names (``read_pdb``,
 ///     ``read_xyz``, …).
 ///
@@ -135,7 +135,7 @@ pub fn load_script(
 }
 
 /// How a template file becomes a frame: the caller's callable, or the
-/// `molrs.io` reader of the file's format.
+/// `molpy.io` reader of the file's format.
 enum TemplateLoader<'py> {
     Callable(Py<PyAny>),
     Molrs(Bound<'py, PyModule>),
@@ -178,7 +178,7 @@ fn import_molrs_io(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     })
 }
 
-/// Read the first structure of `path` through the ``molrs.io`` reader of
+/// Read the first structure of `path` through the ``molpy.io`` reader of
 /// `format` — the Python twin of `StructureFormat::read`.
 fn read_with_molrs<'py>(
     io: &Bound<'py, PyModule>,

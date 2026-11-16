@@ -210,7 +210,7 @@ impl InternalTree {
         steps.push((start, sites.len()));
         step_var.push(current);
 
-        let exclusions = crate::special_bonds::exclusions(&topo, weights)
+        let exclusions = crate::bond_weights::excluded_partners(&topo, weights)
             .into_iter()
             .map(|row| row.into_iter().map(|i| i as u32).collect())
             .collect();
@@ -247,7 +247,7 @@ impl InternalTree {
     /// Same-molecule partners of `atom` within this tree's exclusion depth,
     /// ascending and **including `atom` itself** — the skip set the overlap
     /// field expects, since an atom must not be scored against its own
-    /// position. Produced by [`molrs::core::Topology::exclusions`].
+    /// position. Produced by [`crate::bond_weights::excluded_partners`].
     pub fn exclusions(&self, atom: usize) -> &[u32] {
         &self.exclusions[atom]
     }

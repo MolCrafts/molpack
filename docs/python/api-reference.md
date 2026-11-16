@@ -462,7 +462,7 @@ distribution-matching restraints ([next section](#collective-distribution-matchi
 Any molrs region object attaches as a restraint: `molpy.core.Sphere`, `Cuboid`,
 `Parallelepiped`, `HalfSpace`, `Cylinder`, `Ellipsoid`, `Polyhedron`,
 `SphereUnion`, or any `&` / `|` / `~` composition of them. The region
-crosses the wheel boundary as a `molpy.RegionRef` capsule (both wheels built
+crosses the wheel boundary as a `molrs.RegionRef/<fingerprint>` capsule (both wheels built
 from one molpy checkout) and is lifted to `scale · max(0, distance)²` — a
 soft quadratic penalty on the **atom centre** that is zero inside the
 region and on its boundary. molpack defines no geometric restraint class;

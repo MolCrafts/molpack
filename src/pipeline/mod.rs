@@ -14,7 +14,7 @@ use crate::Target;
 use crate::callback::{Callback, StageProgress};
 use crate::pack_space::{ResolvedSpace, broadcast_global_restraints, resolve_pack_space};
 use crate::stage::{Budget, Stage};
-use crate::state::{Placements, positions_in_target_order};
+use crate::state::{Placements, fold_copies_into_cell, positions_in_target_order};
 use crate::system::build::{SystemKnobs, build_system};
 use crate::system::{PackState, Placed};
 use crate::{IntraResidual, PackSettings, State};
@@ -389,7 +389,13 @@ impl Pipeline {
         };
 
         let xcart = std::mem::take(&mut sys.xcart);
-        let positions = positions_in_target_order(setup.targets, &xcart, setup.ntotat_free);
+        let ordered = positions_in_target_order(setup.targets, &xcart, setup.ntotat_free);
+        // A declared periodic cell gets its copies back inside it, whole; the
+        // placement snapshot above keeps the solver's own centres untouched.
+        let positions = match &space.cell {
+            Some(cell) => fold_copies_into_cell(setup.targets, &ordered, cell),
+            None => ordered,
+        };
         let intra = IntraResidual::from_targets(setup.targets, &positions, &sys.simbox);
         let mut frame = crate::assemble::assemble_frame(setup.targets, &positions)?;
         // The resolved cell — a periodic box, a declared lattice or a seed's
