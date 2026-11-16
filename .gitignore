@@ -15,6 +15,7 @@ __pycache__/
 *.dylib
 *.pyd
 .venv/
+.tox/
 dist/
 *.egg-info/
 # pytest-benchmark cache (regenerated on each run)
@@ -62,3 +63,7 @@ site/
 # example outputs
 examples/pack_peo/out/
 python/examples/out/
+
+# Local agent scratch
+.agents/
+.codex/
