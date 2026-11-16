@@ -24,8 +24,8 @@ hero:
     - img: https://img.shields.io/pypi/v/molcrafts-molpack?color=d97706&label=PyPI
       href: https://pypi.org/project/molcrafts-molpack/
       alt: PyPI version
-    - img: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml/badge.svg
-      href: https://github.com/MolCrafts/molpack/actions/workflows/ci.yml
+    - img: https://github.com/MolCrafts/molpack/actions/workflows/test.yml/badge.svg
+      href: https://github.com/MolCrafts/molpack/actions/workflows/test.yml
       alt: CI status
     - img: https://img.shields.io/badge/license-BSD--3--Clause-blue.svg
       href: https://github.com/MolCrafts/molpack/blob/master/LICENSE
@@ -138,7 +138,7 @@ the writer or analysis code you already use. See the [Python API](python/).
 
 ```python
 water = Target(frame, 100).with_restraint(
-    molrs.core.Cuboid([0, 0, 0], [40, 40, 40])
+    molpy.core.Cuboid([0, 0, 0], [40, 40, 40])
 )
 packed = GencanPack().with_seed(42).run([water], max_loops=200).frame
 ```

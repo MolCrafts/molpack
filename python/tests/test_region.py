@@ -3,7 +3,7 @@
 molpack has no region class of its own: a region is a molrs object
 (``Sphere``, ``Cuboid``, ``Parallelepiped``, ``HalfSpace``, ``Cylinder``,
 ``Ellipsoid``, ``Polyhedron``, ``SphereUnion`` or a ``&`` / ``|`` / ``~``
-composition) that crosses the wheel boundary as a ``molpy.RegionRef`` capsule
+composition) that crosses the wheel boundary as a ``molrs.RegionRef/<fingerprint>`` capsule
 and is lifted to "stay inside" by ``RegionRestraint``.
 """
 

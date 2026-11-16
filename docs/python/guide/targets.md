@@ -175,7 +175,7 @@ target = target.with_hydrogens(h_indices)
 
 `molpy.builder.PackingTemplate` reads those indices off an assembled
 `Atomistic` (element `H` on `mol.to_frame()`). `template.frame` is a
-`molpy.Frame`, the same class as `molrs.core.Frame`:
+`molpy.Frame`, the same class as `molpy.core.Frame`:
 
 ```python
 import molpy as mp

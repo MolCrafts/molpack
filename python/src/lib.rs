@@ -15,10 +15,10 @@
 //! | `StageProgress`  | [`PyStageProgress`]  | Which stage a callback came from   |
 //! | `PackSystemView` | [`PyPackSystemView`] | Callback-scoped live-system guard  |
 //!
-//! Geometric restraints are molrs region objects (`molrs.core.Sphere`, `Cuboid`,
+//! Geometric restraints are molrs region objects (`molpy.core.Sphere`, `Cuboid`,
 //! `Parallelepiped`, `HalfSpace`, `Cylinder`, `Ellipsoid`, `Polyhedron`,
 //! `SphereUnion`, or a `&` / `|` / `~` composition), resolved through their
-//! `molrs.RegionRef/<line>` capsule and lifted by `RegionRestraint` — this
+//! `molrs.RegionRef/<fingerprint>` capsule and lifted by `RegionRestraint` — this
 //! wheel defines no geometry class. Custom Python restraints are attached by
 //! passing any object with callable `f(x, scale, scale2)` and
 //! `fg(x, scale, scale2)` methods to `Target.with_restraint` — no dedicated

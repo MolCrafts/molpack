@@ -119,7 +119,7 @@ type BuiltinRestraint = (
 )
 
 class _RegionLike(Protocol):
-    """Any molrs region object: it exports the ``molpy.RegionRef`` capsule."""
+    """Any molrs region object: it exports the ``molrs.RegionRef/<fingerprint>`` capsule."""
 
     def _ffi_regionref_capsule(self) -> object: ...
 
@@ -316,7 +316,7 @@ class State:
         impropers, with indices offset per copy) onto the packed coordinates,
         regenerates ``id`` / ``mol_id``, and stamps ``frame.box`` from the
         periodic box (if one was declared via ``with_periodic_box``). Returns a
-        genuine ``molpy.core.Frame`` (built via the user's installed ``molrs``),
+        genuine ``molpy.core.Frame`` (built via the user's installed ``molpy``),
         which is ``molpy.Frame`` too — there is one Frame class. Falls
         back to a coordinates-only ``atoms`` block for ``.inp`` script packing.
         Force fields are out of scope — merge them separately.

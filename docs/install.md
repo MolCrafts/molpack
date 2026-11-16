@@ -66,18 +66,19 @@ print(molpack.GencanPack)
 
 ## Build from source
 
-When you are modifying the crate or Python binding, check out **molrs** as a
-sibling (path deps resolve `../molpy/crates/molrs`). molpack 0.5 builds on the molrs
-**0.17** line: molrs `dev`, or the release tag `v0.17.0`. Build both wheels
-from one molpy checkout: a frame or region capsule from another build is
-rejected with `ValueError`.
+When you are modifying the crate or Python binding, check out **molpy** as a
+sibling (path deps resolve `../molpy/crates/molrs`). The partner revision is
+recorded in `.github/partners.env`. Build both wheels from that molpy checkout
+with the same Rust toolchain: a frame or region capsule from another source,
+compiler or handle layout is rejected with `ValueError`.
 
 ```bash
 # sibling layout
 # workspace/
-# ├── molrs/
+# ├── molpy/
 # └── molpack/
 
+git clone https://github.com/MolCrafts/molpy
 git clone https://github.com/MolCrafts/molpack
 cd molpack
 

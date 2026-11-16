@@ -51,9 +51,6 @@ target/**/*.pdb
 # Zensical build output
 site/
 
-# Claude Code session state
-.claude/scheduled_tasks.lock
-
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
@@ -61,9 +58,6 @@ site/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Local Claude worktrees (transient)
-.claude/worktrees/
-.tox/
 
 # example outputs
 examples/pack_peo/out/

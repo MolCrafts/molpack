@@ -215,7 +215,7 @@ The seam is molrs's `Optimizer` trait, one method over a `Frame`:
 
 ```text
 pub trait Optimizer: Send + Sync {
-    fn minimize(&mut self, frame: &mut Frame) -> Result<OptimizationReport, String>;
+    fn minimize(&mut self, frame: &mut Frame) -> Result<OptimizationReport, OptimizeError>;
 }
 ```
 

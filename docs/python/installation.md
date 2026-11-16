@@ -48,22 +48,29 @@ its FFI capsule.
 Requires a Rust toolchain (1.91+) and `maturin`:
 
 ```bash
+git clone https://github.com/MolCrafts/molpy
 git clone https://github.com/MolCrafts/molpack
 cd molpack/python
 pip install maturin
 maturin develop --release
 ```
 
-This builds against the local `molpack` Rust crate under `../`.
+This builds against the local `molpack` Rust crate under `../` and the sibling
+`molpy` checkout. Use the revision in `.github/partners.env` and build both
+wheels with the same Rust toolchain so their capsule fingerprints agree.
 
 ## Verification
 
 ```python
 import molpy
+import numpy as np
 from molpack import Target
 
 frame = molpy.core.Frame(
-    {"atoms": {"x": [0.0], "y": [0.0], "z": [0.0], "element": ["O"]}}
+    {"atoms": {
+        "x": np.array([0.0]), "y": np.array([0.0]), "z": np.array([0.0]),
+        "element": np.array(["O"]),
+    }}
 )
 target = Target(frame, count=1).with_name("mol")
 print(target)  # Target(natoms=1, count=1, name=Some("mol"))

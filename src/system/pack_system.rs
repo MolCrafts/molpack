@@ -203,8 +203,9 @@ pub struct PackSystem {
     /// Replaces the axis-aligned `pbc_min` / `pbc_length` pair, so the cell may
     /// be hexagonal, monoclinic or fully triclinic — the geometry Packmol
     /// cannot express at all. It is also the single source of truth for the
-    /// minimum image: the pair kernel calls
-    /// [`SimBox::shortest_vector_impl`], which honours `pbc` per axis.
+    /// minimum image: the pair kernel applies
+    /// [`Mic::apply`](molrs::core::Mic::apply) to the raw displacement, which
+    /// honours `pbc` per axis.
     pub simbox: SimBox,
     /// Partition of [`simbox`](Self::simbox) into cells, in fractional space.
     ///

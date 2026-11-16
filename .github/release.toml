@@ -1,0 +1,7 @@
+[crates-io]
+packages = ["molcrafts-molpack"]
+
+[pypi]
+packages = ["molcrafts-molpack"]
+
+[github-release]

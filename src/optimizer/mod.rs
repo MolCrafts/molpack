@@ -388,7 +388,9 @@ mod tests {
             self.0.lock().unwrap().push(n);
             Ok(molrs::optimize::OptimizationReport {
                 converged: true,
+                stop_reason: molrs::optimize::StopReason::Empty,
                 n_steps: 0,
+                n_evals: 0,
                 final_energy: 0.0,
                 final_fmax: 0.0,
                 final_grad_rms: 0.0,

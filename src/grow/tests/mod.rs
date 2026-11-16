@@ -7,9 +7,7 @@ mod internal;
 mod prior;
 mod refusals;
 
-// Fixtures for the chain-growth solver tests
-// (`.claude/specs/chain-growth-solver.md`), running on the `CbmcGrow`
-// engine.
+// Fixtures for the chain-growth solver tests on the `CbmcGrow` engine.
 //
 // ── Section: named rejections + result surface ────────────────────────────
 //
