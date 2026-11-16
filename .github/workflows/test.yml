@@ -20,7 +20,7 @@ defaults:
 jobs:
   context:
     name: test
-    uses: MolCrafts/molcrafts-ci/.github/workflows/context.yml@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    uses: MolCrafts/molcrafts-ci/.github/workflows/context.yml@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
     with:
       profile: molpack
   native:
@@ -32,13 +32,13 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
-    - uses: MolCrafts/molcrafts-ci/actions/setup-molci@7644b440c0c5c400a35ba4e91a59089c09a7cc50
-    - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
-    - uses: MolCrafts/molcrafts-ci/actions/setup-rust@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    - uses: MolCrafts/molcrafts-ci/actions/setup-molci@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
+    - uses: MolCrafts/molcrafts-ci/actions/setup-partners@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
+    - uses: MolCrafts/molcrafts-ci/actions/setup-rust@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
       with:
         cache: molpack
         workspaces: ../molpy -> target
-    - uses: MolCrafts/molcrafts-ci/actions/setup-python@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    - uses: MolCrafts/molcrafts-ci/actions/setup-python@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
     - run: molci platform native
   platform:
     name: test / platform (${{ matrix.lane }})
@@ -52,13 +52,13 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
-    - uses: MolCrafts/molcrafts-ci/actions/setup-molci@7644b440c0c5c400a35ba4e91a59089c09a7cc50
-    - uses: MolCrafts/molcrafts-ci/actions/setup-partners@7644b440c0c5c400a35ba4e91a59089c09a7cc50
-    - uses: MolCrafts/molcrafts-ci/actions/setup-rust@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    - uses: MolCrafts/molcrafts-ci/actions/setup-molci@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
+    - uses: MolCrafts/molcrafts-ci/actions/setup-partners@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
+    - uses: MolCrafts/molcrafts-ci/actions/setup-rust@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
       with:
         cache: molpack
         workspaces: ../molpy -> target
-    - uses: MolCrafts/molcrafts-ci/actions/setup-python@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    - uses: MolCrafts/molcrafts-ci/actions/setup-python@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
     - run: molci platform ${{ matrix.lane }}
   result:
     name: test / result
@@ -69,6 +69,6 @@ jobs:
     if: always() && (needs.context.result != 'success' || needs.context.outputs.validate != 'false')
     runs-on: ubuntu-latest
     steps:
-    - uses: MolCrafts/molcrafts-ci/actions/validation-result@7644b440c0c5c400a35ba4e91a59089c09a7cc50
+    - uses: MolCrafts/molcrafts-ci/actions/validation-result@3cc26f4ff1b8b6d09365d677c4a05cc8cbb70a76
       with:
         needs: ${{ toJSON(needs) }}
